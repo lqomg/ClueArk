@@ -3,16 +3,17 @@
 @tailwind utilities;
 
 :root {
-  --ark-bg: #0f141a;
-  --ark-sidebar: #0a0d11;
-  --ark-surface: #1a1f26;
-  --ark-border: #303742;
-  --ark-text: #f8fafc;
-  --ark-muted: #94a3b8;
-  --ark-accent: #00f2ff;
-  --ark-danger: #ef4444;
-  --ark-green-tint: #16221c;
-  --ark-green-text: #3fb950;
+  /* 使用 RGB 变量，确保 Tailwind 的 `/xx` 透明度语法可用 */
+  --ark-bg: 15 20 26;
+  --ark-sidebar: 10 13 17;
+  --ark-surface: 26 31 38;
+  --ark-border: 48 55 66;
+  --ark-text: 248 250 252;
+  --ark-muted: 148 163 184;
+  --ark-accent: 0 242 255;
+  --ark-danger: 239 68 68;
+  --ark-green-tint: 22 34 28;
+  --ark-green-text: 63 185 80;
 }
 
 /* 根字号略增（约 16px→17px），Tailwind 基于 rem 的 text-* 会整体略大 */
@@ -42,7 +43,7 @@ body {
 /* 全局细滚动条：与暗色主题对齐，避免系统默认粗条 */
 * {
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--ark-border) 75%, transparent) transparent;
+  scrollbar-color: color-mix(in srgb, rgb(var(--ark-border)) 75%, transparent) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -56,13 +57,13 @@ body {
 
 *::-webkit-scrollbar-thumb {
   border-radius: 9999px;
-  background-color: color-mix(in srgb, var(--ark-border) 70%, transparent);
+  background-color: color-mix(in srgb, rgb(var(--ark-border)) 70%, transparent);
   border: 1px solid transparent;
   background-clip: padding-box;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background-color: color-mix(in srgb, var(--ark-muted) 55%, var(--ark-border));
+  background-color: color-mix(in srgb, rgb(var(--ark-muted)) 55%, rgb(var(--ark-border)));
 }
 
 *::-webkit-scrollbar-corner {
@@ -70,11 +71,11 @@ body {
 }
 
 input[type='checkbox'] {
-  accent-color: var(--ark-accent);
+  accent-color: rgb(var(--ark-accent));
 }
 
 ::selection {
-  background-color: var(--ark-accent);
+  background-color: rgb(var(--ark-accent));
   color: #000;
 }
 

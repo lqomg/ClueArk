@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Radar, Settings2, Trash2 } from 'lucide-react';
 import { deleteMonitor, listMonitors } from '@/api/monitors';
 import type { Monitor } from '@/types/models';
@@ -10,6 +10,7 @@ const linkOutlineSm =
   'inline-flex items-center justify-center rounded-lg border border-ark-border px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-ark-accent/50 hover:text-ark-accent';
 
 export function MonitorsListPage() {
+  const navigate = useNavigate();
   const [rows, setRows] = useState<Monitor[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,26 +86,42 @@ export function MonitorsListPage() {
             {(rows ?? []).map((m) => (
               <li
                 key={m.id}
-                className="flex flex-col rounded-xl border border-ark-border bg-ark-surface/50 p-4 transition hover:border-white/10"
+                className={cn(
+                  'group flex flex-col rounded-xl border border-ark-border bg-ark-surface/50 p-4 transition',
+                  'cursor-pointer hover:border-ark-accent/35 hover:bg-ark-surface/70 hover:shadow-lg hover:shadow-black/25',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ark-accent/35 focus-visible:ring-offset-2 focus-visible:ring-offset-ark-bg',
+                )}
+                tabIndex={0}
+                role="link"
+                aria-label={`进入监控「${m.title}」时间线`}
+                onClick={() => navigate(`/app/monitors/${m.id}`)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    navigate(`/app/monitors/${m.id}`);
+                  }
+                }}
               >
-                <Link
-                  to={`/app/monitors/${m.id}`}
-                  className="text-base font-bold text-white hover:text-ark-accent"
-                >
+                <div className="text-base font-bold text-white transition group-hover:text-ark-accent">
                   {m.title}
-                </Link>
+                </div>
                 <p className="mt-1 line-clamp-2 text-xs text-slate-500">{m.description}</p>
                 <p className="mt-2 text-[11px] text-slate-600">
                   {m.sourceIds.length} 个信源 ·{' '}
                   {new Date(m.createdAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2 border-t border-white/[0.06] pt-3">
-                  <Link to={`/app/monitors/${m.id}`} className={linkOutlineSm}>
+                  <Link
+                    to={`/app/monitors/${m.id}`}
+                    className={linkOutlineSm}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     时间线
                   </Link>
                   <Link
                     to={`/app/monitors/${m.id}/settings`}
                     className={cn(linkOutlineSm, 'inline-flex items-center gap-1')}
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <Settings2 size={14} />
                     信源
@@ -115,7 +132,10 @@ export function MonitorsListPage() {
                     size="sm"
                     className="text-red-400 hover:border-red-500/40 hover:text-red-300"
                     disabled={deletingId === m.id}
-                    onClick={() => void onDelete(m.id, m.title)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void onDelete(m.id, m.title);
+                    }}
                   >
                     <Trash2 size={14} className="mr-1 inline" />
                     删除
