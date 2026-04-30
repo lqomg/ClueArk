@@ -1,0 +1,7 @@
+{
+  "invalid_credentials": "邮箱或密码错误",
+  "account_already_exists": "该邮箱已注册",
+  "user_not_found": "用户不存在",
+  "invalid_update_check_parameters": "版本检查参数无效",
+  "internal_error": "服务器内部错误"
+}

@@ -1,0 +1,101 @@
+# ClueArk 全栈单机部署（MongoDB + 后端 + 前端 Nginx）
+#
+# 首次准备：
+#   1. cp .env.example .env，按需填写（生产务必设置 JWT_SECRET、ADMIN_PASSWORD、Mongo root 密码等）
+#   2. 首次部署（或要重置数据库）执行：docker compose down -v
+#
+# 启动：
+#   docker compose up -d --build
+#
+# 访问：浏览器打开 http://localhost:${WEB_PORT:-8080}（Nginx 将 /api 反代到后端）
+#
+# 爬虫服务默认随栈启动（闭环抓取 Web 信源并上报主站）。
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: clueark-mongodb
+    restart: unless-stopped
+    command: ["mongod", "--auth", "--bind_ip_all"]
+    ports:
+      - "0.0.0.0:${MONGO_BIND_PORT:-27017}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-change_me_root_password}
+    volumes:
+      - clueark_mongodb_data:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet -u \"$MONGO_INITDB_ROOT_USERNAME\" -p \"$MONGO_INITDB_ROOT_PASSWORD\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" | grep -q 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: clueark-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+    env_file:
+      - path: ./.env
+        required: true
+    volumes:
+      - ./backend/logs:/app/logs
+      - ./backend/uploads:/app/uploads
+      - ./data:/data:ro
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://127.0.0.1:3000/api/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-/api}
+    container_name: clueark-web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-80}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  crawler:
+    build:
+      context: ./crawler
+      dockerfile: Dockerfile
+    container_name: clueark-crawler
+    restart: unless-stopped
+    env_file:
+      - path: ./.env
+        required: true
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      # crawler 访问主站使用容器内地址（浏览器/外网不可用）
+      CLUEARK_BACKEND_URL: http://backend:3000
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://127.0.0.1:3100/api/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 25s
+
+volumes:
+  clueark_mongodb_data:

@@ -1,0 +1,7 @@
+{
+  "invalid_credentials": "メールまたはパスワードが正しくありません",
+  "account_already_exists": "このメールは既に登録されています",
+  "user_not_found": "ユーザーが見つかりません",
+  "invalid_update_check_parameters": "更新チェックのパラメータが無効です",
+  "internal_error": "サーバー内部エラー"
+}

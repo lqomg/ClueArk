@@ -1,0 +1,175 @@
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import * as bcrypt from 'bcrypt';
+import { User, UserDocument, type UserRole } from './schemas/user.schema';
+
+export interface CreateUserInput {
+  email: string;
+  password: string;
+  username?: string;
+}
+
+@Injectable()
+export class UsersService {
+  constructor(@InjectModel(User.name) private readonly userModel: Model<UserDocument>) {}
+
+  async create(input: CreateUserInput): Promise<UserDocument> {
+    const email = input.email.trim().toLowerCase();
+    const exists = await this.userModel.exists({ email }).exec();
+    if (exists) {
+      throw new ConflictException('email_already_exists');
+    }
+    const username = (input.username?.trim() || (await this.generateUsernameFromEmail(email))).trim();
+    const hashed = await bcrypt.hash(input.password, 10);
+    const doc = new this.userModel({
+      email,
+      username,
+      password: hashed,
+    });
+    return doc.save();
+  }
+
+  private async generateUsernameFromEmail(email: string): Promise<string> {
+    const local = (email.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 32) || 'user';
+    let base = local;
+    let candidate = base;
+    let n = 0;
+    while (await this.userModel.exists({ username: candidate }).exec()) {
+      n += 1;
+      candidate = `${base}_${n}`;
+    }
+    return candidate;
+  }
+
+  async findByEmail(email: string): Promise<UserDocument | null> {
+    return this.userModel.findOne({ email: email.trim().toLowerCase() }).select('+password').exec();
+  }
+
+  async findByUsername(username: string): Promise<UserDocument | null> {
+    const trimmed = username.trim();
+    if (!trimmed) return null;
+    const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return this.userModel.findOne({ username: new RegExp(`^${escaped}$`, 'i') }).select('+password').exec();
+  }
+
+  async findById(id: string): Promise<UserDocument | null> {
+    return this.userModel.findById(id).exec();
+  }
+
+  async updateProfile(userId: string, patch: { username?: string }): Promise<UserDocument> {
+    const $set: Record<string, string> = {};
+    if (patch.username != null && patch.username.trim()) {
+      $set.username = patch.username.trim();
+    }
+    if (!Object.keys($set).length) {
+      const u = await this.findById(userId);
+      if (!u) throw new NotFoundException('user_not_found');
+      return u;
+    }
+    const updated = await this.userModel.findByIdAndUpdate(userId, { $set }, { new: true }).exec();
+    if (!updated) throw new NotFoundException('user_not_found');
+    return updated;
+  }
+
+  async validatePassword(plain: string, hashed: string): Promise<boolean> {
+    return bcrypt.compare(plain, hashed);
+  }
+
+  async updatePassword(userId: string, oldPassword: string, newPassword: string): Promise<void> {
+    const user = await this.userModel.findById(userId).select('+password').exec();
+    if (!user) throw new NotFoundException('user_not_found');
+    const plain = (user as UserDocument & { password?: string }).password;
+    if (!plain) throw new BadRequestException('password_not_set');
+    const ok = await this.validatePassword(oldPassword, plain);
+    if (!ok) throw new UnauthorizedException('invalid_old_password');
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await this.userModel.updateOne({ _id: userId }, { $set: { password: hashed } }).exec();
+  }
+
+  async setPasswordByEmail(email: string, newPassword: string): Promise<void> {
+    const normalized = email.trim().toLowerCase();
+    const hashed = await bcrypt.hash(newPassword, 10);
+    const res = await this.userModel.updateOne({ email: normalized }, { $set: { password: hashed } }).exec();
+    if (res.matchedCount === 0) throw new NotFoundException('user_not_found');
+  }
+
+  async countByRole(role: UserRole): Promise<number> {
+    return this.userModel.countDocuments({ role }).exec();
+  }
+
+  /**
+   * 启动种子：仅当不存在任何 admin 时插入；若邮箱已被非管理员占用则抛错由上层记录日志。
+   */
+  async createSuperAdminIfMissing(email: string, plainPassword: string): Promise<void> {
+    const normalized = email.trim().toLowerCase();
+    const exists = await this.userModel.findOne({ email: normalized }).exec();
+    if (exists) {
+      if (exists.role === 'admin') return;
+      throw new ConflictException('admin_email_taken_by_user');
+    }
+    const hashed = await bcrypt.hash(plainPassword, 10);
+    const username = await this.generateUsernameFromEmail(normalized);
+    await this.userModel.create({
+      email: normalized,
+      username,
+      password: hashed,
+      role: 'admin',
+      isActive: true,
+    });
+  }
+
+  async findByIdForAuth(
+    id: string,
+  ): Promise<{ _id: unknown; email: string; isActive: boolean; role: UserRole } | null> {
+    return this.userModel.findById(id).select('email isActive role').lean().exec() as Promise<{
+      _id: unknown;
+      email: string;
+      isActive: boolean;
+      role: UserRole;
+    } | null>;
+  }
+
+  async listUsersForAdmin(
+    page: number,
+    pageSize: number,
+    search?: string,
+  ): Promise<{ items: Record<string, unknown>[]; total: number; page: number; pageSize: number }> {
+    const safePage = Math.max(1, page);
+    const safeSize = Math.min(100, Math.max(1, pageSize));
+    const skip = (safePage - 1) * safeSize;
+    const q = (search ?? '').trim();
+    const filter: Record<string, unknown> = {};
+    if (q) {
+      const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.$or = [{ email: new RegExp(esc, 'i') }, { username: new RegExp(esc, 'i') }];
+    }
+    const [items, total] = await Promise.all([
+      this.userModel
+        .find(filter)
+        .select('-password')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(safeSize)
+        .lean()
+        .exec(),
+      this.userModel.countDocuments(filter).exec(),
+    ]);
+    return { items, total, page: safePage, pageSize: safeSize };
+  }
+
+  async setUserActive(requesterId: string, targetUserId: string, isActive: boolean): Promise<UserDocument> {
+    if (requesterId === targetUserId && !isActive) {
+      throw new BadRequestException('cannot_deactivate_self');
+    }
+    const updated = await this.userModel.findByIdAndUpdate(targetUserId, { $set: { isActive } }, { new: true }).exec();
+    if (!updated) throw new NotFoundException('user_not_found');
+    return updated;
+  }
+}

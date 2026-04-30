@@ -1,0 +1,90 @@
+import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
+import { useAuthStore } from '@/stores/authStore';
+
+const baseURL = import.meta.env.VITE_API_BASE?.replace(/\/$/, '') || '/api';
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+export function normalizeMessage(message: unknown): string {
+  if (typeof message === 'string') return message;
+  if (Array.isArray(message)) return message.map((m) => String(m)).join('；');
+  if (message && typeof message === 'object' && 'message' in message) {
+    return normalizeMessage((message as { message: unknown }).message);
+  }
+  return '请求失败';
+}
+
+function unwrapBody(status: number, raw: unknown): unknown {
+  let body: unknown = raw;
+  if (typeof body === 'string') {
+    const text = body;
+    try {
+      body = text ? JSON.parse(text) : null;
+    } catch {
+      throw new ApiError(text || 'invalid_json', status);
+    }
+  }
+  if (body == null || typeof body !== 'object') {
+    return body;
+  }
+  const b = body as Record<string, unknown>;
+  if ('code' in b && b.code !== 200) {
+    throw new ApiError(normalizeMessage(b.message), Number(b.code) || status);
+  }
+  if ('data' in b) {
+    return b.data;
+  }
+  return body;
+}
+
+export const http = axios.create({
+  baseURL,
+  headers: {
+    Accept: 'application/json',
+  },
+});
+
+http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  const token = useAuthStore.getState().token;
+  if (token) {
+    config.headers.set('Authorization', `Bearer ${token}`);
+  }
+  const data = config.data;
+  if (data != null && !(data instanceof FormData) && !config.headers.get('Content-Type')) {
+    config.headers.set('Content-Type', 'application/json');
+  }
+  return config;
+});
+
+http.interceptors.response.use(
+  (response: AxiosResponse) => {
+    const inner = unwrapBody(response.status, response.data);
+    response.data = inner;
+    return response;
+  },
+  (error: AxiosError<Record<string, unknown>>) => {
+    const res = error.response;
+    const status = res?.status ?? 0;
+    if (res?.data !== undefined) {
+      try {
+        unwrapBody(status, res.data);
+      } catch (e) {
+        if (e instanceof ApiError) return Promise.reject(e);
+      }
+      const msg = normalizeMessage(
+        typeof res.data === 'object' && res.data !== null && 'message' in res.data
+          ? (res.data as { message: unknown }).message
+          : res.data,
+      );
+      return Promise.reject(new ApiError(msg, status));
+    }
+    return Promise.reject(new ApiError(error.message || '网络错误', status));
+  },
+);

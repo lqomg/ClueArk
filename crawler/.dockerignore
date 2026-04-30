@@ -1,0 +1,15 @@
+node_modules
+npm-debug.log*
+dist
+*.tsbuildinfo
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+*.swp
+*.swo
+.vscode
+.idea

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clueark.local/schemas/crawl-result.json",
+  "title": "CrawlResult",
+  "type": "object",
+  "required": ["sourceId", "crawlRunId", "crawledAt", "items"],
+  "properties": {
+    "sourceId": { "type": "string", "minLength": 1 },
+    "crawlRunId": { "type": "string", "format": "uuid" },
+    "crawledAt": { "type": "string", "format": "date-time" },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["link", "title", "summary", "publishedAt", "guid"],
+        "properties": {
+          "link": { "type": "string", "format": "uri", "maxLength": 2048 },
+          "title": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "summary": { "type": "string", "maxLength": 8000 },
+          "publishedAt": {
+            "oneOf": [{ "type": "null" }, { "type": "string", "format": "date-time" }]
+          },
+          "guid": { "type": "string", "maxLength": 512 }
+        }
+      }
+    },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}

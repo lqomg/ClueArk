@@ -1,0 +1,239 @@
+{
+  "sources": [
+    {
+      "id": "builtin-vc-36kr",
+      "name": "36氪",
+      "kind": "web",
+      "url": "https://www.36kr.com/",
+      "description": "创投融资、大公司动向与科技商业报道；适合跟踪一级市场与产业趋势。"
+    },
+    {
+      "id": "builtin-vc-huxiu",
+      "name": "虎嗅",
+      "kind": "web",
+      "url": "https://www.huxiu.com/",
+      "description": "科技与商业深度解读、行业观察；偏分析与观点。"
+    },
+    {
+      "id": "builtin-vc-china-venture",
+      "name": "投中网",
+      "kind": "web",
+      "url": "https://www.chinaventure.com.cn/",
+      "description": "股权投资、并购与行业研究资讯。"
+    },
+    {
+      "id": "builtin-reg-csrc",
+      "name": "中国证监会",
+      "kind": "web",
+      "url": "https://www.csrc.gov.cn/",
+      "description": "证券期货监管规则、处罚案例与权威信息披露入口。"
+    },
+    {
+      "id": "builtin-reg-sse",
+      "name": "上海证券交易所",
+      "kind": "web",
+      "url": "https://www.sse.com.cn/",
+      "description": "沪市规则、监管动态与上市公司信息披露。"
+    },
+    {
+      "id": "builtin-reg-szse",
+      "name": "深圳证券交易所",
+      "kind": "web",
+      "url": "https://www.szse.cn/",
+      "description": "深市规则、监管动态与市场数据。"
+    },
+    {
+      "id": "builtin-reg-miit",
+      "name": "工业和信息化部",
+      "kind": "web",
+      "url": "https://www.miit.gov.cn/",
+      "description": "产业政策、标准与行业管理相关信息。"
+    },
+    {
+      "id": "builtin-po-woshipm",
+      "name": "人人都是产品经理",
+      "kind": "web",
+      "url": "https://www.woshipm.com/",
+      "description": "产品、运营与增长方法论与实践案例。"
+    },
+    {
+      "id": "builtin-po-niaogebiji",
+      "name": "鸟哥笔记",
+      "kind": "web",
+      "url": "https://www.niaogebiji.com/",
+      "description": "运营推广、营销增长与渠道玩法。"
+    },
+    {
+      "id": "builtin-tm-ifanr",
+      "name": "爱范儿",
+      "kind": "web",
+      "url": "https://www.ifanr.com/",
+      "description": "消费科技、新硬件与数字生活方式。"
+    },
+    {
+      "id": "builtin-tm-qbitai",
+      "name": "量子位",
+      "kind": "web",
+      "url": "https://www.qbitai.com/",
+      "description": "人工智能、自动驾驶与前沿科技快讯。"
+    },
+    {
+      "id": "builtin-gn-thepaper",
+      "name": "澎湃新闻",
+      "kind": "web",
+      "url": "https://www.thepaper.cn/",
+      "description": "时政、社会与深度调查报道。"
+    },
+    {
+      "id": "builtin-gn-jiemian",
+      "name": "界面新闻",
+      "kind": "web",
+      "url": "https://www.jiemian.com/",
+      "description": "商业、财经与公司新闻。"
+    },
+    {
+      "id": "builtin-rss-36kr",
+      "kind": "rss",
+      "name": "36氪 RSS",
+      "feedUrl": "https://36kr.com/feed",
+      "siteUrl": "https://www.36kr.com/",
+      "description": "36氪全文订阅（RSS/Atom），便于阅读器或采集管线增量拉取。"
+    },
+    {
+      "id": "builtin-rss-ifanr",
+      "kind": "rss",
+      "name": "爱范儿 RSS",
+      "feedUrl": "https://www.ifanr.com/feed",
+      "siteUrl": "https://www.ifanr.com/",
+      "description": "爱范儿最新文章订阅。"
+    },
+    {
+      "id": "builtin-rss-sspai",
+      "kind": "rss",
+      "name": "少数派 RSS",
+      "feedUrl": "https://sspai.com/feed",
+      "siteUrl": "https://sspai.com/",
+      "description": "效率工具、数字生活与软硬件体验。"
+    },
+    {
+      "id": "builtin-rss-solidot",
+      "kind": "rss",
+      "name": "Solidot RSS",
+      "feedUrl": "https://www.solidot.org/index.rss",
+      "siteUrl": "https://www.solidot.org/",
+      "description": "科技奇客资讯聚合，偏开源与 geek 向短讯。"
+    },
+    {
+      "id": "builtin-rss-pingwest",
+      "kind": "rss",
+      "name": "品玩 RSS",
+      "feedUrl": "https://www.pingwest.com/feed",
+      "siteUrl": "https://www.pingwest.com/",
+      "description": "品玩最新报道订阅。"
+    },
+    {
+      "id": "builtin-rss-qbitai",
+      "kind": "rss",
+      "name": "量子位 RSS",
+      "feedUrl": "https://www.qbitai.com/feed",
+      "siteUrl": "https://www.qbitai.com/",
+      "description": "量子位 AI 与硬科技文章订阅。"
+    },
+    {
+      "id": "builtin-rss-leiphone",
+      "kind": "rss",
+      "name": "雷锋网 RSS",
+      "feedUrl": "https://www.leiphone.com/feed",
+      "siteUrl": "https://www.leiphone.com/",
+      "description": "人工智能、车联网与商业科技报道。"
+    },
+    {
+      "id": "builtin-rss-infoq-cn",
+      "kind": "rss",
+      "name": "InfoQ 中文 RSS",
+      "feedUrl": "https://www.infoq.cn/feed",
+      "siteUrl": "https://www.infoq.cn/",
+      "description": "架构、云计算与工程实践的资讯与文章。"
+    },
+    {
+      "id": "builtin-rss-oschina",
+      "kind": "rss",
+      "name": "开源中国资讯 RSS",
+      "feedUrl": "https://www.oschina.net/news/rss",
+      "siteUrl": "https://www.oschina.net/",
+      "description": "开源项目、开发者社区与 IT 新闻聚合。"
+    },
+    {
+      "id": "builtin-rss-ithome",
+      "kind": "rss",
+      "name": "IT之家 RSS",
+      "feedUrl": "https://www.ithome.com/rss/",
+      "siteUrl": "https://www.ithome.com/",
+      "description": "消费电子、系统软件与数码圈热点。"
+    },
+    {
+      "id": "builtin-rss-techmeme",
+      "kind": "rss",
+      "name": "Techmeme RSS",
+      "feedUrl": "https://www.techmeme.com/feed.xml",
+      "siteUrl": "https://www.techmeme.com/",
+      "description": "英文科技头条聚合，偏硅谷与全球大厂动态。"
+    },
+    {
+      "id": "builtin-rss-techcrunch",
+      "kind": "rss",
+      "name": "TechCrunch RSS",
+      "feedUrl": "https://techcrunch.com/feed/",
+      "siteUrl": "https://techcrunch.com/",
+      "description": "英文创投与初创公司报道。"
+    },
+    {
+      "id": "builtin-rss-theverge",
+      "kind": "rss",
+      "name": "The Verge RSS",
+      "feedUrl": "https://www.theverge.com/rss/index.xml",
+      "siteUrl": "https://www.theverge.com/",
+      "description": "消费电子、互联网与科技文化英文报道。"
+    },
+    {
+      "id": "builtin-rss-arstechnica",
+      "kind": "rss",
+      "name": "Ars Technica RSS",
+      "feedUrl": "https://feeds.arstechnica.com/arstechnica/index",
+      "siteUrl": "https://arstechnica.com/",
+      "description": "深度科技、政策与工程向英文媒体。"
+    },
+    {
+      "id": "builtin-rss-mit-tr",
+      "kind": "rss",
+      "name": "MIT Technology Review RSS",
+      "feedUrl": "https://www.technologyreview.com/feed/",
+      "siteUrl": "https://www.technologyreview.com/",
+      "description": "麻省理工科技评论：前沿科学与产业应用英文稿。"
+    },
+    {
+      "id": "builtin-rss-venturebeat",
+      "kind": "rss",
+      "name": "VentureBeat RSS",
+      "feedUrl": "https://venturebeat.com/feed/",
+      "siteUrl": "https://venturebeat.com/",
+      "description": "AI、游戏与数据方向的英文创投媒体。"
+    },
+    {
+      "id": "builtin-rss-openai-blog",
+      "kind": "rss",
+      "name": "OpenAI Blog RSS",
+      "feedUrl": "https://openai.com/blog/rss.xml",
+      "siteUrl": "https://openai.com/blog",
+      "description": "OpenAI 官方博客更新（模型、安全与研究发布）。"
+    },
+    {
+      "id": "builtin-rss-hnrss",
+      "kind": "rss",
+      "name": "Hacker News 头条 RSS",
+      "feedUrl": "https://hnrss.org/frontpage",
+      "siteUrl": "https://news.ycombinator.com/",
+      "description": "HN 首页热门帖第三方 RSS（非官方，稳定性依赖 hnrss.org）。"
+    }
+  ]
+}
