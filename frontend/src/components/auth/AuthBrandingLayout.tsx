@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { GithubRepoLink } from '@/components/GithubRepoLink';
 
 const inputClass =
   'w-full px-5 py-4 rounded-lg bg-white/5 border border-white/10 text-ark-text placeholder:text-slate-600 focus:border-ark-accent/50 focus:bg-white/[0.08] transition-all outline-none text-sm';
@@ -68,18 +69,16 @@ export function AuthBrandingLayout({
             <p className="text-sm font-light text-slate-500">{subtitle}</p>
           </div>
           {children}
-          {showLegalFooter ? (
-            <p className="px-4 text-center text-[9px] uppercase leading-loose tracking-[0.2em] text-slate-700">
-              使用 ClueArk 即表示您同意
-              <Link to="/legal/terms" className="mx-1 text-ark-accent hover:underline" target="_blank">
-                《用户服务协议》
-              </Link>
-              与
-              <Link to="/legal/privacy" className="mx-1 text-ark-accent hover:underline" target="_blank">
-                《隐私政策》
-              </Link>
-            </p>
-          ) : null}
+          <p className="px-1 text-center text-[12px] gap-1  leading-loose tracking-[0.2em] ">
+            管理员账号：
+            admin@clueark.local / lin123456qian
+          </p>
+          <p className=" text-center text-[12px] gap-1  leading-loose tracking-[0.2em] text-red-600">
+            此为演示环境，请勿乱修改相关数据，以免影响其他用户使用。将定期清理数据，请勿上传敏感信息。
+          </p>
+          <div className="flex justify-center pt-1">
+            <GithubRepoLink className="px-2 py-1" />
+          </div>
         </div>
       </div>
     </div>

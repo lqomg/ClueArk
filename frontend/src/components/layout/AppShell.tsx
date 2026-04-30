@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Bookmark, Database, Layers, LogOut, Newspaper, Radar, User, Users } from 'lucide-react';
+import { GithubRepoLink } from '@/components/GithubRepoLink';
 import { useAuthStore } from '@/stores/authStore';
 
 function shellNavClass(isActive: boolean) {
@@ -105,15 +106,20 @@ export function AppShell() {
           </nav>
         </div>
 
-        <div className="mt-auto border-t border-ark-border p-4">
-          <button
-            type="button"
-            className="group flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-slate-500 transition-colors hover:text-white"
-            onClick={logout}
-          >
-            <LogOut size={18} className="transition-transform group-hover:-translate-x-0.5" />
-            退出登录
-          </button>
+        <div className="mt-auto flex flex-col border-t border-ark-border">
+          <div className="px-4 py-3">
+            <GithubRepoLink className="w-full justify-center px-2 py-1.5 hover:bg-white/5" />
+          </div>
+          <div className="border-t border-ark-border p-4">
+            <button
+              type="button"
+              className="group flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-slate-500 transition-colors hover:text-white"
+              onClick={logout}
+            >
+              <LogOut size={18} className="transition-transform group-hover:-translate-x-0.5" />
+              退出登录
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -124,9 +130,12 @@ export function AppShell() {
               <span>线索</span>
               <span className="text-ark-accent">方舟</span>
             </div>
-            <button type="button" className="text-xs text-slate-500 hover:text-ark-accent" onClick={logout}>
-              退出
-            </button>
+            <div className="flex items-center gap-3">
+              <GithubRepoLink showUrl={false} iconSize={20} className="text-slate-500 hover:text-ark-accent" />
+              <button type="button" className="text-xs text-slate-500 hover:text-ark-accent" onClick={logout}>
+                退出
+              </button>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-slate-500">
             <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/feed">
@@ -165,10 +174,11 @@ export function AppShell() {
           </div>
         </header>
 
-        <header className="hidden shrink-0 items-center justify-between border-b border-ark-border bg-ark-bg px-8 py-4 md:flex">
-          <div className="text-xs font-bold uppercase tracking-widest text-slate-500">
+        <header className="hidden shrink-0 items-center justify-between gap-4 border-b border-ark-border bg-ark-bg px-8 py-4 md:flex">
+          <div className="min-w-0 text-xs font-bold uppercase tracking-widest text-slate-500">
             终端 <span className="font-mono text-ark-accent/90">{user?.email}</span>
           </div>
+          <GithubRepoLink className="shrink-0 text-slate-500" />
         </header>
 
         <main
