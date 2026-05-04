@@ -53,11 +53,6 @@ export function FeedTimelineItem({ item: it, isLast, onOpenCluster }: FeedTimeli
         >
           {it.title}
         </a>
-        {it.relevanceScore != null ? (
-          <span className="text-[10px] font-medium tabular-nums text-slate-500">
-            语义相关度 <span className="text-ark-accent/90">{it.relevanceScore.toFixed(3)}</span>
-          </span>
-        ) : null}
         {it.summary ? (
           <p className="line-clamp-3 text-sm leading-relaxed text-slate-400">{it.summary}</p>
         ) : null}
