@@ -34,6 +34,8 @@ export type MonitorPublic = {
   title: string;
   description: string;
   sourceIds: string[];
+  /** 时间线最低余弦相似度（0～1），存库默认 0.52 */
+  minCosine: number;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -59,11 +61,6 @@ export class MonitorsService {
     return Number.isFinite(raw) && raw >= 100 && raw <= 20000 ? Math.floor(raw) : 3000;
   }
 
-  private defaultMinCosine(): number {
-    const raw = Number(this.config.get('MONITOR_MIN_COSINE'));
-    return Number.isFinite(raw) && raw >= 0 && raw <= 1 ? raw : 0.32;
-  }
-
   private defaultRecentHours(): number {
     const raw = Number(this.config.get('MONITOR_DEFAULT_RECENT_HOURS'));
     return Number.isFinite(raw) && raw >= 1 && raw <= 2160 ? Math.floor(raw) : 720;
@@ -77,11 +74,15 @@ export class MonitorsService {
   private serializeMonitor(doc: MonitorDocument | Record<string, unknown>): MonitorPublic {
     const d = doc as Record<string, unknown>;
     const ids = (d.sourceIds as Types.ObjectId[] | undefined) ?? [];
+    const mc = d.minCosine;
+    const minCosine =
+      typeof mc === 'number' && Number.isFinite(mc) ? Math.min(1, Math.max(0, mc)) : 0.52;
     return {
       id: String(d._id),
       title: String(d.title ?? ''),
       description: String(d.description ?? ''),
       sourceIds: ids.map((x) => String(x)),
+      minCosine,
       createdAt: d.createdAt as Date,
       updatedAt: d.updatedAt as Date,
     };
@@ -200,6 +201,7 @@ export class MonitorsService {
     const m = monitor.toObject() as {
       descriptionEmbedding: number[];
       sourceIds: Types.ObjectId[];
+      minCosine?: number;
     };
     const queryVec = m.descriptionEmbedding;
     if (!Array.isArray(queryVec) || queryVec.length === 0) {
@@ -208,14 +210,16 @@ export class MonitorsService {
 
     const recentHours = q.recentHours ?? this.defaultRecentHours();
     const cutoff = new Date(Date.now() - recentHours * 3600000);
-    const minSim = q.minSimilarity ?? this.defaultMinCosine();
+    const rawMin = m.minCosine;
+    const minSim =
+      typeof rawMin === 'number' && Number.isFinite(rawMin) ? Math.min(1, Math.max(0, rawMin)) : 0.52;
     const cap = this.timelineCandidateCap();
     const page = q.page ?? 1;
     const pageSize = q.pageSize ?? 30;
 
     const sourceIds = (monitor.sourceIds ?? []).map((x) => new Types.ObjectId(String(x)));
     if (sourceIds.length === 0) {
-      return { items: [], total: 0, page, pageSize, recentHours, monitorId, minSimilarity: minSim };
+      return { items: [], total: 0, page, pageSize, recentHours, monitorId, minCosine: minSim };
     }
 
     const candidates = await this.feedItemModel
@@ -257,13 +261,16 @@ export class MonitorsService {
       relevanceScore: Math.round(s.score * 1000) / 1000,
     }));
 
-    return { items, total, page, pageSize, recentHours, monitorId, minSimilarity: minSim };
+    return { items, total, page, pageSize, recentHours, monitorId, minCosine: minSim };
   }
 
   async patchSources(monitorId: string, userId: string, dto: PatchMonitorSourcesDto): Promise<MonitorPublic> {
     const monitor = await this.loadOwnedMonitor(monitorId, userId);
     const resolved = await this.resolveValidSourceObjectIds(dto.sourceIds);
     monitor.sourceIds = resolved;
+    if (dto.minCosine !== undefined) {
+      monitor.minCosine = dto.minCosine;
+    }
     await monitor.save();
     return this.serializeMonitor(monitor);
   }

@@ -22,8 +22,4 @@ export class ListMonitorFeedQueryDto {
   @Min(1)
   @Max(2160)
   recentHours?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  minSimilarity?: number;
 }

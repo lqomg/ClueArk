@@ -89,14 +89,6 @@ export function AdminAggregationPolicyPage() {
 
   return (
     <div className="mx-auto max-w-7xl ">
-      <div>
-        <h2 className="text-xl font-bold text-white">聚合策略</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          控制相似报道聚类与时间窗口。未在库中保存时与 <code className="text-ark-accent">.env</code> 一致
-          {form.persisted ? '；当前已使用数据库中的配置。' : '；当前展示值为环境变量回退。'}
-        </p>
-      </div>
-
       <form
         onSubmit={onSave}
         className="space-y-8 rounded-2xl border border-ark-border bg-ark-surface/40 p-5 sm:p-6"

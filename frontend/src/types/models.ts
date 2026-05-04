@@ -26,12 +26,14 @@ export interface FeedItem {
   relevanceScore?: number;
 }
 
-/** 用户监控话题（创建后标题/描述一期不可改，仅可 PATCH 信源） */
+/** 用户监控话题（创建后标题/描述不可改；可 PATCH 信源与最低余弦相似度） */
 export interface Monitor {
   id: string;
   title: string;
   description: string;
   sourceIds: string[];
+  /** 时间线过滤阈值（0～1），新建默认 0.52 */
+  minCosine: number;
   createdAt: string;
   updatedAt: string;
 }

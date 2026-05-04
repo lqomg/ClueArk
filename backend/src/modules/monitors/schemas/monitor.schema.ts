@@ -23,6 +23,10 @@ export class Monitor {
   @Prop({ trim: true, maxlength: 128, default: '' })
   embeddingModel: string;
 
+  /** 时间线过滤：条目与监控描述向量的最低余弦相似度（0～1） */
+  @Prop({ type: Number, default: 0.52 })
+  minCosine: number;
+
   @Prop({ type: Date, default: null })
   deletedAt: Date | null;
 }

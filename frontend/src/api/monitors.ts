@@ -8,7 +8,7 @@ export interface MonitorFeedListResponse {
   pageSize: number;
   recentHours: number;
   monitorId: string;
-  minSimilarity: number;
+  minCosine: number;
 }
 
 /** `query` 须含前导 `?`，如 `?page=1&pageSize=30&recentHours=720` */
@@ -34,10 +34,11 @@ export async function listMonitorFeed(monitorId: string, query: string): Promise
   return data;
 }
 
-export async function patchMonitorSources(monitorId: string, sourceIds: string[]): Promise<Monitor> {
-  const { data } = await http.patch<Monitor>(`/monitors/${encodeURIComponent(monitorId)}/sources`, {
-    sourceIds,
-  });
+export async function patchMonitorSources(
+  monitorId: string,
+  body: { sourceIds: string[]; minCosine?: number },
+): Promise<Monitor> {
+  const { data } = await http.patch<Monitor>(`/monitors/${encodeURIComponent(monitorId)}/sources`, body);
   return data;
 }
 
