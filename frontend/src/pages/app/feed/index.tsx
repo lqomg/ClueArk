@@ -140,7 +140,7 @@ export function FeedPage() {
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
-      <div id="feed-list-scroll" className="min-h-0 flex-1 overflow-y-auto bg-ark-surface/40 ">
+      <div id="feed-list-scroll" className="min-h-0 flex-1 overflow-y-auto">
         {loading && !list ? (
           <div className="p-8 text-center text-sm text-slate-500">加载中…</div>
         ) : isEmpty ? (
