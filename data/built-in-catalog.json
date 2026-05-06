@@ -33,14 +33,6 @@
       "description": "科技奇客资讯聚合，偏开源与 geek 向短讯。"
     },
     {
-      "id": "builtin-rss-pingwest",
-      "kind": "rss",
-      "name": "品玩 RSS",
-      "feedUrl": "https://www.pingwest.com/feed",
-      "siteUrl": "https://www.pingwest.com/",
-      "description": "品玩最新报道订阅。"
-    },
-    {
       "id": "builtin-rss-qbitai",
       "kind": "rss",
       "name": "量子位 RSS",
