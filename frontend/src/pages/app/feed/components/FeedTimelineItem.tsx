@@ -93,7 +93,7 @@ export function FeedTimelineItem({ item: it, isLast, onOpenCluster }: FeedTimeli
         {merged ? (
           <div className="mt-1 space-y-2 border-t border-white/[0.06] pt-2">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12px]">
-              <span className="inline-flex min-h-0 flex-wrap items-center gap-x-0.5 rounded-md bg-ark-accent/10 pl-2 font-medium text-slate-400">
+              <span className="inline-flex min-h-0 flex-wrap items-center gap-x-0.5 rounded-md  pl-2 font-medium text-slate-400">
                 {multiSource ? (
                   <>
                     <span className="shrink-0 leading-snug">另外</span>

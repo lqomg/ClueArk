@@ -36,6 +36,11 @@ export class AdminSourcesController {
     return this.sourcesService.adminImportJson(adminId, body);
   }
 
+  @Get(':id')
+  one(@Param('id') id: string) {
+    return this.sourcesService.adminGetOne(id);
+  }
+
   @Patch(':id')
   update(@CurrentUser('userId') adminId: string, @Param('id') id: string, @Body() dto: UpdateSourceDto) {
     return this.sourcesService.adminUpdateAny(adminId, id, dto);

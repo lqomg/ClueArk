@@ -116,6 +116,12 @@ export class SourcesService {
     return items.map((d) => serializeSource(d as Record<string, unknown>));
   }
 
+  async adminGetOne(sourceId: string): Promise<ReturnType<typeof serializeSource>> {
+    const doc = await this.sourceModel.findOne({ _id: sourceId, ...notDeletedFilter() }).lean().exec();
+    if (!doc) throw new NotFoundException('source_not_found');
+    return serializeSource(doc as Record<string, unknown>);
+  }
+
   async adminCreateOfficial(
     adminUserId: string,
     dto: CreateSourceDto & { enabled?: boolean; sortOrder?: number },

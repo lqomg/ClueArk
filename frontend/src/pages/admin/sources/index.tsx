@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Download, Plus, Trash2, Upload } from 'lucide-react';
+import { Download, Eye, Plus, Trash2, Upload } from 'lucide-react';
 import {
   deleteAdminSource,
   exportAdminSourcesJson,
@@ -23,6 +23,7 @@ export function AdminSourcesPage() {
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [drawer, setDrawer] = useState<DrawerState>(null);
+  const [viewRow, setViewRow] = useState<Source | null>(null);
   const [ioBusy, setIoBusy] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -228,7 +229,15 @@ export function AdminSourcesPage() {
                       {r.enabled ? '已启用' : '已禁用'}
                     </button>
                   </td>
-                  <td className="space-x-2 whitespace-nowrap px-3 py-2">
+                  <td className="space-x-4 whitespace-nowrap px-3 py-2">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-slate-400 hover:text-ark-text hover:underline"
+                      onClick={() => setViewRow(r)}
+                    >
+                      <Eye size={14} aria-hidden />
+                      查看
+                    </button>
                     <button
                       type="button"
                       disabled={r.isOfficial}
@@ -256,6 +265,45 @@ export function AdminSourcesPage() {
           </tbody>
         </table>
       </div>
+
+      {viewRow ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-ark-bg/85 backdrop-blur-sm"
+            aria-hidden
+            onMouseDown={() => setViewRow(null)}
+          />
+          <div
+            role="dialog"
+            aria-modal
+            aria-labelledby="admin-source-view-title"
+            className="relative z-10 flex max-h-[85vh] w-full max-w-3xl flex-col rounded-2xl border border-ark-border bg-ark-surface shadow-2xl shadow-black/40"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-ark-border px-5 py-4">
+              <div className="min-w-0">
+                <h2 id="admin-source-view-title" className="text-lg font-semibold text-ark-text">
+                  信源配置
+                </h2>
+                <p className="mt-1 truncate text-sm text-slate-500" title={viewRow.displayName}>
+                  {viewRow.displayName}
+                  <span className="ml-2 font-mono text-xs text-slate-600">{viewRow.id}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                className="shrink-0 rounded-lg border border-white/10 px-4 py-1.5 text-sm text-slate-400 hover:bg-white/5 hover:text-ark-text"
+                onClick={() => setViewRow(null)}
+              >
+                关闭
+              </button>
+            </div>
+            <pre className="m-0 min-h-0 flex-1 overflow-auto p-5 text-xs leading-relaxed break-words whitespace-pre-wrap font-mono text-slate-300">
+              {JSON.stringify(viewRow, null, 2)}
+            </pre>
+          </div>
+        </div>
+      ) : null}
 
       <ConfirmDialog
         open={Boolean(confirmId)}
