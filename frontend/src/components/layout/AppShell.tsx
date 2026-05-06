@@ -61,14 +61,6 @@ export function AppShell() {
                 </>
               )}
             </NavLink>
-            <NavLink to="/app/me" className={({ isActive }) => shellNavClass(isActive)}>
-              {({ isActive }) => (
-                <>
-                  <User size={18} className={shellNavIconClass(isActive)} />
-                  个人中心
-                </>
-              )}
-            </NavLink>
             {isAdminUser ? (
               <div className="mt-4 border-t border-ark-border pt-2">
                 <div className="space-y-1">

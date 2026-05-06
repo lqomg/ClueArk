@@ -98,10 +98,9 @@ export function FeedPage() {
             <p className="mt-2 text-[11px] leading-relaxed text-slate-500 sm:text-xs">
               共 <span className="font-semibold tabular-nums text-ark-accent">{list?.total ?? '—'}</span> 条
               {list?.mode === 'featured' ? (
-                <span className="text-slate-500"> · 当前为精选（多信源相似合并）</span>
+                <span className="text-slate-500"> · 当前为精选</span>
               ) : null}
             </p>
-            <p className="mt-1 text-[11px] text-slate-600 sm:text-xs">仅展示智能分析已完成的条目。</p>
           </div>
           <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5 sm:gap-y-2 lg:justify-end">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
