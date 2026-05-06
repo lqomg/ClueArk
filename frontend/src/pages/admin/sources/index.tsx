@@ -45,6 +45,7 @@ export function AdminSourcesPage() {
   }, [loadList]);
 
   async function toggleEnabled(row: Source) {
+    if (row.isOfficial) return;
     setSavingId(row.id);
     setError(null);
     try {
@@ -217,7 +218,8 @@ export function AdminSourcesPage() {
                   <td className="px-3 py-2">
                     <button
                       type="button"
-                      disabled={savingId === r.id}
+                      disabled={savingId === r.id || r.isOfficial}
+                      title={r.isOfficial ? '内置官方信源不可修改启用状态' : undefined}
                       onClick={() => void toggleEnabled(r)}
                       className={`text-xs font-semibold underline-offset-2 hover:underline disabled:opacity-40 ${
                         r.enabled ? 'text-emerald-400' : 'text-slate-500'
@@ -229,8 +231,10 @@ export function AdminSourcesPage() {
                   <td className="space-x-2 whitespace-nowrap px-3 py-2">
                     <button
                       type="button"
-                      className="text-ark-accent hover:underline"
-                      onClick={() => setDrawer({ mode: 'edit', id: r.id })}
+                      disabled={r.isOfficial}
+                      title={r.isOfficial ? '内置官方信源不可编辑' : undefined}
+                      className="text-ark-accent hover:underline disabled:cursor-not-allowed disabled:opacity-40 disabled:no-underline"
+                      onClick={() => !r.isOfficial && setDrawer({ mode: 'edit', id: r.id })}
                     >
                       编辑
                     </button>
@@ -238,7 +242,8 @@ export function AdminSourcesPage() {
                       type="button"
                       variant="dangerGhost"
                       className="inline-flex items-center gap-1 !text-red-300 hover:!text-red-200"
-                      disabled={Boolean(savingId)}
+                      disabled={Boolean(savingId) || r.isOfficial}
+                      title={r.isOfficial ? '启动内置种子信源不可删除' : undefined}
                       onClick={() => setConfirmId(r.id)}
                     >
                       <Trash2 size={14} aria-hidden />

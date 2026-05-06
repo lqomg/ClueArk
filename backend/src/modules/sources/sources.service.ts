@@ -18,6 +18,7 @@ import type { CreateSourceDto } from './dto/create-source.dto';
 import type { UpdateSourceDto } from './dto/update-source.dto';
 import type { ListSourcesQueryDto } from './dto/list-sources.query.dto';
 import { assertSourceAvatarUrlOwned, avatarExtForMime } from './source-avatar.util';
+import { LoggerService } from '../logger/logger.service';
 import {
   SOURCES_JSON_FORMAT,
   SOURCES_JSON_VERSION,
@@ -36,6 +37,10 @@ function escapeRegex(s: string): string {
 
 function notDeletedFilter(): Record<string, unknown> {
   return { $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }] };
+}
+
+function persistedOfficial(doc: { isOfficial?: boolean }): boolean {
+  return doc.isOfficial === true;
 }
 
 function serializeSource(doc: Record<string, unknown>) {
@@ -67,7 +72,7 @@ function serializeSource(doc: Record<string, unknown>) {
     enabled: doc.enabled !== false,
     sortOrder: typeof doc.sortOrder === 'number' ? doc.sortOrder : 0,
     createdBy: createdBy ? String(createdBy) : null,
-    isOfficial: !createdBy,
+    isOfficial: persistedOfficial(doc),
     openUrl: openUrlForSource(kind, web, rss, hot),
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
@@ -81,7 +86,28 @@ function canWrite(_userId: string, role: JwtUserRole, _doc: SourceDocument | Rec
 
 @Injectable()
 export class SourcesService {
-  constructor(@InjectModel(Source.name) private readonly sourceModel: Model<SourceDocument>) {}
+  private readonly logger: LoggerService;
+
+  constructor(
+    @InjectModel(Source.name) private readonly sourceModel: Model<SourceDocument>,
+    loggerService: LoggerService,
+  ) {
+    this.logger = loggerService.createLogger('SourcesService');
+  }
+
+  private logUrlReachFail(meta: {
+    purpose: string;
+    rawUrl: string;
+    reach: Awaited<ReturnType<typeof checkUrlReachable>>;
+  }) {
+    const { purpose, rawUrl, reach } = meta;
+    this.logger.warn({
+      message: `URL 探测失败: ${purpose}`,
+      purpose,
+      rawUrl,
+      reach,
+    });
+  }
 
   async adminList(includeDisabled: boolean): Promise<ReturnType<typeof serializeSource>[]> {
     const filter: Record<string, unknown> = { ...notDeletedFilter() };
@@ -101,6 +127,7 @@ export class SourcesService {
         ...row,
         enabled: dto.enabled ?? true,
         sortOrder,
+        isOfficial: false,
         createdBy: null,
         deletedAt: null,
       });
@@ -120,6 +147,11 @@ export class SourcesService {
   }
 
   async adminSoftDelete(sourceId: string) {
+    const existing = await this.sourceModel.findOne({ _id: sourceId, ...notDeletedFilter() }).lean().exec();
+    if (!existing) throw new NotFoundException('source_not_found');
+    if (persistedOfficial(existing as Record<string, unknown>)) {
+      throw new ForbiddenException('official_source_forbidden');
+    }
     const res = await this.sourceModel
       .updateOne({ _id: sourceId, ...notDeletedFilter() }, { $set: { deletedAt: new Date(), enabled: false } })
       .exec();
@@ -345,13 +377,19 @@ export class SourcesService {
       const raw = dto.web!.url;
       if (!isValidHttpUrl(raw)) throw new BadRequestException('invalid_url');
       const reach = await checkUrlReachable(raw);
-      if (!reach.ok || !reach.normalized) throw new BadRequestException('invalid_url');
+      if (!reach.ok || !reach.normalized) {
+        this.logUrlReachFail({ purpose: 'create:web.url', rawUrl: raw, reach });
+        throw new BadRequestException('invalid_url');
+      }
       web = { url: reach.normalized };
       const clRaw = dto.web!.crawlListUrl?.trim();
       if (clRaw) {
         if (!isValidHttpUrl(clRaw)) throw new BadRequestException('invalid_crawl_list_url');
         const clReach = await checkUrlReachable(clRaw);
-        if (!clReach.ok || !clReach.normalized) throw new BadRequestException('invalid_crawl_list_url');
+        if (!clReach.ok || !clReach.normalized) {
+          this.logUrlReachFail({ purpose: 'create:web.crawlListUrl', rawUrl: clRaw, reach: clReach });
+          throw new BadRequestException('invalid_crawl_list_url');
+        }
         web.crawlListUrl = clReach.normalized;
       }
       if (dto.web!.crawlSelectors) {
@@ -368,8 +406,11 @@ export class SourcesService {
     } else if (kind === SOURCE_KIND.RSS) {
       const raw = dto.rss!.feedUrl;
       if (!isValidHttpUrl(raw)) throw new BadRequestException('invalid_feed_url');
-      const reach = await checkUrlReachable(raw);
-      if (!reach.ok || !reach.normalized) throw new BadRequestException('invalid_feed_url');
+      const reach = await checkUrlReachable(raw, 'get_only');
+      if (!reach.ok || !reach.normalized) {
+        this.logUrlReachFail({ purpose: 'create:rss.feedUrl', rawUrl: raw, reach });
+        throw new BadRequestException('invalid_feed_url');
+      }
       const siteUrl = dto.rss!.siteUrl?.trim();
       rss = {
         feedUrl: reach.normalized,
@@ -381,7 +422,10 @@ export class SourcesService {
       const rawUrl = dto.hot!.url.trim();
       if (!isValidHttpUrl(rawUrl)) throw new BadRequestException('invalid_url');
       const reach = await checkUrlReachable(rawUrl);
-      if (!reach.ok || !reach.normalized) throw new BadRequestException('invalid_url');
+      if (!reach.ok || !reach.normalized) {
+        this.logUrlReachFail({ purpose: 'create:hot.url', rawUrl, reach });
+        throw new BadRequestException('invalid_url');
+      }
       const mapper = dto.hot!.mapper ?? null;
       if (mapper && (typeof mapper !== 'object' || Array.isArray(mapper))) {
         throw new BadRequestException('invalid_hot_mapper');
@@ -438,6 +482,10 @@ export class SourcesService {
   }
 
   private async applyUpdate(role: JwtUserRole, actingUserId: string, existing: SourceDocument, dto: UpdateSourceDto) {
+    if (persistedOfficial(existing.toObject())) {
+      throw new ForbiddenException('official_source_forbidden');
+    }
+
     const $set: Record<string, unknown> = {};
 
     if (dto.displayName != null) $set.displayName = dto.displayName.trim();
@@ -465,7 +513,10 @@ export class SourcesService {
       const raw = dto.web.url ?? cur?.url;
       if (!raw || !isValidHttpUrl(raw)) throw new BadRequestException('invalid_url');
       const reach = await checkUrlReachable(raw);
-      if (!reach.ok || !reach.normalized) throw new BadRequestException('invalid_url');
+      if (!reach.ok || !reach.normalized) {
+        this.logUrlReachFail({ purpose: 'update:web.url', rawUrl: raw, reach });
+        throw new BadRequestException('invalid_url');
+      }
       const urlNorm = reach.normalized;
       const fp = buildFingerprint(SOURCE_KIND.WEB, { webUrl: urlNorm });
       if (!fp) throw new BadRequestException('invalid_fingerprint');
@@ -477,7 +528,10 @@ export class SourcesService {
         else {
           if (!isValidHttpUrl(t)) throw new BadRequestException('invalid_crawl_list_url');
           const rr = await checkUrlReachable(t);
-          if (!rr.ok || !rr.normalized) throw new BadRequestException('invalid_crawl_list_url');
+          if (!rr.ok || !rr.normalized) {
+            this.logUrlReachFail({ purpose: 'update:web.crawlListUrl', rawUrl: t, reach: rr });
+            throw new BadRequestException('invalid_crawl_list_url');
+          }
           crawlListUrl = rr.normalized;
         }
       }
@@ -514,8 +568,11 @@ export class SourcesService {
       const cur = existing.rss as { feedUrl?: string; siteUrl?: string; titleHint?: string } | undefined;
       const raw = dto.rss.feedUrl ?? cur?.feedUrl;
       if (!raw || !isValidHttpUrl(raw)) throw new BadRequestException('invalid_feed_url');
-      const reach = await checkUrlReachable(raw);
-      if (!reach.ok || !reach.normalized) throw new BadRequestException('invalid_feed_url');
+      const reach = await checkUrlReachable(raw, 'get_only');
+      if (!reach.ok || !reach.normalized) {
+        this.logUrlReachFail({ purpose: 'update:rss.feedUrl', rawUrl: raw, reach });
+        throw new BadRequestException('invalid_feed_url');
+      }
       const siteUrl = (dto.rss.siteUrl ?? cur?.siteUrl)?.trim();
       const titleHint = (dto.rss.titleHint ?? cur?.titleHint)?.trim();
       $set.rss = {
@@ -535,7 +592,10 @@ export class SourcesService {
       if (!rawUrl?.trim()) throw new BadRequestException('invalid_url');
       if (!isValidHttpUrl(rawUrl.trim())) throw new BadRequestException('invalid_url');
       const reach = await checkUrlReachable(rawUrl.trim());
-      if (!reach.ok || !reach.normalized) throw new BadRequestException('invalid_url');
+      if (!reach.ok || !reach.normalized) {
+        this.logUrlReachFail({ purpose: 'update:hot.url', rawUrl: rawUrl.trim(), reach });
+        throw new BadRequestException('invalid_url');
+      }
       const prevLast = cur?.lastPollAt ?? null;
       const nextMapper =
         dto.hot.mapper === undefined
@@ -593,6 +653,9 @@ export class SourcesService {
     const existing = await this.sourceModel.findOne({ _id: sourceId, ...notDeletedFilter() }).exec();
     if (!existing) throw new NotFoundException('source_not_found');
     if (!canWrite(userId, role, existing)) throw new ForbiddenException('forbidden');
+    if (persistedOfficial(existing.toObject())) {
+      throw new ForbiddenException('official_source_forbidden');
+    }
     const res = await this.sourceModel.updateOne({ _id: sourceId }, { $set: { deletedAt: new Date() } }).exec();
     if (res.matchedCount === 0) throw new NotFoundException('source_not_found');
     return { ok: true };
@@ -600,7 +663,11 @@ export class SourcesService {
 
   async batchRemove(userId: string, role: JwtUserRole, ids: string[]) {
     const docs = await this.sourceModel.find({ _id: { $in: ids }, ...notDeletedFilter() }).exec();
-    const allowed = docs.filter((d) => canWrite(userId, role, d)).map((d) => d._id);
+    const writable = docs.filter((d) => canWrite(userId, role, d));
+    if (writable.some((d) => persistedOfficial(d.toObject()))) {
+      throw new ForbiddenException('official_source_forbidden');
+    }
+    const allowed = writable.map((d) => d._id);
     if (!allowed.length) throw new NotFoundException('sources_not_found');
     const res = await this.sourceModel.updateMany({ _id: { $in: allowed } }, { $set: { deletedAt: new Date() } }).exec();
     return { deleted: res.modifiedCount ?? 0 };

@@ -38,7 +38,7 @@ export interface Monitor {
   updatedAt: string;
 }
 
-/** 全站统一信源（官方 isOfficial；用户贡献有 createdBy） */
+/** 全站统一信源；isOfficial 为启动内置 catalog 注入的种子（不可删），createdBy 非空为用户自建 */
 export interface Source {
   id: string;
   kind: SourceKind;

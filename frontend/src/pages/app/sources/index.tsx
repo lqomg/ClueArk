@@ -217,7 +217,7 @@ export function SourcesPage() {
                           <span className="min-w-0 truncate">{s.displayName}</span>
                         </button>
                       </td>
-                      <td className="px-3 py-2 text-slate-500">{s.isOfficial ? '官方' : '用户'}</td>
+                      <td className="px-3 py-2 text-slate-500">{s.isOfficial ? '官方' : '非官方'}</td>
                       <td className="max-w-[180px] truncate px-3 py-2 text-slate-500" title={s.openUrl}>
                         {s.openUrl || '—'}
                       </td>

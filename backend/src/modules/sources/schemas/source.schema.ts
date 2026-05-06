@@ -86,7 +86,11 @@ export class SourceHotApi {
 }
 export const SourceHotApiSchema = SchemaFactory.createForClass(SourceHotApi);
 
-/** 全站统一信源（官方 createdBy=null；用户贡献则记录创建者） */
+/**
+ * 全站统一信源。
+ * `isOfficial`：启动时自 built-in-catalog 注入的种子信源，禁止删除。
+ * `createdBy`：null 为运营在后台维护的信源；非 null 为用户贡献（预留）。
+ */
 @Schema({ timestamps: true })
 export class Source {
   @Prop({ type: String, enum: SOURCE_KINDS, required: true, index: true })
@@ -113,7 +117,11 @@ export class Source {
   @Prop({ trim: true, maxlength: 512, default: null })
   avatarUrl: string | null;
 
-  /** null 表示官方信源 */
+  /** 启动种子注入的官方信源 */
+  @Prop({ default: false, index: true })
+  isOfficial: boolean;
+
+  /** null 表示非用户自建（运营池或种子） */
   @Prop({ type: Types.ObjectId, ref: 'User', default: null, index: true })
   createdBy: Types.ObjectId | null;
 
