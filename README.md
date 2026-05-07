@@ -1,19 +1,35 @@
 # ClueArk 线索方舟
 
-**个人AI情报助手** —— 以话题与关键词为入口，聚合多信源公开资讯（非涉密含义），新内容可提醒，把信息流整理成可浏览的个人面板。
+**个人 AI 情报助手** —— 以话题与关键词为入口，聚合多类公开信源，将信息流整理为可浏览的个人面板，并支持新内容提醒。
 
 输入话题或关键词即可驱动监控与浏览；定位极简、高效，无冗余功能。
 
-**信源是底层资产，监控是上层能力。**
 
-<img width="1920" height="919" alt="image" src="https://github.com/user-attachments/assets/0f705bd1-0b03-40e9-a725-ff918422c5ae" />
+<img width="1920" height="919" alt="ClueArk 界面预览" src="https://github.com/user-attachments/assets/0f705bd1-0b03-40e9-a725-ff918422c5ae" />
 
+## 功能特性
 
-**演示地址：**  [http://114.132.246.171/app/feed](http://114.132.246.171/app/feed)
+- **统一信源模型**：官方内置与用户自建共用同一套类型与指纹策略，便于扩展与运维。
+- **自定义监控话题**：可按关键词、话题创建个人监控，在统一信源池汇聚的内容之上做筛选与聚合浏览，并支持新内容提醒。
+- **多类采集路径**：同一资源池内支持 **RSS/Atom**、**Web（含可选列表页爬虫）**、**JSON 热点 API（可配置字段映射）**，按需选用而非单一抓取方式。
+- **独立 Web 爬虫服务**：对无稳定 Feed 的站点，通过 **CSS 选择器** 解析列表页 HTML（NestJS + Cheerio），与主站 **契约对齐** 上报；爬虫侧不依赖 LLM。详见 [`crawler/README.md`](crawler/README.md)。
+- **可选智能化**：可按环境变量接入 DeepSeek、Embedding 等（根目录与 `backend/.env.example`）。
+- **Docker Compose 单机栈**：MongoDB、后端 API、前端（Nginx 反代）、爬虫默认同栈构建启动，适合快速部署。
 
-普通用户自行注册使用
+## 多类信源支持
 
-**管理员账号：** admin@clueark.local / lin123456qian
+| 类型 | 说明 | 典型用途 |
+|------|------|----------|
+| **RSS / Atom** | 标准订阅地址增量拉取 | 资讯站、博客等提供 Feed 的信源 |
+| **Web** | 站点 URL；可选 `crawlListUrl` + `crawlSelectors` 供爬虫解析列表页 | 仅有网页列表、需规则化抽取条目的场景 |
+| **热点 API（`hot_api`）** | JSON HTTP 接口 + 可配置 mapper（如条目数组路径与字段映射） | 结构化热点/排行榜类数据源 |
+
+内置种子见 **`data/built-in-catalog.json`**（含多条 RSS 示例）；部署时可通过 **`BUILTIN_CATALOG_PATH`** 指向自定义目录。
+
+## 演示
+
+- **访问：** [http://114.132.246.171/app/feed](http://114.132.246.171/app/feed) —— 普通用户可自行注册。
+- **演示管理员（请勿用于生产环境）：** `admin@clueark.local` / `lin123456qian`
 
 ## 功能概览
 
@@ -21,8 +37,7 @@
 
 - 话题 / 关键词驱动的内容监控与浏览
 - 全站统一信源资源池（MongoDB `sources`），支持官方内置条目与用户自建信源
-- RSS 等拉取能力与可选 **Web 列表页爬虫**（独立服务，CSS 选择器解析，见 [`crawler/README.md`](crawler/README.md)）
-- 可选 DeepSeek、Embedding 等能力（环境变量配置，详见根目录与 `backend/.env.example`）
+- RSS 拉取、Web 列表页爬虫（独立服务、选择器解析）、可选热点 JSON 管线
 - **Docker Compose** 一键部署：MongoDB、后端、前端（Nginx）、爬虫默认同栈启动
 
 ## 技术栈
@@ -81,8 +96,8 @@ docker compose up -d --build
 
 ### 访问地址
 
-- **Web 界面**：`http://<服务器IP或域名>:<端口>`  
-  - 若已按 `.env.example` 复制并保留 `WEB_PORT=8080`，则一般为 **`http://<host>:8080`**。  
+- **Web 界面**：`http://<服务器IP或域名>:<端口>`
+  - 若已按 `.env.example` 复制并保留 `WEB_PORT=8080`，则一般为 **`http://<host>:8080`**。
   - 若未提供 `.env` 或未设置 `WEB_PORT`，Compose 默认将容器 80 映射到宿主机 **`80`**（即 `http://<host>/`）。
 - **HTTP API**：通过前端的 **`/api`** 路径由 Nginx 反代到后端，**不单独对外暴露** backend 端口。
 
