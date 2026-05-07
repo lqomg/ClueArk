@@ -1,20 +1,30 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Radar, Settings2, Trash2 } from 'lucide-react';
+import { Pin, Plus, Radar, Settings2, Trash2 } from 'lucide-react';
 import { deleteMonitor, listMonitors } from '@/api/monitors';
+import { MONITOR_PIN_LIMIT, resolvePinnedMonitors } from '@/lib/monitor-pins';
 import type { Monitor } from '@/types/models';
-import { Button } from '@/components/ui';
+import { Button, Checkbox, Drawer } from '@/components/ui';
 import { cn } from '@/lib/cn';
+import { useMonitorPinsStore } from '@/stores/monitorPinsStore';
 
 const linkOutlineSm =
   'inline-flex items-center justify-center rounded-lg border border-ark-border px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-ark-accent/50 hover:text-ark-accent';
 
 export function MonitorsListPage() {
   const navigate = useNavigate();
+  const customized = useMonitorPinsStore((s) => s.customized);
+  const customIds = useMonitorPinsStore((s) => s.ids);
+  const setCustomPins = useMonitorPinsStore((s) => s.setCustomPins);
+  const resetToDefault = useMonitorPinsStore((s) => s.resetToDefault);
+
   const [rows, setRows] = useState<Monitor[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pinDrawerOpen, setPinDrawerOpen] = useState(false);
+  const [tempIds, setTempIds] = useState<Set<string>>(() => new Set());
+  const [pinError, setPinError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -34,6 +44,48 @@ export function MonitorsListPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!pinDrawerOpen || !rows) return;
+    const eff = resolvePinnedMonitors(rows, customized, customIds);
+    setTempIds(new Set(eff.map((m) => m.id)));
+    setPinError(null);
+  }, [pinDrawerOpen, rows, customized, customIds]);
+
+  const sortedForDrawer = useMemo(() => {
+    if (!rows) return [];
+    return [...rows].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  }, [rows]);
+
+  const togglePin = useCallback((id: string) => {
+    setTempIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+        setPinError(null);
+        return next;
+      }
+      if (next.size >= MONITOR_PIN_LIMIT) {
+        setPinError(`最多选择 ${MONITOR_PIN_LIMIT} 个监控`);
+        return prev;
+      }
+      setPinError(null);
+      next.add(id);
+      return next;
+    });
+  }, []);
+
+  function savePins() {
+    if (!rows) return;
+    const selected = [...tempIds];
+    const ordered = [...rows]
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+      .filter((m) => selected.includes(m.id))
+      .map((m) => m.id)
+      .slice(0, MONITOR_PIN_LIMIT);
+    setCustomPins(ordered);
+    setPinDrawerOpen(false);
+  }
+
   async function onDelete(id: string, title: string) {
     if (!window.confirm(`确定删除监控「${title}」？`)) return;
     setDeletingId(id);
@@ -51,6 +103,55 @@ export function MonitorsListPage() {
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col gap-4">
+      <Drawer
+        open={pinDrawerOpen}
+        onClose={() => setPinDrawerOpen(false)}
+        title="侧栏关注"
+        description={`最多 ${MONITOR_PIN_LIMIT} 个；未自选时侧栏默认展示创建时间最新的监控。保存后即固定为你选择的条目与顺序（按创建时间新→旧）。`}
+        footer={
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                resetToDefault();
+                setPinDrawerOpen(false);
+              }}
+            >
+              恢复默认
+            </Button>
+            <Button type="button" variant="primary" onClick={() => savePins()}>
+              保存自选
+            </Button>
+          </div>
+        }
+      >
+        <p className="mb-3 text-xs text-slate-500">
+          {customized
+            ? '当前策略：自选（可在侧栏「关注」中一键进入）。'
+            : '当前策略：默认（侧栏展示最新创建的监控，随新建而变化）。'}
+        </p>
+        {pinError ? <p className="mb-3 text-sm text-amber-400/95">{pinError}</p> : null}
+        <ul className="space-y-1">
+          {sortedForDrawer.map((m) => {
+            const on = tempIds.has(m.id);
+            return (
+              <li key={m.id}>
+                <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2.5 transition hover:bg-white/[0.04]">
+                  <Checkbox checked={on} onChange={() => togglePin(m.id)} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-white">{m.title}</span>
+                    <span className="mt-0.5 block text-[11px] text-slate-600">
+                      {new Date(m.createdAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                    </span>
+                  </span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      </Drawer>
+
       <div className="shrink-0 border-b border-ark-border bg-ark-bg pb-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -61,13 +162,26 @@ export function MonitorsListPage() {
               用一句话描述话题，系统会推荐信源并基于语义展示相关动态。时间线仅含已绑定信源、且与描述向量相似度达阈值的条目。
             </p>
           </div>
-          <Link
-            to="/app/monitors/new"
-            className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-lg bg-ark-accent px-4 py-2.5 text-sm font-bold text-black shadow-lg shadow-ark-accent/15 hover:opacity-95 sm:self-auto"
-          >
-            <Plus size={16} />
-            新建监控
-          </Link>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              className="inline-flex items-center gap-1.5"
+              disabled={!rows?.length}
+              onClick={() => setPinDrawerOpen(true)}
+            >
+              <Pin size={16} strokeWidth={2} />
+              侧栏快捷
+            </Button>
+            <Link
+              to="/app/monitors/new"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-ark-accent px-4 py-2.5 text-sm font-bold text-black shadow-lg shadow-ark-accent/15 hover:opacity-95"
+            >
+              <Plus size={16} />
+              新建监控
+            </Link>
+          </div>
         </div>
       </div>
 

@@ -117,7 +117,7 @@ export function MonitorSettingsPage() {
       ) : (
         <>
           <div className="rounded-xl border border-ark-border bg-ark-surface/40 p-4">
-            <div className="text-sm font-medium text-slate-200">最低语义相关度（余弦）</div>
+            <div className="text-sm font-medium text-slate-200">最低语义相关度</div>
             <p className="mt-1 text-[11px] text-slate-500">
               仅展示与监控话题描述相似度 ≥ 该值的动态。调高更精准、条数更少；调低更宽松。
             </p>
@@ -130,7 +130,7 @@ export function MonitorSettingsPage() {
                 value={minCosine}
                 onChange={(e) => setMinCosine(Number(e.target.value))}
                 className="h-2 min-w-[200px] flex-1 cursor-pointer accent-ark-accent"
-                aria-label="最低余弦相似度"
+                aria-label="最低相似度"
               />
               <span className="tabular-nums text-sm font-semibold text-ark-accent">
                 {minCosine.toFixed(2)}

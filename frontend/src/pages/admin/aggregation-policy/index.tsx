@@ -125,8 +125,8 @@ export function AdminAggregationPolicyPage() {
           </FormField>
 
           <FormField
-            title="标题余弦阈值"
-            description="标题向量余弦相似度须达到该值才可能合并。1 表示完全相同，数值越高越严格、合并越少；过低容易误把不同事件并在一起。需与「全文阈值」同时满足。"
+            title="标题相关度"
+            description="标题相似度须达到该值才可能合并。1 表示完全相同，数值越高越严格、合并越少；过低容易误把不同事件并在一起。需与「全文阈值」同时满足。"
             range="0.5～0.999"
           >
             <input
@@ -141,8 +141,8 @@ export function AdminAggregationPolicyPage() {
           </FormField>
 
           <FormField
-            title="全文余弦阈值"
-            description="由标题与摘要拼接成全文后计算向量，余弦相似度须达到该值才可能合并。通常略低于或与标题阈值接近，用于减少「标题像但正文无关」的误并。"
+            title="全文相关度"
+            description="由标题与摘要拼接成全文后计算向量，相似度须达到该值才可能合并。通常略低于或与标题阈值接近，用于减少「标题像但正文无关」的误并。"
             range="0.5～0.999"
           >
             <input
