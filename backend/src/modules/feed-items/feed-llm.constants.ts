@@ -1,2 +1,2 @@
-export const FEED_MIN_SUMMARY_LEN_FOR_LLM = 50;
+export const FEED_MIN_SUMMARY_LEN_FOR_LLM = 20;
 
