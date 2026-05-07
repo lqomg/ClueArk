@@ -248,10 +248,10 @@ export class MonitorsService {
       scored.push({ doc: row, score });
     }
     scored.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      const ta = new Date((a.doc.publishedAt as Date | null) ?? (a.doc.createdAt as Date)).getTime();
-      const tb = new Date((b.doc.publishedAt as Date | null) ?? (b.doc.createdAt as Date)).getTime();
-      return tb - ta;
+      const ta = new Date((a.doc.publishedAt as Date | null | undefined) ?? (a.doc.createdAt as Date)).getTime();
+      const tb = new Date((b.doc.publishedAt as Date | null | undefined) ?? (b.doc.createdAt as Date)).getTime();
+      if (tb !== ta) return tb - ta;
+      return b.score - a.score;
     });
 
     const total = scored.length;
