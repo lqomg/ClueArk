@@ -187,25 +187,6 @@ export function AdminAggregationPolicyPage() {
           </FormField>
         </div>
 
-        <div className="border-t border-ark-border/50 pt-6">
-          <FormField
-            title="定时聚类"
-            description="关闭后，整点定时任务不再自动执行相似聚类；需要时仍可通过运维或后端提供的「手动触发聚类」接口执行，与定时互不影响。"
-          >
-            <label className="flex max-w-md cursor-pointer items-start gap-3 rounded-lg border border-ark-border/50 bg-ark-bg/50 px-3 py-3">
-              <input
-                type="checkbox"
-                checked={form.clusterCronDisabled}
-                onChange={(e) => setForm((f) => (f ? { ...f, clusterCronDisabled: e.target.checked } : f))}
-                className="mt-0.5 size-4 shrink-0 rounded border-ark-border"
-              />
-              <span className="text-sm leading-snug text-slate-300">
-                关闭整点定时相似聚类（仍可手动触发）
-              </span>
-            </label>
-          </FormField>
-        </div>
-
         {error ? <p className="text-sm text-red-400">{error}</p> : null}
         {hint ? <p className="text-sm text-ark-accent">{hint}</p> : null}
 
