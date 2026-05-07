@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom';
 import { GithubRepoLink } from '@/components/GithubRepoLink';
+import { ProductMark } from '@/components/brand/ProductMark';
 
 const inputClass =
   'w-full px-5 py-4 rounded-lg bg-white/5 border border-white/10 text-ark-text placeholder:text-slate-600 focus:border-ark-accent/50 focus:bg-white/[0.08] transition-all outline-none text-sm';
@@ -25,13 +25,11 @@ export function AuthBrandingLayout({
     <div className="flex min-h-full flex-col font-sans text-white md:h-screen md:flex-row md:overflow-hidden">
       <div className="relative flex flex-1 flex-col justify-between overflow-hidden border-ark-border bg-ark-sidebar p-10 text-white md:border-r md:p-16 lg:p-24">
         <div className="relative z-10">
-          <Link to="/login" className="mb-10 inline-flex items-center gap-2 grayscale opacity-90 transition-all hover:grayscale-0">
-            <span className="text-2xl font-black tracking-tighter">线索</span>
-            <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-ark-accent p-0.5">
-              <div className="h-full w-full rounded-full border border-ark-accent/50" />
-            </div>
-            <span className="text-2xl font-black tracking-tighter text-ark-accent">方舟</span>
-          </Link>
+          <ProductMark
+            variant="auth"
+            to="/login"
+            className="mb-10 grayscale opacity-90 hover:grayscale-0"
+          />
 
           <div className="max-w-xl space-y-6 md:space-y-8">
             <h2 className="text-4xl font-black leading-[0.95] tracking-tighter text-white lg:text-6xl">

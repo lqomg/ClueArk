@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Bookmark, Database, Layers, LogOut, Newspaper, Radar, User, Users } from 'lucide-react';
+import { ProductMark } from '@/components/brand/ProductMark';
 import { GithubRepoLink } from '@/components/GithubRepoLink';
 import { useResolvedMonitorPins } from '@/hooks/useResolvedMonitorPins';
 import { useAuthStore } from '@/stores/authStore';
@@ -34,13 +35,7 @@ export function AppShell() {
     <div className="flex h-full min-h-0 flex-col bg-ark-bg font-sans text-white md:h-screen md:flex-row md:overflow-hidden">
       <aside className="hidden w-56 shrink-0 flex-col border-ark-border bg-ark-sidebar md:flex md:border-r">
         <div className="p-6">
-          <Link to="/app/feed" className="mb-10 flex items-center gap-1.5 transition-all hover:opacity-90">
-            <span className="text-xl font-black tracking-tighter">线索</span>
-            <div className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-ark-accent p-0.5">
-              <div className="h-full w-full rounded-full border border-ark-accent/50" />
-            </div>
-            <span className="text-xl font-black tracking-tighter text-ark-accent">方舟</span>
-          </Link>
+          <ProductMark variant="sidebar" to="/app/feed" className="mb-10" />
 
           <nav className="space-y-1">
             <NavLink to="/app/feed" end className={({ isActive }) => shellNavClass(isActive)}>
@@ -146,10 +141,7 @@ export function AppShell() {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header className="shrink-0 space-y-2 border-b border-ark-border bg-ark-sidebar px-4 py-3 md:hidden">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-sm font-bold tracking-tight">
-              <span>线索</span>
-              <span className="text-ark-accent">方舟</span>
-            </div>
+            <ProductMark variant="compact" to="/app/feed" />
             <div className="flex items-center gap-3">
               <GithubRepoLink showUrl={false} iconSize={20} className="text-slate-500 hover:text-ark-accent" />
               <button type="button" className="text-xs text-slate-500 hover:text-ark-accent" onClick={logout}>
