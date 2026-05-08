@@ -34,8 +34,8 @@ export class FeedMaintenanceTask {
     }
   }
 
-  /** 每小时整点跑相似聚类（embedding + 双阈值） */
-  @Cron('0 0 * * * *')
+  /** 每 10 分钟跑相似聚类（embedding + 双阈值） */
+  @Cron('0 */10 * * * *')
   async handleClusterCron() {
     const p = await this.aggregationPolicy.getResolvedClusterParams();
     if (p.clusterCronDisabled) return;

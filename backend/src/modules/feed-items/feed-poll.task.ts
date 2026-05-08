@@ -20,8 +20,8 @@ export class FeedPollTask implements OnApplicationBootstrap {
     void this.runPollRound('startup');
   }
 
-  /** 每 15 分钟整点拉取（秒=0） */
-  @Cron('0 */15 * * * *')
+  /** 每 10 分钟整点拉取（秒=0） */
+  @Cron('0 */10 * * * *')
   async handleCron(): Promise<void> {
     await this.runPollRound('cron');
   }
