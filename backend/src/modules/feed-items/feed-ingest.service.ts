@@ -11,7 +11,7 @@ import { fingerprintUrlKey } from '../sources/fingerprint.util';
 import type { CrawlerIngestBodyDto } from './dto/crawler-ingest.dto';
 import { applyRssPublishedAtFeedCorrection } from './rss-published-at-corrections';
 import { FEED_MIN_SUMMARY_LEN_FOR_LLM } from './feed-llm.constants';
-import { normalizePublishedAt } from './published-at.util';
+import { capFuturePublishedAt, maxAllowedPublishedAt, normalizePublishedAt } from './published-at.util';
 
 const FETCH_TIMEOUT_MS = 10_000;
 const MAX_SUMMARY_CHARS = 8000;
@@ -301,6 +301,7 @@ export class FeedIngestService {
       const publishedAtRaw = it.isoDate ?? it.pubDate ?? null;
       let publishedAt: Date | null = normalizePublishedAt(publishedAtRaw, { now });
       publishedAt = applyRssPublishedAtFeedCorrection(feedUrl, publishedAt);
+      publishedAt = capFuturePublishedAt(publishedAt, now);
 
       ops.push({
         updateOne: {
@@ -329,6 +330,7 @@ export class FeedIngestService {
 
     if (!ops.length) return 0;
     const res = await this.feedItemModel.bulkWrite(ops, { ordered: false });
+    await this.repairFuturePublishedAtForSource(sourceId, now);
     return res.upsertedCount ?? 0;
   }
 
@@ -444,7 +446,7 @@ export class FeedIngestService {
       const summary = truncate(snippet, MAX_SUMMARY_CHARS);
       const llmStatus = summary.trim().length >= FEED_MIN_SUMMARY_LEN_FOR_LLM ? 'pending' : 'skipped';
 
-      const publishedAt = normalizePublishedAt(it.publishedAt, { now });
+      const publishedAt = capFuturePublishedAt(normalizePublishedAt(it.publishedAt, { now }), now);
 
       ops.push({
         updateOne: {
@@ -475,6 +477,7 @@ export class FeedIngestService {
     if (ops.length) {
       const res = await this.feedItemModel.bulkWrite(ops, { ordered: false });
       upserted = res.upsertedCount ?? 0;
+      await this.repairFuturePublishedAtForSource(sourceId, now);
     }
 
     const durationMs = Date.now() - started;
@@ -691,7 +694,7 @@ export class FeedIngestService {
       const title = truncate(titleRaw, 500);
       const summaryRaw = stripTags((it.summary ?? '').trim());
       const summary = summaryRaw ? truncate(summaryRaw, MAX_SUMMARY_CHARS) : '';
-      const publishedAt = normalizePublishedAt(it.pubDate, { now });
+      const publishedAt = capFuturePublishedAt(normalizePublishedAt(it.pubDate, { now }), now);
 
       ops.push({
         updateOne: {
@@ -720,6 +723,16 @@ export class FeedIngestService {
 
     if (!ops.length) return 0;
     const res = await this.feedItemModel.bulkWrite(ops, { ordered: false });
+    await this.repairFuturePublishedAtForSource(sourceId, now);
     return res.upsertedCount ?? 0;
+  }
+
+  private async repairFuturePublishedAtForSource(sourceId: Types.ObjectId, now: Date): Promise<void> {
+    await this.feedItemModel
+      .updateMany(
+        { sourceId, publishedAt: { $gt: maxAllowedPublishedAt(now) } },
+        [{ $set: { publishedAt: { $ifNull: ['$createdAt', now] } } }],
+      )
+      .exec();
   }
 }

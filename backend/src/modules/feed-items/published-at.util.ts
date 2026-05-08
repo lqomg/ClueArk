@@ -2,6 +2,7 @@ type NormalizePublishedAtOptions = {
   now?: Date;
 };
 
+const DEFAULT_FUTURE_GRACE_MS = 6 * 60 * 60 * 1000;
 const REL_RE = /^(\d{1,6})\s*(秒|分钟|分|小时|时|天|日|周|月|年)\s*(前|内)$/;
 const TODAY_YESTERDAY_RE = /^(今天|昨日|昨天|前天)\s*(\d{1,2})(?::(\d{1,2}))?(?::(\d{1,2}))?$/;
 const CH_MD_RE =
@@ -194,5 +195,18 @@ export function normalizePublishedAt(raw: unknown, opts: NormalizePublishedAtOpt
   // 兜底：Date.parse（ISO/RFC/浏览器常见格式）
   const d = new Date(t);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+export function capFuturePublishedAt(
+  publishedAt: Date | null,
+  now: Date,
+  graceMs = DEFAULT_FUTURE_GRACE_MS,
+): Date | null {
+  if (publishedAt == null || Number.isNaN(publishedAt.getTime())) return null;
+  return publishedAt.getTime() > maxAllowedPublishedAt(now, graceMs).getTime() ? now : publishedAt;
+}
+
+export function maxAllowedPublishedAt(now: Date, graceMs = DEFAULT_FUTURE_GRACE_MS): Date {
+  return new Date(now.getTime() + graceMs);
 }
 
