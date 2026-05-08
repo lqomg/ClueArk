@@ -37,6 +37,22 @@ export class SourcesSeedService implements OnModuleInit {
         const fingerprint = buildFingerprint(SOURCE_KIND.WEB, { webUrl: url });
         if (!fingerprint) continue;
 
+        let crawlListUrlNorm: string | undefined;
+        const rawCrawlList = row.crawlListUrl?.trim();
+        if (rawCrawlList && isValidHttpUrl(rawCrawlList)) {
+          const crawlListReach = await checkUrlReachable(rawCrawlList);
+          if (!crawlListReach.ok) this.logger.warn(`种子 URL 探测失败（WEB LIST）: ${rawCrawlList} ${JSON.stringify(crawlListReach)}`);
+          crawlListUrlNorm = crawlListReach.normalized && crawlListReach.ok ? crawlListReach.normalized : rawCrawlList;
+        }
+
+        const web: {
+          url: string;
+          crawlListUrl?: string;
+          crawlSelectors?: { item: string; link: string; title: string; summary?: string; date?: string };
+        } = { url };
+        if (crawlListUrlNorm && isValidHttpUrl(crawlListUrlNorm)) web.crawlListUrl = crawlListUrlNorm;
+        if (row.crawlSelectors) web.crawlSelectors = row.crawlSelectors;
+
         const existing = await this.sourceModel.findOne({ fingerprint }).lean().exec();
         if (existing) {
           if (existing.createdBy) {
@@ -49,7 +65,7 @@ export class SourcesSeedService implements OnModuleInit {
           kind: SOURCE_KIND.WEB,
           fingerprint,
           displayName: row.name,
-          web: { url },
+          web,
           note: row.description.slice(0, 2000),
           sortOrder: i,
           enabled: true,

@@ -3,138 +3,486 @@
     {
       "id": "builtin-rss-36kr",
       "kind": "rss",
-      "name": "36氪 RSS",
+      "name": "36氪",
       "feedUrl": "https://36kr.com/feed",
       "siteUrl": "https://www.36kr.com/",
-      "description": "36氪全文订阅（RSS/Atom），便于阅读器或采集管线增量拉取。"
+      "description": "36氪官方 RSS/Atom 订阅源。覆盖最新文章，适合阅读器订阅与采集管线增量拉取。"
     },
     {
       "id": "builtin-rss-ifanr",
       "kind": "rss",
-      "name": "爱范儿 RSS",
+      "name": "爱范儿",
       "feedUrl": "https://www.ifanr.com/feed",
       "siteUrl": "https://www.ifanr.com/",
-      "description": "爱范儿最新文章订阅。"
+      "description": "爱范儿官方 RSS 订阅源。覆盖最新文章，偏消费电子、互联网产品与科技生活方式。"
     },
     {
       "id": "builtin-rss-sspai",
       "kind": "rss",
-      "name": "少数派 RSS",
+      "name": "少数派",
       "feedUrl": "https://sspai.com/feed",
       "siteUrl": "https://sspai.com/",
-      "description": "效率工具、数字生活与软硬件体验。"
+      "description": "少数派官方 RSS 订阅源。效率工具、数字生活与软硬件体验类文章更新。"
     },
     {
       "id": "builtin-rss-solidot",
       "kind": "rss",
-      "name": "Solidot RSS",
+      "name": "Solidot",
       "feedUrl": "https://www.solidot.org/index.rss",
       "siteUrl": "https://www.solidot.org/",
-      "description": "科技奇客资讯聚合，偏开源与 geek 向短讯。"
+      "description": "Solidot 官方 RSS 订阅源。偏开源、极客向短讯与科技资讯聚合。"
     },
     {
       "id": "builtin-rss-qbitai",
       "kind": "rss",
-      "name": "量子位 RSS",
+      "name": "量子位",
       "feedUrl": "https://www.qbitai.com/feed",
       "siteUrl": "https://www.qbitai.com/",
-      "description": "量子位 AI 与硬科技文章订阅。"
+      "description": "量子位官方 RSS 订阅源。AI 与硬科技相关资讯与深度文章更新。"
     },
     {
       "id": "builtin-rss-leiphone",
       "kind": "rss",
-      "name": "雷锋网 RSS",
+      "name": "雷锋网",
       "feedUrl": "https://www.leiphone.com/feed",
       "siteUrl": "https://www.leiphone.com/",
-      "description": "人工智能、车联网与商业科技报道。"
+      "description": "雷锋网官方 RSS 订阅源。聚焦人工智能、产业互联网、智能汽车等商业科技报道。"
     },
     {
       "id": "builtin-rss-infoq-cn",
       "kind": "rss",
-      "name": "InfoQ 中文 RSS",
+      "name": "InfoQ 中文",
       "feedUrl": "https://www.infoq.cn/feed",
       "siteUrl": "https://www.infoq.cn/",
-      "description": "架构、云计算与工程实践的资讯与文章。"
+      "description": "InfoQ 中文站官方 RSS 订阅源。覆盖架构、云原生、工程实践与团队管理等内容。"
     },
     {
       "id": "builtin-rss-oschina",
       "kind": "rss",
-      "name": "开源中国资讯 RSS",
+      "name": "开源中国资讯",
       "feedUrl": "https://www.oschina.net/news/rss",
       "siteUrl": "https://www.oschina.net/",
-      "description": "开源项目、开发者社区与 IT 新闻聚合。"
+      "description": "开源中国资讯 RSS 订阅源。覆盖开源项目动态、开发者社区与 IT 新闻聚合。"
     },
     {
       "id": "builtin-rss-ithome",
       "kind": "rss",
-      "name": "IT之家 RSS",
+      "name": "IT之家",
       "feedUrl": "https://www.ithome.com/rss/",
       "siteUrl": "https://www.ithome.com/",
-      "description": "消费电子、系统软件与数码圈热点。"
+      "description": "IT之家 RSS 订阅源。消费电子、系统软件与数码圈热点资讯更新。"
     },
     {
       "id": "builtin-rss-techmeme",
       "kind": "rss",
-      "name": "Techmeme RSS",
+      "name": "Techmeme",
       "feedUrl": "https://www.techmeme.com/feed.xml",
       "siteUrl": "https://www.techmeme.com/",
-      "description": "英文科技头条聚合，偏硅谷与全球大厂动态。"
+      "description": "Techmeme RSS 订阅源（英文）。科技头条聚合，偏硅谷与全球科技公司动态。"
     },
     {
       "id": "builtin-rss-techcrunch",
       "kind": "rss",
-      "name": "TechCrunch RSS",
+      "name": "TechCrunch",
       "feedUrl": "https://techcrunch.com/feed/",
       "siteUrl": "https://techcrunch.com/",
-      "description": "英文创投与初创公司报道。"
+      "description": "TechCrunch RSS 订阅源（英文）。创投、初创公司与产品/融资动态报道。"
     },
     {
       "id": "builtin-rss-theverge",
       "kind": "rss",
-      "name": "The Verge RSS",
+      "name": "The Verge",
       "feedUrl": "https://www.theverge.com/rss/index.xml",
       "siteUrl": "https://www.theverge.com/",
-      "description": "消费电子、互联网与科技文化英文报道。"
+      "description": "The Verge RSS 订阅源（英文）。覆盖消费电子、互联网产品与科技文化报道。"
     },
     {
       "id": "builtin-rss-arstechnica",
       "kind": "rss",
-      "name": "Ars Technica RSS",
-      "feedUrl": "https://feeds.arstechnica.com/arstechnica/index",
+      "name": "Ars Technica",
+      "feedUrl": "https://arstechnica.com/feed/",
       "siteUrl": "https://arstechnica.com/",
-      "description": "深度科技、政策与工程向英文媒体。"
+      "description": "Ars Technica RSS 订阅源（英文）。偏深度科技、工程实践与政策分析。"
     },
     {
       "id": "builtin-rss-mit-tr",
       "kind": "rss",
-      "name": "MIT Technology Review RSS",
+      "name": "MIT Technology Review",
       "feedUrl": "https://www.technologyreview.com/feed/",
       "siteUrl": "https://www.technologyreview.com/",
-      "description": "麻省理工科技评论：前沿科学与产业应用英文稿。"
+      "description": "MIT Technology Review RSS 订阅源（英文）。前沿科学、技术趋势与产业应用报道。"
     },
     {
       "id": "builtin-rss-venturebeat",
       "kind": "rss",
-      "name": "VentureBeat RSS",
+      "name": "VentureBeat",
       "feedUrl": "https://venturebeat.com/feed/",
       "siteUrl": "https://venturebeat.com/",
-      "description": "AI、游戏与数据方向的英文创投媒体。"
+      "description": "VentureBeat RSS 订阅源（英文）。覆盖 AI、游戏、数据与企业技术等方向资讯。"
     },
     {
       "id": "builtin-rss-openai-blog",
       "kind": "rss",
-      "name": "OpenAI Blog RSS",
+      "name": "OpenAI Blog",
       "feedUrl": "https://openai.com/blog/rss.xml",
       "siteUrl": "https://openai.com/blog",
-      "description": "OpenAI 官方博客更新（模型、安全与研究发布）。"
+      "description": "OpenAI 官方博客 RSS。模型发布、研究进展与安全相关公告更新。"
     },
     {
       "id": "builtin-rss-hnrss",
       "kind": "rss",
-      "name": "Hacker News 头条 RSS",
+      "name": "Hacker News 头条",
       "feedUrl": "https://hnrss.org/frontpage",
       "siteUrl": "https://news.ycombinator.com/",
-      "description": "HN 首页热门帖第三方 RSS（非官方，稳定性依赖 hnrss.org）。"
+      "description": "Hacker News 首页热门帖聚合订阅源。适合快速跟踪社区热点讨论与链接。"
+    },
+
+    {
+      "id": "builtin-rss-apnews-latest-fulltext",
+      "kind": "rss",
+      "name": "美联社 AP News - 综合新闻",
+      "feedUrl": "https://quanwenrss.com/apnews",
+      "siteUrl": "https://apnews.com/",
+      "description": "美联社 AP News 综合新闻更新。覆盖美国与国际要闻、突发与深度报道。"
+    },
+    {
+      "id": "builtin-rss-apnews-us-fulltext",
+      "kind": "rss",
+      "name": "美联社 AP News - 美国新闻",
+      "feedUrl": "https://quanwenrss.com/apnews/us",
+      "siteUrl": "https://apnews.com/us-news",
+      "description": "美联社 AP News 美国新闻更新。覆盖美国国内政治、社会、司法与突发新闻。"
+    },
+    {
+      "id": "builtin-rss-apnews-world-fulltext",
+      "kind": "rss",
+      "name": "美联社 AP News - 国际新闻",
+      "feedUrl": "https://quanwenrss.com/apnews/world",
+      "siteUrl": "https://apnews.com/world-news",
+      "description": "美联社 AP News 国际新闻更新。覆盖全球要闻、外交与地区局势动态。"
+    },
+    {
+      "id": "builtin-rss-apnews-investigations-fulltext",
+      "kind": "rss",
+      "name": "美联社 AP News - 深度调查",
+      "feedUrl": "https://quanwenrss.com/apnews/investigations",
+      "siteUrl": "https://apnews.com/hub/ap-investigations/",
+      "description": "美联社 AP 深度调查专题更新。聚焦调查报道、数据新闻与专题追踪。"
+    },
+    {
+      "id": "builtin-rss-apnews-fact-check-fulltext",
+      "kind": "rss",
+      "name": "美联社 AP News - 事实核查",
+      "feedUrl": "https://quanwenrss.com/apnews/ap-fact-check",
+      "siteUrl": "https://apnews.com/ap-fact-check",
+      "description": "美联社 AP 事实核查更新。对热点言论与流传信息进行核验与澄清。"
+    },
+
+    {
+      "id": "builtin-rss-bbc-latest-fulltext",
+      "kind": "rss",
+      "name": "BBC - 综合新闻",
+      "feedUrl": "https://quanwenrss.com/bbc",
+      "siteUrl": "https://www.bbc.co.uk/news",
+      "description": "BBC News 综合新闻更新。覆盖全球与英国要闻、突发与专题报道。"
+    },
+    {
+      "id": "builtin-rss-bbc-world-fulltext",
+      "kind": "rss",
+      "name": "BBC - 国际新闻",
+      "feedUrl": "https://quanwenrss.com/bbc/world",
+      "siteUrl": "https://www.bbc.co.uk/news/world",
+      "description": "BBC News World 国际新闻更新。覆盖全球热点、地区局势与国际事件。"
+    },
+    {
+      "id": "builtin-rss-bbc-business-fulltext",
+      "kind": "rss",
+      "name": "BBC - 商业频道",
+      "feedUrl": "https://quanwenrss.com/bbc/business",
+      "siteUrl": "https://www.bbc.co.uk/news/business",
+      "description": "BBC News Business 商业新闻更新。覆盖宏观经济、公司动态与市场趋势。"
+    },
+    {
+      "id": "builtin-rss-bbc-technology-fulltext",
+      "kind": "rss",
+      "name": "BBC - 科技频道",
+      "feedUrl": "https://quanwenrss.com/bbc/technology",
+      "siteUrl": "https://www.bbc.co.uk/news/technology",
+      "description": "BBC News Technology 科技新闻更新。覆盖互联网、AI、产品与产业趋势。"
+    },
+
+    {
+      "id": "builtin-rss-bloomberg-latest-fulltext",
+      "kind": "rss",
+      "name": "彭博社 Bloomberg - 财经",
+      "feedUrl": "https://quanwenrss.com/bloomberg",
+      "siteUrl": "https://www.bloomberg.com",
+      "description": "Bloomberg 最新财经更新。覆盖全球市场、公司、政策与宏观经济动态。"
+    },
+    {
+      "id": "builtin-rss-bloomberg-economics-fulltext",
+      "kind": "rss",
+      "name": "彭博社 Bloomberg - 经济频道",
+      "feedUrl": "https://quanwenrss.com/bloomberg/economics",
+      "siteUrl": "https://www.bloomberg.com",
+      "description": "Bloomberg Economics 经济频道更新。聚焦宏观数据、利率通胀与政策解读。"
+    },
+    {
+      "id": "builtin-rss-bloomberg-technology-fulltext",
+      "kind": "rss",
+      "name": "彭博社 Bloomberg - 科技频道",
+      "feedUrl": "https://quanwenrss.com/bloomberg/technology",
+      "siteUrl": "https://www.bloomberg.com",
+      "description": "Bloomberg Technology 科技频道更新。覆盖科技公司动态、产品与产业趋势。"
+    },
+    {
+      "id": "builtin-rss-bloomberg-ai-fulltext",
+      "kind": "rss",
+      "name": "彭博社 Bloomberg - AI 科技",
+      "feedUrl": "https://quanwenrss.com/bloomberg/technology-ai",
+      "siteUrl": "https://www.bloomberg.com",
+      "description": "Bloomberg AI 相关更新。覆盖人工智能产业、模型应用与资本市场动态。"
+    },
+    {
+      "id": "builtin-rss-bloomberg-cn-brief-fulltext",
+      "kind": "rss",
+      "name": "彭博社 Bloomberg - 中文摘要",
+      "feedUrl": "https://quanwenrss.com/bloomberg-cn",
+      "siteUrl": "https://www.bloomberg.com",
+      "description": "Bloomberg 中文摘要更新。聚焦财经要闻速读与重点新闻摘要。"
+    },
+
+    {
+      "id": "builtin-rss-caixin-latest-fulltext",
+      "kind": "rss",
+      "name": "财新网 - 最新报道",
+      "feedUrl": "https://quanwenrss.com/caixin",
+      "siteUrl": "https://www.caixin.com/",
+      "description": "财新网最新文章更新。覆盖政经、金融、产业与社会热点报道。"
+    },
+    {
+      "id": "builtin-rss-caixin-world-fulltext",
+      "kind": "rss",
+      "name": "财新网 - 世界频道",
+      "feedUrl": "https://quanwenrss.com/caixin/world",
+      "siteUrl": "https://www.caixin.com/",
+      "description": "财新网世界频道更新。覆盖国际要闻、外交与全球经济/政治动态。"
+    },
+    {
+      "id": "builtin-rss-caixin-politics-fulltext",
+      "kind": "rss",
+      "name": "财新网 - 政经频道",
+      "feedUrl": "https://quanwenrss.com/caixin/politics",
+      "siteUrl": "https://www.caixin.com/",
+      "description": "财新网政经频道更新。聚焦政策解读、宏观治理与公共议题。"
+    },
+    {
+      "id": "builtin-rss-caixin-economy-fulltext",
+      "kind": "rss",
+      "name": "财新网 - 金融频道",
+      "feedUrl": "https://quanwenrss.com/caixin/economy",
+      "siteUrl": "https://www.caixin.com/",
+      "description": "财新网金融/经济频道更新。覆盖资本市场、银行保险、宏观数据与行业研究。"
+    },
+    {
+      "id": "builtin-rss-caixin-technology-fulltext",
+      "kind": "rss",
+      "name": "财新网 - 科技频道",
+      "feedUrl": "https://quanwenrss.com/caixin/technology",
+      "siteUrl": "https://www.caixin.com/",
+      "description": "财新网科技频道更新。覆盖互联网、硬科技、创新产业与公司动态。"
+    },
+    {
+      "id": "builtin-rss-caixin-opinion-fulltext",
+      "kind": "rss",
+      "name": "财新网 - 评论/数据通",
+      "feedUrl": "https://quanwenrss.com/caixin/opinion",
+      "siteUrl": "https://www.caixin.com/",
+      "description": "财新网评论/数据类栏目更新。包含专栏评论、观点解读与数据图表型内容。"
+    },
+
+    {
+      "id": "builtin-rss-ftchinese-fulltext",
+      "kind": "rss",
+      "name": "金融时报中文网 - 综合新闻",
+      "feedUrl": "https://quanwenrss.com/ft",
+      "siteUrl": "https://www.ftchinese.com/",
+      "description": "FT 中文网综合新闻更新。覆盖国际时政、商业、经济与观点专栏。"
+    },
+
+    {
+      "id": "builtin-rss-morganstanley-china-fulltext",
+      "kind": "rss",
+      "name": "摩根士丹利 - 中国市场观点与洞察",
+      "feedUrl": "https://quanwenrss.com/morganstanley/china",
+      "siteUrl": "https://www.morganstanleychina.com/ideas",
+      "description": "摩根士丹利中国观点与洞察更新。覆盖宏观研究、行业观点与机构报告解读。"
+    },
+    {
+      "id": "builtin-rss-morganstanley-global-fulltext",
+      "kind": "rss",
+      "name": "摩根士丹利 - 全球观点与洞察",
+      "feedUrl": "https://quanwenrss.com/morganstanley/global",
+      "siteUrl": "https://www.morganstanley.com/ideas",
+      "description": "Morgan Stanley 全球观点与洞察更新。覆盖市场观点、研究文章与行业趋势分析。"
+    },
+
+    {
+      "id": "builtin-rss-politico-latest-fulltext",
+      "kind": "rss",
+      "name": "Politico - 最新新闻",
+      "feedUrl": "https://quanwenrss.com/politico",
+      "siteUrl": "https://www.politico.com",
+      "description": "Politico 最新新闻更新。覆盖美国政治、政策走向与重大时事。"
+    },
+    {
+      "id": "builtin-rss-politico-white-house-fulltext",
+      "kind": "rss",
+      "name": "Politico - 白宫新闻",
+      "feedUrl": "https://quanwenrss.com/politico/white-house",
+      "siteUrl": "https://www.politico.com",
+      "description": "Politico 白宫新闻更新。聚焦美国总统与白宫相关政策、人事与动态。"
+    },
+    {
+      "id": "builtin-rss-politico-trade-fulltext",
+      "kind": "rss",
+      "name": "Politico - 贸易政策",
+      "feedUrl": "https://quanwenrss.com/politico/trade",
+      "siteUrl": "https://www.politico.com",
+      "description": "Politico 贸易政策更新。覆盖关税、产业政策、国际贸易与监管议题。"
+    },
+    {
+      "id": "builtin-rss-politico-finance-fulltext",
+      "kind": "rss",
+      "name": "Politico - 金融政策",
+      "feedUrl": "https://quanwenrss.com/politico/finance",
+      "siteUrl": "https://www.politico.com",
+      "description": "Politico 金融政策更新。聚焦监管、财政金融政策与市场相关议题。"
+    },
+    {
+      "id": "builtin-rss-politico-technology-fulltext",
+      "kind": "rss",
+      "name": "Politico - 科技政策",
+      "feedUrl": "https://quanwenrss.com/politico/technology",
+      "siteUrl": "https://www.politico.com",
+      "description": "Politico 科技政策更新。覆盖 AI、平台治理、隐私安全与科技监管动向。"
+    },
+
+    {
+      "id": "builtin-rss-scmp-fulltext",
+      "kind": "rss",
+      "name": "南华早报 SCMP - 综合",
+      "feedUrl": "https://quanwenrss.com/scmp",
+      "siteUrl": "https://www.scmp.com/",
+      "description": "South China Morning Post（SCMP）综合更新。覆盖亚洲与国际新闻，侧重中国与区域议题。"
+    },
+    {
+      "id": "builtin-rss-nytimes-cn-fulltext",
+      "kind": "rss",
+      "name": "纽约时报中文网 - 中文",
+      "feedUrl": "https://quanwenrss.com/nytime",
+      "siteUrl": "https://cn.nytimes.com/",
+      "description": "纽约时报中文网更新。覆盖国际与中国相关新闻、深度报道与评论。"
+    },
+    {
+      "id": "builtin-rss-theatlantic-latest-fulltext",
+      "kind": "rss",
+      "name": "The Atlantic",
+      "feedUrl": "https://quanwenrss.com/theatlantic",
+      "siteUrl": "https://www.theatlantic.com/latest/",
+      "description": "The Atlantic 最新文章更新。覆盖美国政治、社会议题、文化评论与深度写作。"
+    },
+
+    {
+      "id": "builtin-rss-boyouquan-fulltext",
+      "kind": "rss",
+      "name": "博友圈",
+      "feedUrl": "https://quanwenrss.com/boyouquan",
+      "siteUrl": "https://www.boyouquan.com",
+      "description": "博友圈最新文章聚合更新。覆盖多站点个人博客/独立写作内容，适合作为泛读入口。"
+    },
+    {
+      "id": "builtin-rss-60secondproductivity-fulltext",
+      "kind": "rss",
+      "name": "60secondproductivity（Substack，全文 RSS）",
+      "feedUrl": "https://quanwenrss.com/blog/60secondproductivity",
+      "siteUrl": "https://60secondproductivity.substack.com/feed",
+      "description": "60secondproductivity（Substack）文章更新。以短篇效率/习惯/工作方法建议为主。"
+    },
+    {
+      "id": "builtin-rss-linuxdo-latest-fulltext",
+      "kind": "rss",
+      "name": "Linux.do",
+      "feedUrl": "https://quanwenrss.com/linux.do",
+      "siteUrl": "https://linux.do/latest",
+      "description": "Linux.do 最新主题更新。偏 Linux/开发/工具/AI 等方向的社区讨论与求助。"
+    },
+    {
+      "id": "builtin-rss-moj-legislation-solicitation",
+      "kind": "rss",
+      "name": "司法部 - 立法意见征集（Atom）",
+      "feedUrl": "https://quanwenrss.com/gov/moj/lifayijianzhengji",
+      "siteUrl": "http://www.moj.gov.cn/",
+      "description": "司法部立法意见征集更新。包含征求意见稿发布、通知公告与相关政策动态。"
+    },
+    {
+      "id": "builtin-web-anthropic-news",
+      "kind": "web",
+      "name": "Anthropic News",
+      "url": "https://www.anthropic.com/news",
+      "crawlListUrl": "https://www.anthropic.com/news",
+      "crawlSelectors": {
+        "item": "ul[class*=\"PublicationList\"] > li",
+        "link": "a[href^=\"/news/\"]",
+        "title": "span[class*=\"title\"]",
+        "date": "time[class*=\"date\"]"
+      },
+      "description": "Anthropic 官方新闻与研究动态。覆盖模型发布、安全研究、产品更新与公司公告。"
+    },
+    {
+      "id": "builtin-web-cloudflare-blog",
+      "kind": "web",
+      "name": "Cloudflare Blog",
+      "url": "https://blog.cloudflare.com/",
+      "crawlListUrl": "https://blog.cloudflare.com/",
+      "crawlSelectors": {
+        "item": "article",
+        "link": "a[data-testid=\"post-title\"]",
+        "title": "a[data-testid=\"post-title\"] h2",
+        "summary": "[data-testid=\"post-content\"]",
+        "date": "[data-testid=\"post-date\"]"
+      },
+      "description": "Cloudflare 官方博客。覆盖网络安全、边缘计算、性能优化与互联网基础设施动态。"
+    },
+    {
+      "id": "builtin-web-github-blog",
+      "kind": "web",
+      "name": "GitHub Blog",
+      "url": "https://github.blog/",
+      "crawlListUrl": "https://github.blog/",
+      "crawlSelectors": {
+        "item": "article.post-card",
+        "link": "a.post-card__link",
+        "title": "a.post-card__link",
+        "summary": "div.color-fg-muted p",
+        "date": "time[datetime]"
+      },
+      "description": "GitHub 官方博客。覆盖开发者工具、平台功能、开源生态与安全公告。"
+    },
+    {
+      "id": "builtin-web-vercel-blog",
+      "kind": "web",
+      "name": "Vercel Blog",
+      "url": "https://vercel.com/blog",
+      "crawlListUrl": "https://vercel.com/blog",
+      "crawlSelectors": {
+        "item": "article[aria-label][class*=\"article-card\"]",
+        "link": "a[href^=\"/blog/\"][class*=\"post\"]",
+        "title": "h2",
+        "summary": "p[class*=\"intro\"]",
+        "date": "time[datetime]"
+      },
+      "description": "Vercel 官方博客。覆盖前端工程、部署平台、AI 应用开发与产品更新。"
     }
   ]
 }

@@ -13,6 +13,10 @@ export interface CatalogJsonRow {
   kind?: CatalogJsonSourceKind;
   /** kind=web（或未写 kind）时必填：站点首页 */
   url?: string;
+  /** kind=web 时可选：爬虫请求的列表页；缺省用 url */
+  crawlListUrl?: string;
+  /** kind=web 时可选：CSS 选择器配置，item/link/title 齐全时下发给爬虫 */
+  crawlSelectors?: CatalogJsonWebCrawlSelectors;
   /** kind=rss 时必填：RSS/Atom Feed URL */
   feedUrl?: string;
   /** kind=rss 时可选：站点首页，便于跳转 */
@@ -27,7 +31,58 @@ export interface CatalogJsonFile {
   sources: CatalogJsonRow[];
 }
 
+export interface CatalogJsonWebCrawlSelectors {
+  item: string;
+  link: string;
+  title: string;
+  summary?: string;
+  date?: string;
+}
+
 const SEED_KEY_RE = /^[a-zA-Z0-9_-]+$/;
+
+function readOptionalHttpUrl(r: Record<string, unknown>, key: string, id: string): string | undefined {
+  const v = r[key];
+  if (v == null) return undefined;
+  if (typeof v !== 'string') throw new Error(`[ClueArk] catalog-json: ${key} 无效 @ ${id}`);
+  const t = v.trim();
+  if (!t) return undefined;
+  if (!isHttpUrl(t) || t.length > 2048) throw new Error(`[ClueArk] catalog-json: ${key} 无效 @ ${id}`);
+  return t;
+}
+
+function readSelectorField(r: Record<string, unknown>, key: string, id: string, required: boolean): string | undefined {
+  const v = r[key];
+  if (v == null) {
+    if (required) throw new Error(`[ClueArk] catalog-json: crawlSelectors.${key} 缺失 @ ${id}`);
+    return undefined;
+  }
+  if (typeof v !== 'string') throw new Error(`[ClueArk] catalog-json: crawlSelectors.${key} 无效 @ ${id}`);
+  const t = v.trim();
+  if (!t || t.length > 512) throw new Error(`[ClueArk] catalog-json: crawlSelectors.${key} 无效 @ ${id}`);
+  return t;
+}
+
+function readWebCrawlSelectors(r: Record<string, unknown>, id: string): CatalogJsonWebCrawlSelectors | undefined {
+  const raw = r.crawlSelectors;
+  if (raw == null) return undefined;
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error(`[ClueArk] catalog-json: crawlSelectors 无效 @ ${id}`);
+  }
+  const o = raw as Record<string, unknown>;
+  const item = readSelectorField(o, 'item', id, true)!;
+  const link = readSelectorField(o, 'link', id, true)!;
+  const title = readSelectorField(o, 'title', id, true)!;
+  const summary = readSelectorField(o, 'summary', id, false);
+  const date = readSelectorField(o, 'date', id, false);
+  return {
+    item,
+    link,
+    title,
+    ...(summary ? { summary } : {}),
+    ...(date ? { date } : {}),
+  };
+}
 
 function defaultCatalogPath(): string {
   const fromEnv = process.env.BUILTIN_CATALOG_PATH?.trim();
@@ -85,7 +140,17 @@ export function loadCatalogJsonFromDisk(path = defaultCatalogPath()): CatalogJso
     if (!description || description.length > 2000) throw new Error(`[ClueArk] catalog-json: description 无效 @ ${id}`);
     if (kind === SOURCE_KIND.WEB) {
       if (!url || !isHttpUrl(url) || url.length > 2048) throw new Error(`[ClueArk] catalog-json: url 无效 @ ${id}`);
-      out.push({ id, name, description, kind: SOURCE_KIND.WEB, url });
+      const crawlListUrl = readOptionalHttpUrl(r, 'crawlListUrl', id);
+      const crawlSelectors = readWebCrawlSelectors(r, id);
+      out.push({
+        id,
+        name,
+        description,
+        kind: SOURCE_KIND.WEB,
+        url,
+        ...(crawlListUrl ? { crawlListUrl } : {}),
+        ...(crawlSelectors ? { crawlSelectors } : {}),
+      });
     } else if (kind === SOURCE_KIND.HOT_API) {
       const hotUrl = typeof r.hotUrl === 'string' ? r.hotUrl.trim() : '';
       if (!hotUrl || !isHttpUrl(hotUrl) || hotUrl.length > 2048) {
