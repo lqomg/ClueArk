@@ -4,7 +4,7 @@ import { Model } from 'mongoose';
 import { Source, SourceDocument } from './schemas/source.schema';
 import { CatalogJsonLoader } from './catalog-json.loader';
 import { SOURCE_KIND } from './source-kind';
-import { checkUrlReachable, isValidHttpUrl } from './url-check.util';
+import { isValidHttpUrl } from './url-check.util';
 import { buildFingerprint } from './fingerprint.util';
 
 @Injectable()
@@ -30,19 +30,14 @@ export class SourcesSeedService implements OnModuleInit {
       if (kind === SOURCE_KIND.WEB) {
         const rawUrl = row.url;
         if (!rawUrl || !isValidHttpUrl(rawUrl)) continue;
-        const reach = await checkUrlReachable(rawUrl);
-        if (!reach.ok) this.logger.warn(`种子 URL 探测失败（WEB）: ${rawUrl} ${JSON.stringify(reach)}`);
-        const url = reach.normalized && reach.ok ? reach.normalized : rawUrl;
-        if (!isValidHttpUrl(url)) continue;
+        const url = rawUrl;
         const fingerprint = buildFingerprint(SOURCE_KIND.WEB, { webUrl: url });
         if (!fingerprint) continue;
 
-        let crawlListUrlNorm: string | undefined;
+        let crawlListUrl: string | undefined;
         const rawCrawlList = row.crawlListUrl?.trim();
         if (rawCrawlList && isValidHttpUrl(rawCrawlList)) {
-          const crawlListReach = await checkUrlReachable(rawCrawlList);
-          if (!crawlListReach.ok) this.logger.warn(`种子 URL 探测失败（WEB LIST）: ${rawCrawlList} ${JSON.stringify(crawlListReach)}`);
-          crawlListUrlNorm = crawlListReach.normalized && crawlListReach.ok ? crawlListReach.normalized : rawCrawlList;
+          crawlListUrl = rawCrawlList;
         }
 
         const web: {
@@ -50,7 +45,7 @@ export class SourcesSeedService implements OnModuleInit {
           crawlListUrl?: string;
           crawlSelectors?: { item: string; link: string; title: string; summary?: string; date?: string };
         } = { url };
-        if (crawlListUrlNorm && isValidHttpUrl(crawlListUrlNorm)) web.crawlListUrl = crawlListUrlNorm;
+        if (crawlListUrl) web.crawlListUrl = crawlListUrl;
         if (row.crawlSelectors) web.crawlSelectors = row.crawlSelectors;
 
         const existing = await this.sourceModel.findOne({ fingerprint }).lean().exec();
@@ -81,10 +76,7 @@ export class SourcesSeedService implements OnModuleInit {
       if (kind === SOURCE_KIND.HOT_API) {
         const rawUrl = row.hotUrl?.trim();
         if (!rawUrl || !isValidHttpUrl(rawUrl)) continue;
-        const reach = await checkUrlReachable(rawUrl);
-        if (!reach.ok) this.logger.warn(`种子 URL 探测失败（HOT_API）: ${rawUrl} ${JSON.stringify(reach)}`);
-        const url = reach.normalized && reach.ok ? reach.normalized : rawUrl;
-        if (!isValidHttpUrl(url)) continue;
+        const url = rawUrl;
 
         const fingerprint = buildFingerprint(SOURCE_KIND.HOT_API, { hotUrl: url });
         if (!fingerprint) continue;
@@ -119,47 +111,42 @@ export class SourcesSeedService implements OnModuleInit {
 
       const rawFeed = row.feedUrl;
       if (!rawFeed || !isValidHttpUrl(rawFeed)) continue;
-      const feedReach = await checkUrlReachable(rawFeed, 'get_only');
-      if (!feedReach.ok) this.logger.warn(`种子 URL 探测失败（RSS FEED）: ${rawFeed} ${JSON.stringify(feedReach)}`);
-      const feedUrl = feedReach.normalized && feedReach.ok ? feedReach.normalized : rawFeed;
-      if (!isValidHttpUrl(feedUrl)) continue;
+      const feedUrl = rawFeed;
 
-      let siteUrlNorm: string | undefined;
+      let siteUrl: string | undefined;
       const rawSite = row.siteUrl?.trim();
       if (rawSite && isValidHttpUrl(rawSite)) {
-        const siteReach = await checkUrlReachable(rawSite);
-        if (!siteReach.ok) this.logger.warn(`种子 URL 探测失败（RSS SITE）: ${rawSite} ${JSON.stringify(siteReach)}`);
-        siteUrlNorm = siteReach.normalized && siteReach.ok ? siteReach.normalized : rawSite;
+        siteUrl = rawSite;
       }
 
       const fingerprint = buildFingerprint(SOURCE_KIND.RSS, { rssFeedUrl: feedUrl });
       if (!fingerprint) continue;
 
-        const existing = await this.sourceModel.findOne({ fingerprint }).lean().exec();
-        if (existing) {
-          if (existing.createdBy) {
-            this.logger.warn(`种子跳过（指纹已被用户信源占用）: ${row.id}`);
-          }
-          continue;
+      const existing = await this.sourceModel.findOne({ fingerprint }).lean().exec();
+      if (existing) {
+        if (existing.createdBy) {
+          this.logger.warn(`种子跳过（指纹已被用户信源占用）: ${row.id}`);
         }
+        continue;
+      }
 
-        await this.sourceModel.create({
-          kind: SOURCE_KIND.RSS,
-          fingerprint,
-          displayName: row.name,
-          rss: {
-            feedUrl,
-            ...(siteUrlNorm ? { siteUrl: siteUrlNorm } : {}),
-          },
-          note: row.description.slice(0, 2000),
-          sortOrder: i,
-          enabled: true,
-          isOfficial: true,
-          createdBy: null,
-          avatarUrl: null,
-          deletedAt: null,
-        });
-        n += 1;
+      await this.sourceModel.create({
+        kind: SOURCE_KIND.RSS,
+        fingerprint,
+        displayName: row.name,
+        rss: {
+          feedUrl,
+          ...(siteUrl ? { siteUrl } : {}),
+        },
+        note: row.description.slice(0, 2000),
+        sortOrder: i,
+        enabled: true,
+        isOfficial: true,
+        createdBy: null,
+        avatarUrl: null,
+        deletedAt: null,
+      });
+      n += 1;
     }
     this.logger.log(`官方信源种子完成：${rows.length} 条配置（本次新建 ${n} 条）`);
   }
