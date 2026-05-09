@@ -21,7 +21,7 @@ ClueArk is designed as a lightweight, self-hostable intelligence workspace for i
 
 Repository: [https://github.com/lqomg/ClueArk](https://github.com/lqomg/ClueArk)
 
-Demo: [http://114.132.246.171](http://114.132.246.171/)
+Demo: [https://clueark.com/](https://clueark.com/)
 
 > Built with React + TypeScript + NestJS + MongoDB + Docker, ClueArk is also a practical full-stack reference project for frontend developers who want to learn backend services, crawling pipelines, AI enrichment, and self-hosted deployment.
 
