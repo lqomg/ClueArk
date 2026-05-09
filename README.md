@@ -4,6 +4,12 @@
 
 输入话题或关键词即可驱动监控与浏览；定位极简、高效，无冗余功能。
 
+开源地址： [https://github.com/lqomg/ClueArk](https://github.com/lqomg/ClueArk)
+
+演示地址： [http://114.132.246.171](http://114.132.246.171/)
+
+> 项目基于 React + TypeScript + NestJS + MongoDB + Docker 构建，是一套偏前端视角的全栈实践，也可作为前端开发者入门全栈开发的参考。
+
 
 <img width="1920" height="919" alt="ClueArk 界面预览" src="https://github.com/user-attachments/assets/0f705bd1-0b03-40e9-a725-ff918422c5ae" />
 
@@ -87,9 +93,6 @@ cp .env.example .env
 # 编辑 .env：生产环境务必设置强密码 / 密钥，至少包括：
 #   MONGO_INITDB_ROOT_PASSWORD、JWT_SECRET、ADMIN_PASSWORD
 #   CRAWLER_INGEST_SECRET、CRAWLER_SECRET（与爬虫通信相关，见 .env.example 说明）
-
-# 首次部署或需要清空数据库时（会删除 Mongo 数据卷，慎用）
-docker compose down -v
 
 docker compose up -d --build
 ```
