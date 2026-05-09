@@ -1,8 +1,23 @@
-# ClueArk 线索方舟
+<div align="center">
+  <img src="./assets/apple-touch-icon.png" width="96" height="96" alt="ClueArk Logo" />
 
-**个人 AI 情报助手** —— 以话题与关键词为入口，聚合多类公开信源，将信息流整理为可浏览的个人面板，并支持新内容提醒。
+  <h1>ClueArk 线索方舟</h1>
 
-输入话题或关键词即可驱动监控与浏览；定位极简、高效，无冗余功能。
+  <p>
+    <a href="./README.md">简体中文</a> |
+    <a href="./README_EN.md">English</a>
+  </p>
+
+  <p>
+    <strong>面向个人与团队的 AI 情报聚合平台</strong>
+  </p>
+
+  <p>
+    围绕“话题监控”组织信息流，持续接入 RSS、网页爬虫与热点 API 等公开信源，并结合 LLM 富化、Embedding 语义匹配与相似报道聚类，帮助用户从高噪声信息中快速发现值得关注的线索。
+  </p>
+</div>
+
+项目定位于轻量、可私有化部署的信息工作台，适用于行业研究、技术趋势追踪、公共事件观察与个人知识输入流管理。
 
 开源地址： [https://github.com/lqomg/ClueArk](https://github.com/lqomg/ClueArk)
 
@@ -10,8 +25,7 @@
 
 > 项目基于 React + TypeScript + NestJS + MongoDB + Docker 构建，是一套偏前端视角的全栈实践，也可作为前端开发者入门全栈开发的参考。
 
-
-<img width="1920" height="919" alt="ClueArk 界面预览" src="https://github.com/user-attachments/assets/0f705bd1-0b03-40e9-a725-ff918422c5ae" />
+<img width="1920" height="919" alt="ClueArk 界面预览" src="/assets/demo.png" />
 
 ## 功能特性
 
