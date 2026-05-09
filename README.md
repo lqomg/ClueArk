@@ -21,7 +21,7 @@
 
 开源地址： [https://github.com/lqomg/ClueArk](https://github.com/lqomg/ClueArk)
 
-演示地址： [http://114.132.246.171](http://114.132.246.171/)
+演示地址： [https://clueark.com](https://clueark.com)
 
 > 项目基于 React + TypeScript + NestJS + MongoDB + Docker 构建，是一套偏前端视角的全栈实践，也可作为前端开发者入门全栈开发的参考。
 
