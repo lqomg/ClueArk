@@ -4,9 +4,13 @@ on:
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - '**/*.md'
   push:
     branches:
       - main
+    paths-ignore:
+      - '**/*.md'
 
 concurrency:
   group: clueark-${{ github.workflow }}-${{ github.ref }}
