@@ -13,8 +13,8 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const setSession = useAuthStore((s) => s.setSession);
-  const [account, setAccount] = useState('');
-  const [password, setPassword] = useState('');
+  const [account, setAccount] = useState('admin@clueark.local');
+  const [password, setPassword] = useState('lin123456qian');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
