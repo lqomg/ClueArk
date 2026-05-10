@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { UserRole } from '@/constants/user-role';
 
 const STORAGE_KEY = 'clueark_auth';
 
@@ -7,7 +8,7 @@ export interface AuthUser {
   email: string;
   username: string;
   /** 后端 JWT 校验使用库中角色；普通用户为 user */
-  role?: 'user' | 'admin';
+  role?: UserRole;
 }
 
 interface AuthState {

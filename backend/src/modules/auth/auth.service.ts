@@ -7,6 +7,7 @@ import { UsersService } from '../users/users.service';
 import { LoggerService } from '../logger/logger.service';
 import { toPlainObject } from '../../common/utils';
 import type { UserDocument } from '../users/schemas/user.schema';
+import { USER_ROLE } from '../users/user-role';
 import { PasswordResetCode, PasswordResetCodeDocument } from './schemas/password-reset-code.schema';
 import type { RegisterDto } from './dto/register.dto';
 
@@ -47,7 +48,7 @@ export class AuthService {
     const userObject = toPlainObject(user as UserDocument) as unknown as Record<string, unknown>;
     const userId = String(userObject._id);
     this.logger.log(`User login: ${userObject.email}`);
-    const role = (userObject.role as string) || 'user';
+    const role = (userObject.role as string) || USER_ROLE.User;
     const payload = { email: userObject.email as string, sub: userId, role };
     return {
       access_token: this.jwtService.sign(payload),

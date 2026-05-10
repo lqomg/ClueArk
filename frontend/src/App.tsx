@@ -15,7 +15,8 @@ import { MonitorNewPage } from '@/pages/app/monitors/new';
 import { MonitorDetailPage } from '@/pages/app/monitors/detail';
 import { MonitorSettingsPage } from '@/pages/app/monitors/settings';
 import { ProfilePage } from '@/pages/app/me';
-import { RequireAdmin } from '@/routes/RequireAdmin';
+import { RequireStaff } from '@/routes/RequireStaff';
+import { RequireAdminOnly } from '@/routes/RequireAdminOnly';
 import { AdminLayout } from '@/pages/admin/layout';
 import { AdminUsersPage } from '@/pages/admin/users';
 import { AdminSourcesPage } from '@/pages/admin/sources';
@@ -86,9 +87,9 @@ export default function App() {
           <Route path="monitors" element={<MonitorsListPage />} />
           <Route path="sources" element={<SourcesPage />} />
           <Route path="me" element={<ProfilePage />} />
-          <Route path="admin" element={<RequireAdmin><AdminLayout /></RequireAdmin>}>
-            <Route index element={<Navigate to="users" replace />} />
-            <Route path="users" element={<AdminUsersPage />} />
+          <Route path="admin" element={<RequireStaff><AdminLayout /></RequireStaff>}>
+            <Route index element={<Navigate to="sources" replace />} />
+            <Route path="users" element={<RequireAdminOnly><AdminUsersPage /></RequireAdminOnly>} />
             <Route path="sources" element={<AdminSourcesPage />} />
             <Route path="aggregation-policy" element={<AdminAggregationPolicyPage />} />
             <Route path="sources/:id/edit" element={<Navigate to="/app/admin/sources" replace />} />

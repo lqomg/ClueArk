@@ -28,8 +28,17 @@ import {
   normalizeImportSourcesArray,
   type OfficialCreateWithFlags,
 } from './sources-json-io.util';
+import type { UserRole } from '../users/user-role';
+import { USER_ROLE } from '../users/user-role';
 
-export type JwtUserRole = 'user' | 'admin';
+function isAdminRole(role: UserRole): boolean {
+  return role === USER_ROLE.Admin;
+}
+
+/** 管理员与演示账号均可查看已禁用信源（演示为只读） */
+function canViewDisabledPoolSource(role: UserRole): boolean {
+  return role === USER_ROLE.Admin || role === USER_ROLE.Demo;
+}
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -79,9 +88,9 @@ function serializeSource(doc: Record<string, unknown>) {
   };
 }
 
-/** 信源池仅管理员可写；普通用户只读（后续「监控」再引用池中信源） */
-function canWrite(_userId: string, role: JwtUserRole, _doc: SourceDocument | Record<string, unknown>): boolean {
-  return role === 'admin';
+/** 信源池仅管理员可写（路由层已拦 demo；此处兜底） */
+function canWritePool(role: UserRole): boolean {
+  return isAdminRole(role);
 }
 
 @Injectable()
@@ -149,15 +158,12 @@ export class SourcesService {
   async adminUpdateAny(adminUserId: string, sourceId: string, dto: UpdateSourceDto) {
     const existing = await this.sourceModel.findOne({ _id: sourceId, ...notDeletedFilter() }).exec();
     if (!existing) throw new NotFoundException('source_not_found');
-    return this.applyUpdate('admin', adminUserId, existing, dto);
+    return this.applyUpdate(adminUserId, existing, dto);
   }
 
   async adminSoftDelete(sourceId: string) {
     const existing = await this.sourceModel.findOne({ _id: sourceId, ...notDeletedFilter() }).lean().exec();
     if (!existing) throw new NotFoundException('source_not_found');
-    if (persistedOfficial(existing as Record<string, unknown>)) {
-      throw new ForbiddenException('official_source_forbidden');
-    }
     const res = await this.sourceModel
       .updateOne({ _id: sourceId, ...notDeletedFilter() }, { $set: { deletedAt: new Date(), enabled: false } })
       .exec();
@@ -300,10 +306,10 @@ export class SourcesService {
     return { valid: r.ok, normalized: r.normalized };
   }
 
-  async getOne(userId: string, role: JwtUserRole, sourceId: string) {
+  async getOne(userId: string, role: UserRole, sourceId: string) {
     const doc = await this.sourceModel.findOne({ _id: sourceId, ...notDeletedFilter() }).lean().exec();
     if (!doc) throw new NotFoundException('source_not_found');
-    if (!doc.enabled && role !== 'admin') throw new NotFoundException('source_not_found');
+    if (!doc.enabled && !canViewDisabledPoolSource(role)) throw new NotFoundException('source_not_found');
     return serializeSource(doc as Record<string, unknown>);
   }
 
@@ -487,11 +493,7 @@ export class SourcesService {
     throw new BadRequestException('invalid_kind');
   }
 
-  private async applyUpdate(role: JwtUserRole, actingUserId: string, existing: SourceDocument, dto: UpdateSourceDto) {
-    if (persistedOfficial(existing.toObject())) {
-      throw new ForbiddenException('official_source_forbidden');
-    }
-
+  private async applyUpdate(actingUserId: string, existing: SourceDocument, dto: UpdateSourceDto) {
     const $set: Record<string, unknown> = {};
 
     if (dto.displayName != null) $set.displayName = dto.displayName.trim();
@@ -505,10 +507,8 @@ export class SourcesService {
       $set.avatarUrl = raw || null;
     }
 
-    if (role === 'admin') {
-      if (dto.enabled != null) $set.enabled = dto.enabled;
-      if (dto.sortOrder != null) $set.sortOrder = dto.sortOrder;
-    }
+    if (dto.enabled != null) $set.enabled = dto.enabled;
+    if (dto.sortOrder != null) $set.sortOrder = dto.sortOrder;
 
     const kind = existing.kind as SourceKind;
 
@@ -646,33 +646,25 @@ export class SourcesService {
     }
   }
 
-  async update(userId: string, role: JwtUserRole, sourceId: string, dto: UpdateSourceDto) {
+  async update(userId: string, role: UserRole, sourceId: string, dto: UpdateSourceDto) {
     const existing = await this.sourceModel.findOne({ _id: sourceId, ...notDeletedFilter() }).exec();
     if (!existing) throw new NotFoundException('source_not_found');
-    if (!canWrite(userId, role, existing)) throw new ForbiddenException('forbidden');
-    if (dto.enabled != null && role !== 'admin') throw new ForbiddenException('forbidden');
-    if (dto.sortOrder != null && role !== 'admin') throw new ForbiddenException('forbidden');
-    return this.applyUpdate(role, userId, existing, dto);
+    if (!canWritePool(role)) throw new ForbiddenException('forbidden');
+    return this.applyUpdate(userId, existing, dto);
   }
 
-  async remove(userId: string, role: JwtUserRole, sourceId: string) {
+  async remove(_userId: string, role: UserRole, sourceId: string) {
     const existing = await this.sourceModel.findOne({ _id: sourceId, ...notDeletedFilter() }).exec();
     if (!existing) throw new NotFoundException('source_not_found');
-    if (!canWrite(userId, role, existing)) throw new ForbiddenException('forbidden');
-    if (persistedOfficial(existing.toObject())) {
-      throw new ForbiddenException('official_source_forbidden');
-    }
+    if (!canWritePool(role)) throw new ForbiddenException('forbidden');
     const res = await this.sourceModel.updateOne({ _id: sourceId }, { $set: { deletedAt: new Date() } }).exec();
     if (res.matchedCount === 0) throw new NotFoundException('source_not_found');
     return { ok: true };
   }
 
-  async batchRemove(userId: string, role: JwtUserRole, ids: string[]) {
+  async batchRemove(_userId: string, role: UserRole, ids: string[]) {
     const docs = await this.sourceModel.find({ _id: { $in: ids }, ...notDeletedFilter() }).exec();
-    const writable = docs.filter((d) => canWrite(userId, role, d));
-    if (writable.some((d) => persistedOfficial(d.toObject()))) {
-      throw new ForbiddenException('official_source_forbidden');
-    }
+    const writable = canWritePool(role) ? docs : [];
     const allowed = writable.map((d) => d._id);
     if (!allowed.length) throw new NotFoundException('sources_not_found');
     const res = await this.sourceModel.updateMany({ _id: { $in: allowed } }, { $set: { deletedAt: new Date() } }).exec();

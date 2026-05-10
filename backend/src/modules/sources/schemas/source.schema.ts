@@ -88,7 +88,7 @@ export const SourceHotApiSchema = SchemaFactory.createForClass(SourceHotApi);
 
 /**
  * 全站统一信源。
- * `isOfficial`：启动时自 built-in-catalog 注入的种子信源，禁止删除。
+ * `isOfficial`：启动时自 built-in-catalog 注入的种子信源；管理员/演示账号可在后台修改或软删除。
  * `createdBy`：null 为运营在后台维护的信源；非 null 为用户贡献（预留）。
  */
 @Schema({ timestamps: true })

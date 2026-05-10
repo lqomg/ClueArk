@@ -4,6 +4,8 @@ import { ProductMark } from '@/components/brand/ProductMark';
 import { GithubRepoLink } from '@/components/GithubRepoLink';
 import { useResolvedMonitorPins } from '@/hooks/useResolvedMonitorPins';
 import { useAuthStore } from '@/stores/authStore';
+import { USER_ROLE } from '@/constants/user-role';
+import { isStaffRole } from '@/utils/auth-roles';
 
 function shellNavClass(isActive: boolean) {
   return `flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${isActive ? 'bg-white/10 text-ark-accent' : 'text-slate-400 hover:bg-white/5 hover:text-ark-text'
@@ -23,7 +25,8 @@ export function AppShell() {
   const user = useAuthStore((s) => s.user);
   const clear = useAuthStore((s) => s.clear);
   const navigate = useNavigate();
-  const isAdminUser = user?.role === 'admin';
+  const isStaffUser = isStaffRole(user?.role);
+  const isAdminUser = user?.role === USER_ROLE.Admin;
   const { pins: monitorPins } = useResolvedMonitorPins();
 
   function logout() {
@@ -81,20 +84,22 @@ export function AppShell() {
                 </div>
               </div>
             ) : null}
-            {isAdminUser ? (
+            {isStaffUser ? (
               <div className="mt-4 border-t border-ark-border pt-2">
                 <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
                   管理
                 </p>
                 <div className="space-y-1">
-                  <NavLink to="/app/admin/users" end className={({ isActive }) => shellNavClass(isActive)}>
-                    {({ isActive }) => (
-                      <>
-                        <Users size={18} className={shellNavIconClass(isActive)} />
-                        用户管理
-                      </>
-                    )}
-                  </NavLink>
+                  {isAdminUser ? (
+                    <NavLink to="/app/admin/users" end className={({ isActive }) => shellNavClass(isActive)}>
+                      {({ isActive }) => (
+                        <>
+                          <Users size={18} className={shellNavIconClass(isActive)} />
+                          用户管理
+                        </>
+                      )}
+                    </NavLink>
+                  ) : null}
                   <NavLink to="/app/admin/sources" end={false} className={({ isActive }) => shellNavClass(isActive)}>
                     {({ isActive }) => (
                       <>
@@ -180,13 +185,15 @@ export function AppShell() {
               <User size={14} />
               我的
             </Link>
-            {isAdminUser ? (
+            {isStaffUser ? (
               <>
                 <span className="hidden h-3 w-px bg-ark-border sm:inline" aria-hidden />
-                <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/admin/users">
-                  <Users size={14} />
-                  用户
-                </Link>
+                {isAdminUser ? (
+                  <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/admin/users">
+                    <Users size={14} />
+                    用户
+                  </Link>
+                ) : null}
                 <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/admin/sources">
                   <Database size={14} />
                   信源管理
@@ -201,8 +208,17 @@ export function AppShell() {
         </header>
 
         <header className="hidden shrink-0 items-center justify-between gap-4 border-b border-ark-border bg-ark-bg px-8 py-4 md:flex">
-          <div className="min-w-0 text-xs font-bold uppercase tracking-widest text-slate-500">
-            终端 <span className="font-mono text-ark-accent/90">{user?.email}</span>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 text-xs font-bold uppercase tracking-widest text-slate-500">
+            <span>
+              终端 <span className="font-mono text-ark-accent/90">{user?.email}</span>
+            </span>
+            <Link
+              to="/app/me"
+              className="inline-flex items-center gap-1.5 font-semibold normal-case tracking-normal text-slate-400 transition-colors hover:text-ark-accent"
+            >
+              <User size={14} />
+              个人中心
+            </Link>
           </div>
           <GithubRepoLink className="shrink-0 text-slate-500" />
         </header>

@@ -48,8 +48,8 @@
 
 ## 演示
 
-- **访问：** [http://114.132.246.171/app/feed](http://114.132.246.171/app/feed) —— 普通用户可自行注册。
-- **演示管理员（请勿用于生产环境）：** `admin@clueark.local` / `lin123456qian`
+- **访问：** [https://clueark.com](https://clueark.com) —— 普通用户可自行注册。
+- **演示账号：** show@clueark.com  / 123456qian
 
 ## 功能概览
 

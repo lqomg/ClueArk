@@ -13,202 +13,164 @@
   </p>
 
   <p>
-    ClueArk organizes information around topic monitoring, continuously collects public sources such as RSS feeds, web pages, and hot-topic APIs, and combines LLM enrichment, embedding-based semantic matching, and similar-story clustering to help users discover high-value signals from noisy information streams.
+    ClueArk organizes information around <strong>topic monitoring</strong>, continuously ingesting public sources such as RSS feeds, web crawling, and hot-topic APIs. It combines optional LLM enrichment, embedding-based semantic matching, and clustering of similar stories so users can surface actionable signals in noisy streams. The project is a lightweight, self-hostable information workspace suited to industry research, technology trend tracking, public-event observation, and personal knowledge intake.
   </p>
 </div>
 
-ClueArk is designed as a lightweight, self-hostable intelligence workspace for industry research, trend tracking, public event monitoring, competitive intelligence, and personal knowledge intake.
-
 Repository: [https://github.com/lqomg/ClueArk](https://github.com/lqomg/ClueArk)
 
-Demo: [https://clueark.com/](https://clueark.com/)
+Demo: [https://clueark.com](https://clueark.com)
 
-> Built with React + TypeScript + NestJS + MongoDB + Docker, ClueArk is also a practical full-stack reference project for frontend developers who want to learn backend services, crawling pipelines, AI enrichment, and self-hosted deployment.
+> Built with React + TypeScript + NestJS + MongoDB + Docker, ClueArk is a full-stack reference with a frontend-oriented perspective, and can serve as a practical starting point for frontend developers learning full-stack delivery.
 
 <img width="1920" height="919" alt="ClueArk preview" src="/assets/demo.png" />
 
-## Highlights
-
-ClueArk is more than a simple RSS reader. It is built around topic-driven intelligence workflows:
-
-- **AI topic monitoring**: Create monitors from topics or keywords. ClueArk recommends relevant sources and filters content with semantic similarity.
-- **Unified source model**: Built-in official sources and user-created sources share the same data model, fingerprinting, and deduplication strategy.
-- **Multiple ingestion paths**: Supports RSS / Atom, web list crawling, and JSON hot-topic APIs.
-- **LLM enrichment**: Optionally enriches items with tags, recommendation reasons, and priority scores through DeepSeek-compatible chat APIs.
-- **Embedding-based clustering**: Groups similar reports with title and content embeddings to reduce duplicate reading.
-- **One-command Docker Compose deployment**: MongoDB, backend API, frontend web app, and crawler service are started as one stack.
-
-## Use Cases
-
-- Track industries, companies, public events, or technical trends over time.
-- Aggregate public sources and reduce manual browsing, searching, and filtering.
-- Build a lightweight intelligence dashboard for individuals or small teams.
-- Learn a complete React + NestJS + MongoDB + Docker full-stack project.
-- Use the project as a reference for combining RSS, web crawling, LLMs, and embeddings in a real product.
-
 ## Features
 
-### Topic Monitoring
+- **Unified source model**: Official built-in entries and user-created sources share the same types and fingerprinting strategy for easier extension and operations.
+- **Custom monitoring topics**: Create personal monitors from keywords or topics; filter and browse aggregated content on top of the shared source pool, with support for new-item alerts.
+- **Multiple ingestion paths**: One pool supports **RSS/Atom**, **Web (optional list-page crawling)**, and **JSON hot-topic APIs (configurable field mapping)**—pick what fits instead of a single crawl mode.
+- **Standalone web crawler service**: For sites without a stable feed, list pages are parsed with **CSS selectors** (NestJS + Cheerio) and reported to the main app with a **contract-aligned** payload; the crawler does not depend on an LLM. See [`crawler/README.md`](crawler/README.md).
+- **Optional intelligence**: Wire in DeepSeek, embeddings, and related features via environment variables (root `.env.example` and `backend/.env.example`).
+- **Docker Compose single-node stack**: MongoDB, backend API, frontend (Nginx reverse proxy), and crawler are built and started together by default for quick deployment.
 
-Users can create monitors such as "AI coding assistant updates", "Iran and US conflict developments", or "company news". ClueArk recommends related sources from the source pool and uses semantic matching to show only relevant items from those sources.
+## Source types
 
-### Unified Feed
-
-Items collected from all sources enter a unified feed. The feed can be browsed by time and can group similar reports into clusters, making repeated coverage easier to scan.
-
-### Source Types
-
-| Type | Description | Typical Use |
+| Type | Description | Typical use |
 |------|-------------|-------------|
-| RSS / Atom | Incremental ingestion from standard feed URLs | News sites, blogs, official announcements |
-| Web | Website URL with optional CSS selectors | Sites that expose list pages but no stable RSS feed |
-| Hot API | JSON HTTP API with configurable field mapping | Rankings, trending lists, structured public endpoints |
+| **RSS / Atom** | Incremental fetch from standard feed URLs | News sites, blogs, and other sources that publish feeds |
+| **Web** | Site URL; optional `crawlListUrl` + `crawlSelectors` for the crawler to parse list pages | Pages with HTML lists only, where rule-based extraction is enough |
+| **Hot API (`hot_api`)** | JSON over HTTP + configurable mapper (e.g. array path and field mapping) | Structured hot lists and leaderboard-style APIs |
 
-Built-in source seeds are stored in `data/built-in-catalog.json`. You can point `BUILTIN_CATALOG_PATH` to your own source catalog during deployment.
+Built-in seeds live in **`data/built-in-catalog.json`** (includes RSS examples). Set **`BUILTIN_CATALOG_PATH`** to point at a custom catalog at deploy time.
 
-### AI Enrichment and Clustering
+## Demo
 
-AI features are optional:
+- **URL:** [https://clueark.com](https://clueark.com) — anyone can register as a normal user.
+- **Demo account:** `show@clueark.com` / `123456qian`
 
-- Configure DeepSeek to generate tags, recommendation reasons, and priority scores.
-- Configure an OpenAI-compatible embedding API to enable similar-story clustering and monitor matching.
-- Basic source ingestion and browsing can still work without AI keys.
+## At a glance
 
-## Tech Stack
+Personal intelligence collection and reading: topic subscriptions, a unified source pool, and alerts—less manual searching across the web.
+
+- Topic- and keyword-driven monitoring and browsing
+- Site-wide unified source pool (MongoDB `sources`): built-in official entries plus user-created sources
+- RSS ingestion, web list crawling (standalone service, selector-based parsing), optional hot JSON pipelines
+- **Docker Compose** one-command deploy: MongoDB, backend, frontend (Nginx), and crawler start together by default
+
+## Tech stack
 
 | Area | Stack |
 |------|-------|
 | Frontend | React 18, TypeScript, Vite, Tailwind CSS, Zustand, React Router |
-| Backend | NestJS, MongoDB / Mongoose, JWT, scheduled tasks |
-| Crawler | NestJS, Cheerio, CSS selectors |
-| AI | DeepSeek Chat, OpenAI-compatible Embedding API |
-| Deployment | Docker Compose, Nginx |
-
-## Repository Structure
-
-```text
-├── backend/           # Main API service
-├── crawler/           # Web list crawler service
-├── frontend/          # Web frontend
-├── data/              # Built-in source seed data
-├── docker-compose.yml # Recommended deployment entry
-├── .env.example       # Root environment template
-└── LICENSE            # MIT
-```
+| Backend | NestJS, MongoDB (Mongoose), JWT, scheduled tasks |
+| Crawler | NestJS, Cheerio, configurable selectors (contract-aligned with the main app) |
 
 `frontend/`, `backend/`, and `crawler/` are independent subprojects. There is no unified root `package.json`.
 
-## Quick Deployment
+## Repository layout (excerpt)
 
-### Requirements
+```
+├── backend/           # Main API (NestJS)
+├── crawler/           # Web list crawler (NestJS); see crawler/README.md
+├── frontend/          # Web app (Vite + React)
+├── data/              # Built-in source seeds (e.g. built-in-catalog.json)
+├── docker-compose.yml # Recommended deploy entry
+├── .env.example       # Env template (copy to .env)
+└── LICENSE            # MIT
+```
 
-- Recommended: Docker and Docker Compose v2
-- Local development: Node.js 20+ and MongoDB
+## Sources and built-in catalog
 
-### Start with Docker Compose
+All sources share one pool (MongoDB `sources` collection): official-style rows have empty `createdBy`; user-created rows record the creator.
+
+The repo’s **`data/built-in-catalog.json`** (`sources` array) is only a **bootstrap seed** for writing official-site-style sources. Override the path with **`BUILTIN_CATALOG_PATH`** (in Docker, this is typically a path mounted into the container).
+
+## Requirements
+
+- **Recommended:** Docker, Docker Compose (v2)
+- **Local development:** Node.js 20+ (aligned with subprojects), MongoDB
+
+## Deployment (Docker Compose, recommended)
+
+Root `docker-compose.yml` is the **recommended single-machine entry**: MongoDB + backend + web (Nginx serves the frontend and proxies the API) + crawler.
+
+### First start
 
 ```bash
 git clone <repository-url>
 cd <cloned-directory>
 
 cp .env.example .env
-# Edit .env before production deployment. At minimum, change MongoDB passwords,
-# JWT_SECRET, ADMIN_PASSWORD, and crawler-related secrets.
+# Edit .env: use strong passwords/secrets in production, including at least:
+#   MONGO_INITDB_ROOT_PASSWORD, JWT_SECRET, ADMIN_PASSWORD
+#   CRAWLER_INGEST_SECRET, CRAWLER_SECRET (crawler ↔ backend; see .env.example)
 
 docker compose up -d --build
 ```
 
-If you need to reset all data during the first deployment or testing:
+### Access
 
-```bash
-docker compose down -v
-docker compose up -d --build
-```
+- **Web UI:** `http://<server-ip-or-domain>:<port>`
+  - If you copied `.env.example` and keep `WEB_PORT=8080`, this is usually **`http://<host>:8080`**.
+  - If there is no `.env` or `WEB_PORT`, Compose maps container port 80 to host **`80`** by default (`http://<host>/`).
+- **HTTP API:** Nginx on the frontend proxies **`/api`** to the backend; the backend port is **not** exposed separately.
 
-Warning: `docker compose down -v` removes the MongoDB data volume.
+### Network and security
 
-## Access
+- Under default Compose, **`backend`** and **`crawler`** do **not** publish host ports; they talk on the internal network.
+- MongoDB is published on **`MONGO_BIND_PORT`** (default **27017**). If the host is on the public internet, restrict source IPs in firewall/security groups; **avoid exposing the database port without protection**.
 
-- Web UI: `http://<server-ip-or-domain>:<WEB_PORT>`
-- HTTP API: proxied by the frontend through `/api`
-- By default, `backend` and `crawler` are not directly exposed to the public network in the Compose setup.
+### Crawler service
 
-## Demo Account
+It is **built and started by default** with `docker compose up`, fetching configured web sources and reporting to the main app. For manual runs, APIs, and schedules, see **[crawler/README.md](crawler/README.md)**.
 
-Demo URL: [http://114.132.246.171/app/feed](http://114.132.246.171/app/feed)
+If you only need the main app and database for now, adjust Compose (e.g. remove or disable the `crawler` service) according to your ops policy.
 
-Demo administrator:
+## Environment variables (summary)
 
-```text
-admin@clueark.local / lin123456qian
-```
-
-Do not use the demo credentials in production.
-
-## Crawler Service
-
-The crawler service is built and started by default with `docker compose up`. It fetches configured web sources and reports parsed items back to the main backend service.
-
-For manual usage, API details, and scheduling behavior, see [crawler/README.md](crawler/README.md).
-
-If you only need the main app and database, you can adjust the Compose services according to your deployment strategy.
-
-## Environment Variables
-
-See `/.env.example` for the full root configuration. `backend/.env.example` and `crawler/.env.example` are also available for local development.
+Full keys and comments are in **`/.env.example`**; **`backend/.env.example`** and **`crawler/.env.example`** support local development.
 
 | Category | Description |
 |----------|-------------|
-| Required for production | MongoDB root password, `JWT_SECRET`, `ADMIN_PASSWORD`, `CRAWLER_INGEST_SECRET`, `CRAWLER_SECRET` |
-| Optional | DeepSeek, embedding API, RSS / hot API switches, and related keys |
+| Must change (production) | Mongo root password, `JWT_SECRET`, `ADMIN_PASSWORD`, crawler secrets such as `CRAWLER_INGEST_SECRET` / `CRAWLER_SECRET` |
+| Optional | DeepSeek, embedding, RSS/hot API toggles and keys (see each `.env.example`) |
 
-## Security Notes
+## Local development
 
-Before production deployment, change at least:
-
-- `MONGO_INITDB_ROOT_PASSWORD`
-- `JWT_SECRET`
-- `ADMIN_PASSWORD`
-- `CRAWLER_INGEST_SECRET`
-- `CRAWLER_SECRET`
-
-If MongoDB is exposed on the host, restrict access with a firewall or security group. Do not expose the database to the public internet without protection.
-
-## Local Development
-
-Each subproject installs and runs independently. Prepare a MongoDB instance and configure environment variables before starting the backend.
+Each subproject installs and runs on its own. Provide MongoDB and connection settings.
 
 ```bash
-# Backend
+# Backend (example)
 cd backend
-cp .env.example .env
+cp .env.example .env   # adjust for your machine
 npm install
 npm run start:dev
 
-# Frontend
+# Frontend (example)
 cd frontend
 npm install
 npm run dev
 
-# Crawler
+# Crawler (example)
 cd crawler
 cp .env.example .env
 npm install
 npm run start:dev
 ```
 
-During local integration, make sure API addresses, proxies, and environment variables match the Vite and NestJS configurations.
+For local integration, keep API URLs, proxies, and env vars consistent with Vite / Nest configs.
 
-## Compliance
+## Compliance and security
 
-When using ClueArk to crawl or access third-party websites, follow applicable laws, website terms of service, robots.txt policies, and reasonable usage limits. Do not use this project for unauthorized bulk crawling or activities that infringe on the rights of others. Users are responsible for compliance.
+When using this software to crawl or access third-party sites, comply with applicable laws, each site’s terms, `robots.txt`, and reasonable use. Do not use it for unauthorized bulk crawling or rights violations; **you are responsible for compliance**.
 
-If you discover security issues such as default secrets or risky exposure settings, please contact the maintainer privately when appropriate. Contributions that improve documentation or default security settings are welcome.
+If you find security issues in deployment (default secrets, exposure, etc.), contact maintainers privately when appropriate; fixes and documentation/PRs are welcome.
 
 ## License
 
-This project is open source under the [MIT License](LICENSE).
+This project is open source under the **[MIT License](LICENSE)**.
 
 ## Contributing
 
-Issues and pull requests are welcome. Please keep commit messages concise and explain the intent of the change. Internal collaboration can use conventional prefixes such as `fix` and `feature`.
+Issues and pull requests are welcome. Keep commit messages concise; internal workflows may use types such as `fix` and `feature`.

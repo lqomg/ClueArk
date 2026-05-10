@@ -3,7 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../../users/users.service';
-import type { UserRole } from '../../users/schemas/user.schema';
+import { USER_ROLE, type UserRole } from '../../users/user-role';
 
 export interface JwtValidatedUser {
   userId: string;
@@ -29,7 +29,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user || user.isActive === false) {
       throw new UnauthorizedException('user_inactive_or_missing');
     }
-    const role = user.role ?? 'user';
+    const role = user.role ?? USER_ROLE.User;
     return { userId: String(user._id), email: user.email, role };
   }
 }
