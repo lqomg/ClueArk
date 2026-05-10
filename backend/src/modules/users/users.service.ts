@@ -9,6 +9,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { User, UserDocument, type UserRole } from './schemas/user.schema';
+import { USER_ROLE } from './user-role';
 
 export interface CreateUserInput {
   email: string;
@@ -111,7 +112,7 @@ export class UsersService {
     const normalized = email.trim().toLowerCase();
     const exists = await this.userModel.findOne({ email: normalized }).exec();
     if (exists) {
-      if (exists.role === 'admin') return;
+      if (exists.role === USER_ROLE.Admin) return;
       throw new ConflictException('admin_email_taken_by_user');
     }
     const hashed = await bcrypt.hash(plainPassword, 10);
@@ -120,9 +121,55 @@ export class UsersService {
       email: normalized,
       username,
       password: hashed,
-      role: 'admin',
+      role: USER_ROLE.Admin,
       isActive: true,
     });
+  }
+
+  /**
+   * 演示账号种子：仅当该邮箱不存在时创建；若已被占用且非 demo 角色则抛错由上层记录日志。
+   * 额外演示账号仍可在后台「用户管理」中创建。
+   */
+  async createDemoUserIfMissing(email: string, plainPassword: string): Promise<void> {
+    const normalized = email.trim().toLowerCase();
+    const exists = await this.userModel.findOne({ email: normalized }).exec();
+    if (exists) {
+      if (exists.role === USER_ROLE.Demo) return;
+      throw new ConflictException('demo_email_taken_by_user');
+    }
+    const hashed = await bcrypt.hash(plainPassword, 10);
+    const username = await this.generateUsernameFromEmail(normalized);
+    await this.userModel.create({
+      email: normalized,
+      username,
+      password: hashed,
+      role: USER_ROLE.Demo,
+      isActive: true,
+    });
+  }
+
+  /** 管理员创建用户（含管理员/演示角色）；邮箱唯一。 */
+  async createUserByAdmin(input: {
+    email: string;
+    password: string;
+    username?: string;
+    role: UserRole;
+  }): Promise<UserDocument> {
+    const email = input.email.trim().toLowerCase();
+    const exists = await this.userModel.exists({ email }).exec();
+    if (exists) {
+      throw new ConflictException('email_already_exists');
+    }
+    const username = (input.username?.trim() || (await this.generateUsernameFromEmail(email))).trim();
+    const hashed = await bcrypt.hash(input.password, 10);
+    const doc = new this.userModel({
+      email,
+      username,
+      password: hashed,
+      role: input.role,
+      isActive: true,
+    });
+    return doc.save();
   }
 
   async findByIdForAuth(

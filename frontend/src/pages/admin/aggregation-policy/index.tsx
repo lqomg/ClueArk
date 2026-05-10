@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { getAggregationPolicy, patchAggregationPolicy } from '@/api/admin/aggregation-policy';
 import { Button } from '@/components/ui';
+import { useDemoViewer } from '@/hooks/useDemoViewer';
 import type { AggregationPolicyDto } from './types';
 
 function FormField({
@@ -28,6 +29,7 @@ function FormField({
 }
 
 export function AdminAggregationPolicyPage() {
+  const isDemoViewer = useDemoViewer();
   const [form, setForm] = useState<AggregationPolicyDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -54,7 +56,7 @@ export function AdminAggregationPolicyPage() {
 
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!form) return;
+    if (!form || isDemoViewer) return;
     setSaving(true);
     setError(null);
     setHint(null);
@@ -93,6 +95,11 @@ export function AdminAggregationPolicyPage() {
         onSubmit={onSave}
         className="space-y-8 rounded-2xl border border-ark-border bg-ark-surface/40 p-5 sm:p-6"
       >
+        {isDemoViewer ? (
+          <p className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            演示账号仅可查看当前策略；保存修改需管理员登录。
+          </p>
+        ) : null}
         <div className="grid gap-8 md:grid-cols-2 md:gap-x-10 md:gap-y-8">
           <FormField
             title="回溯天数"
@@ -103,6 +110,7 @@ export function AdminAggregationPolicyPage() {
               type="number"
               min={1}
               max={30}
+              disabled={isDemoViewer}
               className={fieldCls}
               value={form.lookbackDays}
               onChange={(e) => setForm((f) => (f ? { ...f, lookbackDays: Number(e.target.value) } : f))}
@@ -118,6 +126,7 @@ export function AdminAggregationPolicyPage() {
               type="number"
               min={1}
               max={168}
+              disabled={isDemoViewer}
               className={fieldCls}
               value={form.maxPairHours}
               onChange={(e) => setForm((f) => (f ? { ...f, maxPairHours: Number(e.target.value) } : f))}
@@ -134,6 +143,7 @@ export function AdminAggregationPolicyPage() {
               step="0.01"
               min={0.5}
               max={0.999}
+              disabled={isDemoViewer}
               className={fieldCls}
               value={form.simTitle}
               onChange={(e) => setForm((f) => (f ? { ...f, simTitle: Number(e.target.value) } : f))}
@@ -150,6 +160,7 @@ export function AdminAggregationPolicyPage() {
               step="0.01"
               min={0.5}
               max={0.999}
+              disabled={isDemoViewer}
               className={fieldCls}
               value={form.simFull}
               onChange={(e) => setForm((f) => (f ? { ...f, simFull: Number(e.target.value) } : f))}
@@ -165,6 +176,7 @@ export function AdminAggregationPolicyPage() {
               type="number"
               min={100}
               max={5000}
+              disabled={isDemoViewer}
               className={fieldCls}
               value={form.maxItems}
               onChange={(e) => setForm((f) => (f ? { ...f, maxItems: Number(e.target.value) } : f))}
@@ -180,6 +192,7 @@ export function AdminAggregationPolicyPage() {
               type="number"
               min={1}
               max={2048}
+              disabled={isDemoViewer}
               className={fieldCls}
               value={form.embeddingBatchSize}
               onChange={(e) => setForm((f) => (f ? { ...f, embeddingBatchSize: Number(e.target.value) } : f))}
@@ -191,7 +204,7 @@ export function AdminAggregationPolicyPage() {
         {hint ? <p className="text-sm text-ark-accent">{hint}</p> : null}
 
         <div className="flex flex-wrap gap-2 border-t border-ark-border/50 pt-4">
-          <Button type="submit" variant="accent" size="md" disabled={saving}>
+          <Button type="submit" variant="accent" size="md" disabled={saving || isDemoViewer}>
             {saving ? '保存中…' : '保存到数据库'}
           </Button>
           <Button type="button" variant="outline" size="md" onClick={() => void load()} disabled={saving}>

@@ -23,7 +23,8 @@ import { BatchDeleteSourcesDto } from './dto/batch-delete.dto';
 import { ValidateUrlDto } from './dto/validate-url.dto';
 import { ListSourcesQueryDto } from './dto/list-sources.query.dto';
 import { avatarExtForMime } from './source-avatar.util';
-import type { JwtUserRole } from './sources.service';
+import type { UserRole } from '../users/user-role';
+import { USER_ROLE } from '../users/user-role';
 
 const SOURCE_AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 
@@ -38,8 +39,8 @@ export class SourcesController {
   }
 
   @Get(':id')
-  one(@CurrentUser('userId') userId: string, @CurrentUser('role') role: JwtUserRole | undefined, @Param('id') id: string) {
-    return this.sourcesService.getOne(userId, role ?? 'user', id);
+  one(@CurrentUser('userId') userId: string, @CurrentUser('role') role: UserRole | undefined, @Param('id') id: string) {
+    return this.sourcesService.getOne(userId, role ?? USER_ROLE.User, id);
   }
 
   @Post('validate-url')
@@ -72,26 +73,26 @@ export class SourcesController {
   @UseGuards(AdminGuard)
   batchDelete(
     @CurrentUser('userId') userId: string,
-    @CurrentUser('role') role: JwtUserRole | undefined,
+    @CurrentUser('role') role: UserRole | undefined,
     @Body() dto: BatchDeleteSourcesDto,
   ) {
-    return this.sourcesService.batchRemove(userId, role ?? 'user', dto.ids);
+    return this.sourcesService.batchRemove(userId, role ?? USER_ROLE.User, dto.ids);
   }
 
   @Patch(':id')
   @UseGuards(AdminGuard)
   update(
     @CurrentUser('userId') userId: string,
-    @CurrentUser('role') role: JwtUserRole | undefined,
+    @CurrentUser('role') role: UserRole | undefined,
     @Param('id') id: string,
     @Body() dto: UpdateSourceDto,
   ) {
-    return this.sourcesService.update(userId, role ?? 'user', id, dto);
+    return this.sourcesService.update(userId, role ?? USER_ROLE.User, id, dto);
   }
 
   @Delete(':id')
   @UseGuards(AdminGuard)
-  remove(@CurrentUser('userId') userId: string, @CurrentUser('role') role: JwtUserRole | undefined, @Param('id') id: string) {
-    return this.sourcesService.remove(userId, role ?? 'user', id);
+  remove(@CurrentUser('userId') userId: string, @CurrentUser('role') role: UserRole | undefined, @Param('id') id: string) {
+    return this.sourcesService.remove(userId, role ?? USER_ROLE.User, id);
   }
 }

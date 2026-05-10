@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
+import { USER_ROLE, USER_ROLE_VALUES, type UserRole } from '../user-role';
 
-export type UserRole = 'user' | 'admin';
+export type { UserRole };
 
 export type UserDocument = User & Document;
 
@@ -19,7 +20,7 @@ export class User {
   @Prop({ default: true })
   isActive: boolean;
 
-  @Prop({ type: String, enum: ['user', 'admin'], default: 'user', index: true })
+  @Prop({ type: String, enum: [...USER_ROLE_VALUES], default: USER_ROLE.User, index: true })
   role: UserRole;
 }
 

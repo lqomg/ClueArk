@@ -1,8 +1,10 @@
+import type { UserRole } from '@/constants/user-role';
+
 export interface AdminUserRow {
   _id: string;
   email: string;
   username: string;
-  role: 'user' | 'admin';
+  role: UserRole;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;

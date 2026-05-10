@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { listAdminUsers, setAdminUserActive } from '@/api/admin/users';
+import { createAdminUser, listAdminUsers, setAdminUserActive } from '@/api/admin/users';
+import { Button } from '@/components/ui';
+import { USER_ROLE, userRoleLabel } from '@/constants/user-role';
 import { useAuthStore } from '@/stores/authStore';
 import type { AdminUserListResponse, AdminUserRow } from '@/types/admin';
 
@@ -13,12 +15,20 @@ export function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createEmail, setCreateEmail] = useState('');
+  const [createPassword, setCreatePassword] = useState('');
+  const [createUsername, setCreateUsername] = useState('');
+  const [createRole, setCreateRole] = useState<AdminUserRow['role']>(USER_ROLE.User);
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createSuccess, setCreateSuccess] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (pageOverride?: number) => {
+    const p = pageOverride ?? page;
     setLoading(true);
     setError(null);
     try {
-      const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      const q = new URLSearchParams({ page: String(p), pageSize: String(pageSize) });
       if (search.trim()) q.set('search', search.trim());
       const res = await listAdminUsers(q.toString());
       setData(res);
@@ -38,6 +48,33 @@ export function AdminUsersPage() {
     e.preventDefault();
     setPage(1);
     setSearch(searchInput.trim());
+  }
+
+  async function submitCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setCreateBusy(true);
+    setError(null);
+    setCreateSuccess(null);
+    try {
+      await createAdminUser({
+        email: createEmail.trim(),
+        password: createPassword,
+        role: createRole,
+        ...(createUsername.trim() ? { username: createUsername.trim() } : {}),
+      });
+      setCreateSuccess(`已创建：${createEmail.trim()}`);
+      setCreateEmail('');
+      setCreatePassword('');
+      setCreateUsername('');
+      setCreateRole(USER_ROLE.User);
+      setCreateOpen(false);
+      setPage(1);
+      await load(1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '创建失败');
+    } finally {
+      setCreateBusy(false);
+    }
   }
 
   async function toggleActive(u: AdminUserRow, next: boolean) {
@@ -60,8 +97,23 @@ export function AdminUsersPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-xl font-bold text-white">用户列表</h2>
-          <p className="mt-1 text-sm text-slate-500">启用 / 停用账号（不能停用自己）。</p>
+          <p className="mt-1 text-sm text-slate-500">
+            新建用户（含演示角色）、启用 / 停用账号（不能停用自己）。默认演示账号仍由服务启动时按环境变量创建，此处可再增删演示用户。
+          </p>
         </div>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <Button
+            type="button"
+            variant="primary"
+            size="lg"
+            className="shrink-0"
+            onClick={() => {
+              setCreateOpen((o) => !o);
+              setCreateSuccess(null);
+            }}
+          >
+            {createOpen ? '收起' : '新建用户'}
+          </Button>
         <form onSubmit={applySearch} className="flex w-full max-w-md gap-2 sm:w-auto">
           <input
             value={searchInput}
@@ -76,7 +128,76 @@ export function AdminUsersPage() {
             搜索
           </button>
         </form>
+        </div>
       </div>
+
+      {createOpen ? (
+        <form
+          onSubmit={(ev) => void submitCreate(ev)}
+          className="space-y-4 rounded-2xl border border-ark-border bg-ark-surface/40 p-5"
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block space-y-1.5 text-sm">
+              <span className="text-slate-400">邮箱</span>
+              <input
+                required
+                type="email"
+                autoComplete="off"
+                value={createEmail}
+                onChange={(e) => setCreateEmail(e.target.value)}
+                className="w-full rounded-xl border border-ark-border bg-ark-bg px-3 py-2 font-mono text-sm"
+              />
+            </label>
+            <label className="block space-y-1.5 text-sm">
+              <span className="text-slate-400">初始密码（至少 6 位）</span>
+              <input
+                required
+                type="password"
+                autoComplete="new-password"
+                minLength={6}
+                value={createPassword}
+                onChange={(e) => setCreatePassword(e.target.value)}
+                className="w-full rounded-xl border border-ark-border bg-ark-bg px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block space-y-1.5 text-sm">
+              <span className="text-slate-400">用户名（可选，默认从邮箱生成）</span>
+              <input
+                type="text"
+                value={createUsername}
+                onChange={(e) => setCreateUsername(e.target.value)}
+                className="w-full rounded-xl border border-ark-border bg-ark-bg px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block space-y-1.5 text-sm">
+              <span className="text-slate-400">角色</span>
+              <select
+                value={createRole}
+                onChange={(e) => setCreateRole(e.target.value as AdminUserRow['role'])}
+                className="w-full rounded-xl border border-ark-border bg-ark-bg px-3 py-2 text-sm"
+              >
+                <option value={USER_ROLE.User}>用户</option>
+                <option value={USER_ROLE.Demo}>演示</option>
+                <option value={USER_ROLE.Admin}>管理员</option>
+              </select>
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" variant="primary" disabled={createBusy}>
+              {createBusy ? '创建中…' : '创建'}
+            </Button>
+            <Button type="button" variant="secondary" disabled={createBusy} onClick={() => setCreateOpen(false)}>
+              取消
+            </Button>
+          </div>
+        </form>
+      ) : null}
+
+      {createSuccess ? (
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+          {createSuccess}
+        </div>
+      ) : null}
 
       {error ? (
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>
@@ -114,7 +235,9 @@ export function AdminUsersPage() {
                   <tr key={u._id} className="border-t border-ark-border bg-ark-bg/10">
                     <td className="px-4 py-3 font-mono text-xs text-ark-text">{u.email}</td>
                     <td className="px-4 py-3 text-ark-text">{u.username}</td>
-                    <td className="px-4 py-3 text-slate-400">{u.role === 'admin' ? '管理员' : '用户'}</td>
+                    <td className="px-4 py-3 text-slate-400">
+                      {userRoleLabel(u.role)}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={u.isActive ? 'text-emerald-400' : 'text-slate-500'}>
                         {u.isActive ? '正常' : '已停用'}

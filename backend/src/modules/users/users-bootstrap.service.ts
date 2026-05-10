@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from './users.service';
+import { USER_ROLE } from './user-role';
 
 /**
  * 首个超级管理员种子（原 CatalogSeedService 中逻辑）。
@@ -16,16 +17,11 @@ export class UsersBootstrapService implements OnModuleInit {
 
   async onModuleInit() {
     await this.seedSuperAdmin();
+    await this.seedDemoUser();
   }
 
   private async seedSuperAdmin() {
-    const disabled = this.config.get<string>('ADMIN_BOOTSTRAP');
-    if (disabled === '0' || disabled === 'false') {
-      this.logger.log('已设置 ADMIN_BOOTSTRAP=0/false，跳过超级管理员种子');
-      return;
-    }
-
-    const count = await this.usersService.countByRole('admin');
+    const count = await this.usersService.countByRole(USER_ROLE.Admin);
     if (count > 0) {
       this.logger.log('已存在管理员账号，跳过超级管理员种子');
       return;
@@ -39,7 +35,7 @@ export class UsersBootstrapService implements OnModuleInit {
         this.logger.warn('生产环境未设置 ADMIN_PASSWORD，跳过超级管理员种子（请手动创建管理员或配置环境变量）');
         return;
       }
-      password = 'ChangeMe_Admin!';
+      password = '123456qian';
       this.logger.warn(`开发环境未设置 ADMIN_PASSWORD，使用默认密码（请务必登录后修改）：${password}`);
     }
 
@@ -50,6 +46,28 @@ export class UsersBootstrapService implements OnModuleInit {
       if (e instanceof ConflictException) {
         this.logger.warn(
           `无法创建超级管理员：邮箱 ${email} 已被普通用户占用，请更换 ADMIN_EMAIL 或手动提升角色`,
+        );
+        return;
+      }
+      throw e;
+    }
+  }
+
+  private async seedDemoUser() {
+    const email = (this.config.get<string>('DEMO_EMAIL') || 'show@clueark.com').trim().toLowerCase();
+    let password = this.config.get<string>('DEMO_PASSWORD');
+    if (!password?.trim()) {
+      password = '123456qian';
+      this.logger.warn(`设置 DEMO_PASSWORD，使用默认演示密码（请勿用于生产）：${password}`);
+    }
+
+    try {
+      await this.usersService.createDemoUserIfMissing(email, password.trim());
+      this.logger.log(`演示账号已就绪：${email}`);
+    } catch (e) {
+      if (e instanceof ConflictException) {
+        this.logger.warn(
+          `无法创建演示账号：邮箱 ${email} 已被非演示用户占用，请更换 DEMO_EMAIL 或在后台用户管理创建 demo 角色`,
         );
         return;
       }

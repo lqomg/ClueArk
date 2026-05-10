@@ -9,6 +9,7 @@ import {
 } from '@/api/admin/sources';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui';
+import { useDemoViewer } from '@/hooks/useDemoViewer';
 import type { Source } from '@/types/models';
 import { KIND_LABEL } from './utils';
 import { AdminSourceDrawerForm } from '@/pages/admin/components/admin-source-drawer-form';
@@ -16,6 +17,7 @@ import { AdminSourceDrawerForm } from '@/pages/admin/components/admin-source-dra
 type DrawerState = null | { mode: 'create' } | { mode: 'edit'; id: string };
 
 export function AdminSourcesPage() {
+  const isDemoViewer = useDemoViewer();
   const [rows, setRows] = useState<Source[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +48,6 @@ export function AdminSourcesPage() {
   }, [loadList]);
 
   async function toggleEnabled(row: Source) {
-    if (row.isOfficial) return;
     setSavingId(row.id);
     setError(null);
     try {
@@ -128,47 +129,51 @@ export function AdminSourcesPage() {
         <div>
           <h2 className="text-xl font-bold text-white">信源管理</h2>
           <p className="mt-1 text-sm text-slate-500">
-            维护全站信源池（仅管理员）；用户端只读浏览与直达。
+            {isDemoViewer
+              ? '演示账号仅可查看信源配置；增删改、导入导出需管理员。'
+              : '维护全站信源池（仅管理员可写）；用户端只读浏览与直达。'}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            size="lg"
-            className="gap-2"
-            disabled={ioBusy}
-            onClick={() => void handleExportJson()}
-          >
-            <Download size={18} aria-hidden />
-            导出 JSON
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            size="lg"
-            className="gap-2"
-            disabled={ioBusy}
-            onClick={() => importInputRef.current?.click()}
-          >
-            <Upload size={18} aria-hidden />
-            导入 JSON
-          </Button>
-          <input
-            ref={importInputRef}
-            type="file"
-            accept="application/json,.json"
-            className="hidden"
-            onChange={(ev) => {
-              const f = ev.target.files?.[0];
-              if (f) void handleImportFile(f);
-            }}
-          />
-          <Button type="button" variant="primary" size="lg" onClick={() => setDrawer({ mode: 'create' })}>
-            <Plus size={18} aria-hidden />
-            新建信源
-          </Button>
-        </div>
+        {!isDemoViewer ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="lg"
+              className="gap-2"
+              disabled={ioBusy}
+              onClick={() => void handleExportJson()}
+            >
+              <Download size={18} aria-hidden />
+              导出 JSON
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="lg"
+              className="gap-2"
+              disabled={ioBusy}
+              onClick={() => importInputRef.current?.click()}
+            >
+              <Upload size={18} aria-hidden />
+              导入 JSON
+            </Button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(ev) => {
+                const f = ev.target.files?.[0];
+                if (f) void handleImportFile(f);
+              }}
+            />
+            <Button type="button" variant="primary" size="lg" onClick={() => setDrawer({ mode: 'create' })}>
+              <Plus size={18} aria-hidden />
+              新建信源
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       {error ? (
@@ -217,17 +222,22 @@ export function AdminSourcesPage() {
                   <td className="px-3 py-2 text-slate-400">{KIND_LABEL[r.kind]}</td>
                   <td className="px-3 py-2">{r.isOfficial ? '是' : '否'}</td>
                   <td className="px-3 py-2">
-                    <button
-                      type="button"
-                      disabled={savingId === r.id || r.isOfficial}
-                      title={r.isOfficial ? '内置官方信源不可修改启用状态' : undefined}
-                      onClick={() => void toggleEnabled(r)}
-                      className={`text-xs font-semibold underline-offset-2 hover:underline disabled:opacity-40 ${
-                        r.enabled ? 'text-emerald-400' : 'text-slate-500'
-                      }`}
-                    >
-                      {r.enabled ? '已启用' : '已禁用'}
-                    </button>
+                    {isDemoViewer ? (
+                      <span className={`text-xs font-semibold ${r.enabled ? 'text-emerald-400' : 'text-slate-500'}`}>
+                        {r.enabled ? '已启用' : '已禁用'}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={savingId === r.id}
+                        onClick={() => void toggleEnabled(r)}
+                        className={`text-xs font-semibold underline-offset-2 hover:underline disabled:opacity-40 ${
+                          r.enabled ? 'text-emerald-400' : 'text-slate-500'
+                        }`}
+                      >
+                        {r.enabled ? '已启用' : '已禁用'}
+                      </button>
+                    )}
                   </td>
                   <td className="space-x-4 whitespace-nowrap px-3 py-2">
                     <button
@@ -238,26 +248,27 @@ export function AdminSourcesPage() {
                       <Eye size={14} aria-hidden />
                       查看
                     </button>
-                    <button
-                      type="button"
-                      disabled={r.isOfficial}
-                      title={r.isOfficial ? '内置官方信源不可编辑' : undefined}
-                      className="text-ark-accent hover:underline disabled:cursor-not-allowed disabled:opacity-40 disabled:no-underline"
-                      onClick={() => !r.isOfficial && setDrawer({ mode: 'edit', id: r.id })}
-                    >
-                      编辑
-                    </button>
-                    <Button
-                      type="button"
-                      variant="dangerGhost"
-                      className="inline-flex items-center gap-1 !text-red-300 hover:!text-red-200"
-                      disabled={Boolean(savingId) || r.isOfficial}
-                      title={r.isOfficial ? '启动内置种子信源不可删除' : undefined}
-                      onClick={() => setConfirmId(r.id)}
-                    >
-                      <Trash2 size={14} aria-hidden />
-                      删除
-                    </Button>
+                    {!isDemoViewer ? (
+                      <>
+                        <button
+                          type="button"
+                          className="text-ark-accent hover:underline"
+                          onClick={() => setDrawer({ mode: 'edit', id: r.id })}
+                        >
+                          编辑
+                        </button>
+                        <Button
+                          type="button"
+                          variant="dangerGhost"
+                          className="inline-flex items-center gap-1 !text-red-300 hover:!text-red-200"
+                          disabled={Boolean(savingId)}
+                          onClick={() => setConfirmId(r.id)}
+                        >
+                          <Trash2 size={14} aria-hidden />
+                          删除
+                        </Button>
+                      </>
+                    ) : null}
                   </td>
                 </tr>
               ))
@@ -308,7 +319,11 @@ export function AdminSourcesPage() {
       <ConfirmDialog
         open={Boolean(confirmId)}
         title="软删除该信源？"
-        description="将标记删除并禁用；数据库仍保留记录。"
+        description={
+          confirmId && rows.find((r) => r.id === confirmId)?.isOfficial
+            ? '此为内置种子信源；删除后若重启服务，仍可能按内置目录再次注入。将标记删除并禁用；数据库仍保留记录。'
+            : '将标记删除并禁用；数据库仍保留记录。'
+        }
         confirmText="删除"
         danger
         onCancel={() => !savingId && setConfirmId(null)}

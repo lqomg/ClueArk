@@ -4,6 +4,8 @@ import { ProductMark } from '@/components/brand/ProductMark';
 import { GithubRepoLink } from '@/components/GithubRepoLink';
 import { useResolvedMonitorPins } from '@/hooks/useResolvedMonitorPins';
 import { useAuthStore } from '@/stores/authStore';
+import { USER_ROLE } from '@/constants/user-role';
+import { isStaffRole } from '@/utils/auth-roles';
 
 function shellNavClass(isActive: boolean) {
   return `flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${isActive ? 'bg-white/10 text-ark-accent' : 'text-slate-400 hover:bg-white/5 hover:text-ark-text'
@@ -23,7 +25,8 @@ export function AppShell() {
   const user = useAuthStore((s) => s.user);
   const clear = useAuthStore((s) => s.clear);
   const navigate = useNavigate();
-  const isAdminUser = user?.role === 'admin';
+  const isStaffUser = isStaffRole(user?.role);
+  const isAdminUser = user?.role === USER_ROLE.Admin;
   const { pins: monitorPins } = useResolvedMonitorPins();
 
   function logout() {
@@ -81,20 +84,22 @@ export function AppShell() {
                 </div>
               </div>
             ) : null}
-            {isAdminUser ? (
+            {isStaffUser ? (
               <div className="mt-4 border-t border-ark-border pt-2">
                 <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
                   管理
                 </p>
                 <div className="space-y-1">
-                  <NavLink to="/app/admin/users" end className={({ isActive }) => shellNavClass(isActive)}>
-                    {({ isActive }) => (
-                      <>
-                        <Users size={18} className={shellNavIconClass(isActive)} />
-                        用户管理
-                      </>
-                    )}
-                  </NavLink>
+                  {isAdminUser ? (
+                    <NavLink to="/app/admin/users" end className={({ isActive }) => shellNavClass(isActive)}>
+                      {({ isActive }) => (
+                        <>
+                          <Users size={18} className={shellNavIconClass(isActive)} />
+                          用户管理
+                        </>
+                      )}
+                    </NavLink>
+                  ) : null}
                   <NavLink to="/app/admin/sources" end={false} className={({ isActive }) => shellNavClass(isActive)}>
                     {({ isActive }) => (
                       <>
@@ -180,13 +185,15 @@ export function AppShell() {
               <User size={14} />
               我的
             </Link>
-            {isAdminUser ? (
+            {isStaffUser ? (
               <>
                 <span className="hidden h-3 w-px bg-ark-border sm:inline" aria-hidden />
-                <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/admin/users">
-                  <Users size={14} />
-                  用户
-                </Link>
+                {isAdminUser ? (
+                  <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/admin/users">
+                    <Users size={14} />
+                    用户
+                  </Link>
+                ) : null}
                 <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/admin/sources">
                   <Database size={14} />
                   信源管理

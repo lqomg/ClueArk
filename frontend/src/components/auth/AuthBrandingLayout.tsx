@@ -72,8 +72,9 @@ export function AuthBrandingLayout({
           </div>
           {children}
           <p className="px-1 text-center text-[12px] gap-1  leading-loose tracking-[0.2em] ">
-            管理员账号：
-            admin@clueark.local / lin123456qian
+            演示环境账号：<span className="font-mono text-slate-400">show@clueark.com</span>
+            / <span className="font-mono text-slate-400">123456qian</span>
+    
           </p>
           <p className=" text-center text-[12px] gap-1  leading-loose tracking-[0.2em] text-red-600">
             此为演示环境，请勿乱修改相关数据，以免影响其他用户使用。将定期清理数据，请勿上传敏感信息。

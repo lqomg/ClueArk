@@ -1,9 +1,10 @@
-import { Body, Controller, DefaultValuePipe, Get, Param, ParseIntPipe, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, DefaultValuePipe, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators';
 import { AdminGuard } from './guards/admin.guard';
 import { UsersService } from '../users/users.service';
 import { AdminUserActiveDto } from './dto/admin-user-active.dto';
+import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { toPlainObjectWithoutFields } from '../../common/utils/mongoose.utils';
 import type { User } from '../users/schemas/user.schema';
 
@@ -11,6 +12,17 @@ import type { User } from '../users/schemas/user.schema';
 @UseGuards(JwtAuthGuard, AdminGuard)
 export class AdminUsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @Post()
+  async create(@Body() body: AdminCreateUserDto) {
+    const u = await this.usersService.createUserByAdmin({
+      email: body.email,
+      password: body.password,
+      username: body.username,
+      role: body.role,
+    });
+    return toPlainObjectWithoutFields<User>(u, ['password']);
+  }
 
   @Get()
   async list(
