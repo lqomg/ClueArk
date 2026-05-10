@@ -208,8 +208,17 @@ export function AppShell() {
         </header>
 
         <header className="hidden shrink-0 items-center justify-between gap-4 border-b border-ark-border bg-ark-bg px-8 py-4 md:flex">
-          <div className="min-w-0 text-xs font-bold uppercase tracking-widest text-slate-500">
-            终端 <span className="font-mono text-ark-accent/90">{user?.email}</span>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 text-xs font-bold uppercase tracking-widest text-slate-500">
+            <span>
+              终端 <span className="font-mono text-ark-accent/90">{user?.email}</span>
+            </span>
+            <Link
+              to="/app/me"
+              className="inline-flex items-center gap-1.5 font-semibold normal-case tracking-normal text-slate-400 transition-colors hover:text-ark-accent"
+            >
+              <User size={14} />
+              个人中心
+            </Link>
           </div>
           <GithubRepoLink className="shrink-0 text-slate-500" />
         </header>
