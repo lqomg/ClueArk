@@ -2,7 +2,8 @@ type NormalizePublishedAtOptions = {
   now?: Date;
 };
 
-const DEFAULT_FUTURE_GRACE_MS = 6 * 60 * 60 * 1000;
+/** 仅容忍采集端与信源之间的轻微时钟偏差；超过则视为「未来发布时间」，改用抓取时刻 */
+const DEFAULT_FUTURE_GRACE_MS = 120_000;
 const REL_RE = /^(\d{1,6})\s*(秒|分钟|分|小时|时|天|日|周|月|年)\s*(前|内)$/;
 const TODAY_YESTERDAY_RE = /^(今天|昨日|昨天|前天)\s*(\d{1,2})(?::(\d{1,2}))?(?::(\d{1,2}))?$/;
 const CH_MD_RE =
@@ -197,6 +198,7 @@ export function normalizePublishedAt(raw: unknown, opts: NormalizePublishedAtOpt
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/** 若 `publishedAt` 晚于 `now + graceMs`，则视为不可信的未来时间，回落为抓取时刻 `now` */
 export function capFuturePublishedAt(
   publishedAt: Date | null,
   now: Date,

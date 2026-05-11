@@ -731,7 +731,7 @@ export class FeedIngestService {
     await this.feedItemModel
       .updateMany(
         { sourceId, publishedAt: { $gt: maxAllowedPublishedAt(now) } },
-        [{ $set: { publishedAt: { $ifNull: ['$createdAt', now] } } }],
+        [{ $set: { publishedAt: now } }],
       )
       .exec();
   }
