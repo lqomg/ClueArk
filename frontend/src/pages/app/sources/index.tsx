@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowUp, Layers, Search } from 'lucide-react';
 import { listSources } from '@/api/sources';
 import type { SourceKind, Source } from '@/types/models';
+import { useAppTopBar } from '@/components/layout/AppTopBar';
+import { TopBarCountPill } from '@/components/layout/TopBarCountPill';
 import { useSourceUiStore } from '@/stores/sourceUiStore';
 import { SourceAvatar } from '@/components/sources/SourceAvatar';
 import { Button, IconButton, Input, Select, Segmented } from '@/components/ui';
@@ -76,89 +78,102 @@ export function SourcesPage() {
 
   const isEmpty = !loading && list && list.items.length === 0;
 
-  return (
-    <div className="relative flex min-h-0 flex-1 flex-col gap-4">
-      <div className="shrink-0 space-y-3 border-b border-ark-border bg-ark-bg pb-3">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-2 sm:gap-x-3">
-          <h1 className="shrink-0 text-2xl font-black leading-none tracking-tight text-white sm:text-3xl md:text-4xl">
-            信源
-          </h1>
-          <span className="inline-flex h-7 shrink-0 items-center rounded-md border border-white/10 bg-white/[0.04] px-2.5 text-[11px] text-slate-400">
-            共 <span className="font-bold text-ark-accent">{list?.total ?? '—'}</span> 条
-            {hasActiveFilters ? <span className="text-slate-500"> · 已筛选</span> : null}
-          </span>
-          <Segmented
-            value={poolView}
-            onChange={setPoolView}
-            size="md"
-            options={[
-              { value: 'list', label: '列表' },
-              { value: 'card', label: '卡片' },
-            ]}
-          />
-        </div>
+  const sourcesHelp =
+    '浏览全站信源池并直达入口；新增与编辑由管理员在「管理后台 → 信源管理」维护。';
 
-        <div className="rounded-2xl border border-ark-border bg-ark-surface p-3 shadow-inner shadow-black/30 sm:p-4">
-          <p className="mb-3 text-[11px] leading-snug text-slate-500 sm:mb-3.5 sm:text-xs">
-            浏览全站信源池并直达入口；新增与编辑由管理员在「管理后台 → 信源管理」维护。
-          </p>
-          <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:gap-x-3 md:gap-y-2">
-            <div className="flex min-w-0 flex-1 flex-col gap-1 md:min-w-[10rem]">
-              <span className="text-[10px] font-medium text-slate-600">搜索</span>
-              <div className="group relative min-w-0">
-                <Search
-                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-600 transition-colors group-focus-within:text-ark-accent"
-                  strokeWidth={2}
-                  aria-hidden
-                />
-                <Input
-                  aria-label="搜索展示名或备注"
-                  className="h-10 w-full rounded-lg border-ark-border bg-ark-bg py-2 pl-9 pr-3"
-                  placeholder="展示名 / 备注…"
-                  value={search}
-                  onChange={(e) => {
-                    setPage(1);
-                    setSearch(e.target.value);
-                  }}
-                />
-              </div>
-            </div>
-            <div className="flex w-full min-w-0 flex-col gap-1 sm:max-w-[11rem] md:w-44 md:max-w-none md:shrink-0">
-              <span className="text-[10px] font-medium text-slate-600">类型</span>
-              <Select
-                aria-label="按类型筛选"
-                className="h-10 w-full min-w-0"
-                value={kindFilter}
-                onChange={(e) => {
-                  setPage(1);
-                  setKindFilter(e.target.value as SourceKind | '');
-                }}
-              >
-                <option value="">全部类型</option>
-                <option value="web">网站</option>
-                <option value="rss">RSS</option>
-                <option value="hot_api">热点</option>
-              </Select>
-            </div>
-            <div className="flex w-full min-w-0 flex-col gap-1 sm:max-w-[14rem] md:w-56 md:max-w-none md:shrink-0">
-              <span className="text-[10px] font-medium text-slate-600">排序</span>
-              <Select
-                aria-label="排序方式"
-                className="h-10 w-full min-w-0"
-                value={`${sortBy}:${sortOrder}`}
-                onChange={(e) => {
-                  const [sb, so] = e.target.value.split(':') as ['createdAt' | 'displayName', 'asc' | 'desc'];
-                  setSortBy(sb);
-                  setSortOrder(so);
-                  setPage(1);
-                }}
-              >
-                <option value="createdAt:desc">时间 · 新→旧</option>
-                <option value="createdAt:asc">时间 · 旧→新</option>
-                <option value="displayName:asc">名称 · A→Z</option>
-                <option value="displayName:desc">名称 · Z→A</option>
-              </Select>
-            </div>
+  useAppTopBar(
+    () => (
+      <div className="flex min-w-0 w-full items-center justify-between gap-4">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+          <h1 className="shrink-0 text-lg font-semibold tracking-tight text-ark-text">信源</h1>
+          <TopBarCountPill
+            className="sm:hidden"
+            compact
+            value={list?.total ?? '—'}
+            trailing={hasActiveFilters ? <span className="ml-1 font-normal normal-case tracking-normal text-slate-500">·</span> : null}
+          />
+          <div className="hidden min-h-5 items-center border-l border-ark-border pl-4 sm:flex">
+            <TopBarCountPill
+              value={list?.total ?? '—'}
+              trailing={
+                hasActiveFilters ? <span className="ml-1 font-normal normal-case tracking-normal text-slate-500">· 已筛选</span> : null
+              }
+            />
+          </div>
+        </div>
+        <Segmented
+          visual="panel"
+          value={poolView}
+          onChange={setPoolView}
+          size="md"
+          className="shrink-0"
+          options={[
+            { value: 'list', label: '列表' },
+            { value: 'card', label: '卡片' },
+          ]}
+        />
+      </div>
+    ),
+    [poolView, setPoolView, list?.total, hasActiveFilters],
+  );
+
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col gap-3">
+      <div className="shrink-0 rounded-xl border border-ark-border bg-ark-sidebar p-4 sm:p-6">
+        <p className="mb-6 text-sm text-slate-500">{sourcesHelp}</p>
+        <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:gap-x-3 md:gap-y-2">
+          <div className="group relative min-w-0 flex-1 md:min-w-[10rem]">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-600 transition-colors group-focus-within:text-ark-accent"
+              strokeWidth={2}
+              aria-hidden
+            />
+            <Input
+              aria-label="搜索展示名或备注"
+              className="h-10 w-full rounded-lg border-ark-border bg-ark-surface py-2 pl-9 pr-3 text-sm text-ark-text placeholder:text-slate-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/25"
+              placeholder="展示名 / 备注…"
+              value={search}
+              onChange={(e) => {
+                setPage(1);
+                setSearch(e.target.value);
+              }}
+            />
+          </div>
+          <div className="flex w-full min-w-0 flex-col gap-1 sm:max-w-[11rem] md:w-44 md:max-w-none md:shrink-0">
+            <span className="text-[10px] font-medium text-slate-600">类型</span>
+            <Select
+              aria-label="按类型筛选"
+              className="h-10 w-full min-w-0 rounded-lg border-ark-border bg-ark-surface text-sm focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/25"
+              value={kindFilter}
+              onChange={(e) => {
+                setPage(1);
+                setKindFilter(e.target.value as SourceKind | '');
+              }}
+            >
+              <option value="">全部类型</option>
+              <option value="web">网站</option>
+              <option value="rss">RSS</option>
+              <option value="hot_api">热点</option>
+            </Select>
+          </div>
+          <div className="flex w-full min-w-0 flex-col gap-1 sm:max-w-[14rem] md:w-56 md:max-w-none md:shrink-0">
+            <span className="text-[10px] font-medium text-slate-600">排序</span>
+            <Select
+              aria-label="排序方式"
+              className="h-10 w-full min-w-0 rounded-lg border-ark-border bg-ark-surface text-sm focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/25"
+              value={`${sortBy}:${sortOrder}`}
+              onChange={(e) => {
+                const [sb, so] = e.target.value.split(':') as ['createdAt' | 'displayName', 'asc' | 'desc'];
+                setSortBy(sb);
+                setSortOrder(so);
+                setPage(1);
+              }}
+            >
+              <option value="createdAt:desc">时间 · 新→旧</option>
+              <option value="createdAt:asc">时间 · 旧→新</option>
+              <option value="displayName:asc">名称 · A→Z</option>
+              <option value="displayName:desc">名称 · Z→A</option>
+            </Select>
           </div>
         </div>
       </div>

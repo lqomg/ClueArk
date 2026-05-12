@@ -1,15 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Pin, Plus, Radar, Settings2, Trash2 } from 'lucide-react';
+import { Pin, Plus, Radar, Settings2, Sparkles, Trash2 } from 'lucide-react';
 import { deleteMonitor, listMonitors } from '@/api/monitors';
 import { MONITOR_PIN_LIMIT, resolvePinnedMonitors } from '@/lib/monitor-pins';
 import type { Monitor } from '@/types/models';
+import { useAppTopBar } from '@/components/layout/AppTopBar';
+import { TopBarCountPill } from '@/components/layout/TopBarCountPill';
 import { Button, Checkbox, Drawer } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { useMonitorPinsStore } from '@/stores/monitorPinsStore';
 
 const linkOutlineSm =
   'inline-flex items-center justify-center rounded-lg border border-ark-border px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-ark-accent/50 hover:text-ark-accent';
+
+const manageMonitorBtnClass =
+  'inline-flex shrink-0 items-center gap-2 rounded-lg border border-ark-border bg-ark-surface px-3 py-1.5 text-xs font-medium text-ark-text shadow-sm transition-colors hover:bg-white/[0.04]';
 
 export function MonitorsListPage() {
   const navigate = useNavigate();
@@ -101,8 +106,55 @@ export function MonitorsListPage() {
 
   const isEmpty = !loading && rows && rows.length === 0;
 
+  const monitorOverviewHelp =
+    '用一句话描述话题，系统会推荐信源并基于语义展示相关动态。时间线仅含已绑定信源、且与描述向量相似度达阈值的条目。';
+
+  useAppTopBar(
+    () => (
+      <div className="flex min-w-0 w-full items-center justify-between gap-4">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1">
+          <h1 className="flex min-w-0 shrink-0 items-center gap-2 text-lg font-semibold tracking-tight text-ark-text">
+            <Sparkles className="size-5 shrink-0 text-indigo-400" strokeWidth={2} aria-hidden />
+            <span className="truncate">监控总览</span>
+          </h1>
+          <div className="flex min-h-5 items-center border-l border-ark-border pl-4">
+            <TopBarCountPill value={rows?.length ?? '—'} suffix="个" />
+          </div>
+          <div className="hidden min-h-5 max-w-md min-w-0 flex-1 border-l border-ark-border pl-4 text-sm leading-snug text-slate-500 md:block lg:max-w-xl">
+            <p className="line-clamp-2">{monitorOverviewHelp}</p>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <Link to="/app/monitors" className={manageMonitorBtnClass} title="监控列表与管理">
+            <Settings2 size={14} strokeWidth={2} />
+            管理监控
+          </Link>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="inline-flex items-center gap-1.5"
+            disabled={!rows?.length}
+            onClick={() => setPinDrawerOpen(true)}
+          >
+            <Pin size={14} strokeWidth={2} />
+            侧栏快捷
+          </Button>
+          <Link
+            to="/app/monitors/new"
+            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-ark-accent px-3 py-2 text-xs font-bold text-black shadow-lg shadow-ark-accent/15 hover:opacity-95 md:gap-2 md:px-4 md:text-sm"
+          >
+            <Plus size={16} />
+            新建监控
+          </Link>
+        </div>
+      </div>
+    ),
+    [rows?.length],
+  );
+
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col gap-4">
+    <div className="relative flex min-h-0 flex-1 flex-col gap-3">
       <Drawer
         open={pinDrawerOpen}
         onClose={() => setPinDrawerOpen(false)}
@@ -152,40 +204,7 @@ export function MonitorsListPage() {
         </ul>
       </Drawer>
 
-      <div className="shrink-0 border-b border-ark-border bg-ark-bg pb-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-black leading-none tracking-tight text-white sm:text-3xl md:text-4xl">
-              监控
-            </h1>
-            <p className="mt-2 max-w-xl text-[11px] leading-relaxed text-slate-500 sm:text-xs">
-              用一句话描述话题，系统会推荐信源并基于语义展示相关动态。时间线仅含已绑定信源、且与描述向量相似度达阈值的条目。
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              className="inline-flex items-center gap-1.5"
-              disabled={!rows?.length}
-              onClick={() => setPinDrawerOpen(true)}
-            >
-              <Pin size={16} strokeWidth={2} />
-              侧栏快捷
-            </Button>
-            <Link
-              to="/app/monitors/new"
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-ark-accent px-4 py-2.5 text-sm font-bold text-black shadow-lg shadow-ark-accent/15 hover:opacity-95"
-            >
-              <Plus size={16} />
-              新建监控
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="shrink-0 text-sm text-red-400">{error}</p> : null}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {loading && !rows ? (

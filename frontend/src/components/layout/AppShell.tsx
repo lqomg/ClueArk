@@ -1,7 +1,8 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Bookmark, Database, Layers, LogOut, Newspaper, Radar, User, Users } from 'lucide-react';
+import { Bookmark, Database, Layers, LayoutDashboard, LogOut, Newspaper, User, Users } from 'lucide-react';
 import { ProductMark } from '@/components/brand/ProductMark';
 import { GithubRepoLink } from '@/components/GithubRepoLink';
+import { AppTopBarProvider } from '@/components/layout/AppTopBar';
 import { useResolvedMonitorPins } from '@/hooks/useResolvedMonitorPins';
 import { useAuthStore } from '@/stores/authStore';
 import { USER_ROLE } from '@/constants/user-role';
@@ -60,8 +61,8 @@ export function AppShell() {
             <NavLink to="/app/monitors" end className={({ isActive }) => shellNavClass(isActive)}>
               {({ isActive }) => (
                 <>
-                  <Radar size={18} className={shellNavIconClass(isActive)} />
-                  监控
+                  <LayoutDashboard size={18} className={shellNavIconClass(isActive)} />
+                  监控总览
                 </>
               )}
             </NavLink>
@@ -164,8 +165,8 @@ export function AppShell() {
               信源
             </Link>
             <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/monitors">
-              <Radar size={14} />
-              监控
+              <LayoutDashboard size={14} />
+              监控总览
             </Link>
             {monitorPins.length > 0 ? (
               <div className="flex w-full gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -207,32 +208,16 @@ export function AppShell() {
           </div>
         </header>
 
-        <header className="hidden shrink-0 items-center justify-between gap-4 border-b border-ark-border bg-ark-bg px-8 py-4 md:flex">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 text-xs font-bold uppercase tracking-widest text-slate-500">
-            <span>
-              终端 <span className="font-mono text-ark-accent/90">{user?.email}</span>
-            </span>
-            <Link
-              to="/app/me"
-              className="inline-flex items-center gap-1.5 font-semibold normal-case tracking-normal text-slate-400 transition-colors hover:text-ark-accent"
-            >
-              <User size={14} />
-              个人中心
-            </Link>
-          </div>
-          <GithubRepoLink className="shrink-0 text-slate-500" />
-        </header>
-
-        <main
-          id="app-main-scroll"
-          className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-6 md:px-10 md:py-10"
-        >
-          <div
-            className={`mx-auto flex min-h-0 w-full flex-1 flex-col overflow-hidden max-w-7xl`}
+        <AppTopBarProvider>
+          <main
+            id="app-main-scroll"
+            className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 md:px-10 md:py-6"
           >
-            <Outlet />
-          </div>
-        </main>
+            <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col overflow-hidden">
+              <Outlet />
+            </div>
+          </main>
+        </AppTopBarProvider>
       </div>
     </div>
   );
