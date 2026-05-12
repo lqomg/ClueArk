@@ -1,5 +1,5 @@
 import { http } from './http';
-import type { FeedItem, Monitor } from '@/types/models';
+import type { FeedItem, Monitor, MonitorIntelligence, MonitorOverviewCard } from '@/types/models';
 
 export interface MonitorFeedListResponse {
   items: FeedItem[];
@@ -17,8 +17,26 @@ export async function listMonitors(): Promise<Monitor[]> {
   return data;
 }
 
-export async function createMonitor(body: { description: string }): Promise<Monitor> {
+/** `query` 可选，如 `?recentHours=720`；返回列表与各监控侧栏卡片指标 */
+export async function listMonitorsOverview(
+  query = '',
+): Promise<{ monitors: Monitor[]; cards: MonitorOverviewCard[] }> {
+  const { data } = await http.get<{ monitors: Monitor[]; cards: MonitorOverviewCard[] }>(
+    `/monitors/overview${query}`,
+  );
+  return data;
+}
+
+export async function createMonitor(body: { topic: string }): Promise<Monitor> {
   const { data } = await http.post<Monitor>('/monitors', body);
+  return data;
+}
+
+/** `query` 可选，如 `?recentHours=720` */
+export async function getMonitorIntelligence(monitorId: string, query = ''): Promise<MonitorIntelligence> {
+  const { data } = await http.get<MonitorIntelligence>(
+    `/monitors/${encodeURIComponent(monitorId)}/intelligence${query}`,
+  );
   return data;
 }
 

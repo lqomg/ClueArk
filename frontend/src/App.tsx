@@ -10,8 +10,7 @@ import { LegalTermsPage } from '@/pages/legal/terms';
 import { LegalPrivacyPage } from '@/pages/legal/privacy';
 import { SourcesPage } from '@/pages/app/sources';
 import { FeedPage } from '@/pages/app/feed';
-import { MonitorsListPage } from '@/pages/app/monitors';
-import { MonitorNewPage } from '@/pages/app/monitors/new';
+import { MonitorOverviewPage, MonitorsManagePage } from '@/pages/app/monitors';
 import { MonitorDetailPage } from '@/pages/app/monitors/detail';
 import { MonitorSettingsPage } from '@/pages/app/monitors/settings';
 import { ProfilePage } from '@/pages/app/me';
@@ -81,10 +80,11 @@ export default function App() {
         >
           <Route index element={<Navigate to="feed" replace />} />
           <Route path="feed" element={<FeedPage />} />
-          <Route path="monitors/new" element={<MonitorNewPage />} />
+          <Route path="monitors/new" element={<Navigate to="/app/monitors" replace />} />
+          <Route path="monitors/manage" element={<MonitorsManagePage />} />
           <Route path="monitors/:id/settings" element={<MonitorSettingsPage />} />
-          <Route path="monitors/:id" element={<MonitorDetailPage />} />
-          <Route path="monitors" element={<MonitorsListPage />} />
+          <Route path="monitors/:id/timeline" element={<MonitorDetailPage />} />
+          <Route path="monitors" element={<MonitorOverviewPage />} />
           <Route path="sources" element={<SourcesPage />} />
           <Route path="me" element={<ProfilePage />} />
           <Route path="admin" element={<RequireStaff><AdminLayout /></RequireStaff>}>

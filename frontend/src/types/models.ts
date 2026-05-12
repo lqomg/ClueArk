@@ -26,16 +26,42 @@ export interface FeedItem {
   relevanceScore?: number;
 }
 
-/** 用户监控话题（创建后标题/描述不可改；可 PATCH 信源与最低余弦相似度） */
+/** 用户监控话题（可 PATCH 信源与最低余弦相似度） */
 export interface Monitor {
   id: string;
   title: string;
   description: string;
+  /** 创建时用户输入的简短意图 */
+  topicPrompt: string;
+  keywords: string[];
+  entities: string[];
   sourceIds: string[];
   /** 时间线过滤阈值（0～1），新建默认 0.52 */
   minCosine: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface MonitorIntelligence {
+  monitorId: string;
+  recentHours: number;
+  minCosine: number;
+  lastActivityAt: string | null;
+  metrics: { newLast24h: number; totalInWindow: number; boundSourceCount: number };
+  heatIndex: number | null;
+  weeklyBrief: string[];
+  trend: { date: string; count: number }[];
+  chartKeywords: { name: string; count: number }[];
+  latestItems: FeedItem[];
+}
+
+/** GET /monitors/overview 中各监控侧栏卡片用 */
+export interface MonitorOverviewCard {
+  monitorId: string;
+  heatIndex: number | null;
+  newLast24h: number;
+  lastActivityAt: string | null;
+  trend: { date: string; count: number }[];
 }
 
 /** 全站统一信源；isOfficial 为启动内置 catalog 注入的种子，后台可由管理员/演示账号维护；createdBy 非空为用户自建 */

@@ -4,6 +4,7 @@ import { CurrentUser } from '../auth/decorators';
 import { MonitorsService } from './monitors.service';
 import { CreateMonitorDto } from './dto/create-monitor.dto';
 import { ListMonitorFeedQueryDto } from './dto/list-monitor-feed.query.dto';
+import { ListMonitorIntelligenceQueryDto } from './dto/list-monitor-intelligence.query.dto';
 import { PatchMonitorSourcesDto } from './dto/patch-monitor-sources.dto';
 
 @Controller('monitors')
@@ -14,6 +15,12 @@ export class MonitorsController {
   @Get()
   list(@CurrentUser('userId') userId: string) {
     return this.monitorsService.listForUser(userId);
+  }
+
+  /** 总览页：监控列表 + 各监控侧栏卡片指标（单次请求） */
+  @Get('overview')
+  overview(@CurrentUser('userId') userId: string, @Query() query: ListMonitorIntelligenceQueryDto) {
+    return this.monitorsService.listOverviewForUser(userId, query.recentHours);
   }
 
   @Post()
@@ -28,6 +35,15 @@ export class MonitorsController {
     @Query() query: ListMonitorFeedQueryDto,
   ) {
     return this.monitorsService.listFeedItems(id, userId, query);
+  }
+
+  @Get(':id/intelligence')
+  intelligence(
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+    @Query() query: ListMonitorIntelligenceQueryDto,
+  ) {
+    return this.monitorsService.getIntelligence(id, userId, query);
   }
 
   @Get(':id')

@@ -78,7 +78,7 @@ export function MonitorSettingsPage() {
     try {
       const updated = await patchMonitorSources(id, { sourceIds: orderedIds, minCosine });
       setMonitor(updated);
-      navigate(`/app/monitors/${id}`, { replace: false });
+      navigate(`/app/monitors?monitor=${encodeURIComponent(id)}`, { replace: false });
     } catch (e) {
       setError(e instanceof Error ? e.message : '保存失败');
     } finally {
@@ -95,11 +95,11 @@ export function MonitorSettingsPage() {
       <div>
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
           <Link to="/app/monitors" className="hover:text-ark-accent">
-            监控
+            监控总览
           </Link>
           <span aria-hidden>/</span>
-          <Link to={`/app/monitors/${id}`} className="hover:text-ark-accent">
-            {monitor?.title ?? '详情'}
+          <Link to={`/app/monitors/${id}/timeline`} className="hover:text-ark-accent">
+            {monitor?.title ?? '时间线'}
           </Link>
           <span aria-hidden>/</span>
           <span className="text-slate-600">信源</span>
@@ -163,7 +163,7 @@ export function MonitorSettingsPage() {
             <Button type="button" variant="primary" size="md" disabled={saving} onClick={() => void save()}>
               {saving ? '保存中…' : '保存'}
             </Button>
-            <Button type="button" variant="outline" disabled={saving} onClick={() => navigate(`/app/monitors/${id}`)}>
+            <Button type="button" variant="outline" disabled={saving} onClick={() => navigate(`/app/monitors?monitor=${encodeURIComponent(id)}`)}>
               取消
             </Button>
           </div>

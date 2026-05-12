@@ -1,9 +1,8 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Bookmark, Database, Layers, LayoutDashboard, LogOut, Newspaper, User, Users } from 'lucide-react';
+import { Bookmark, Database, Layers, LayoutDashboard, ListTree, LogOut, Newspaper, User, Users } from 'lucide-react';
 import { ProductMark } from '@/components/brand/ProductMark';
 import { GithubRepoLink } from '@/components/GithubRepoLink';
 import { AppTopBarProvider } from '@/components/layout/AppTopBar';
-import { useResolvedMonitorPins } from '@/hooks/useResolvedMonitorPins';
 import { useAuthStore } from '@/stores/authStore';
 import { USER_ROLE } from '@/constants/user-role';
 import { isStaffRole } from '@/utils/auth-roles';
@@ -17,18 +16,12 @@ function shellNavIconClass(isActive: boolean) {
   return `shrink-0 ${isActive ? 'text-ark-accent' : 'text-slate-500'}`;
 }
 
-function shellPinNavClass(isActive: boolean) {
-  return `flex w-full items-center gap-2 rounded-lg py-2 pl-3 pr-2 text-xs font-medium transition-all ${isActive ? 'bg-white/10 text-ark-accent' : 'text-slate-400 hover:bg-white/5 hover:text-ark-text'
-    }`;
-}
-
 export function AppShell() {
   const user = useAuthStore((s) => s.user);
   const clear = useAuthStore((s) => s.clear);
   const navigate = useNavigate();
   const isStaffUser = isStaffRole(user?.role);
   const isAdminUser = user?.role === USER_ROLE.Admin;
-  const { pins: monitorPins } = useResolvedMonitorPins();
 
   function logout() {
     clear();
@@ -66,25 +59,14 @@ export function AppShell() {
                 </>
               )}
             </NavLink>
-            {monitorPins.length > 0 ? (
-              <div className="mt-2 border-t border-white/[0.06] pt-2">
-                <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
-                  关注
-                </p>
-                <div className="space-y-0.5">
-                  {monitorPins.map((m) => (
-                    <NavLink
-                      key={m.id}
-                      to={`/app/monitors/${m.id}`}
-                      title={m.title}
-                      className={({ isActive }) => shellPinNavClass(isActive)}
-                    >
-                      <span className="min-w-0 flex-1 truncate">{m.title}</span>
-                    </NavLink>
-                  ))}
-                </div>
-              </div>
-            ) : null}
+            <NavLink to="/app/monitors/manage" end className={({ isActive }) => shellNavClass(isActive)}>
+              {({ isActive }) => (
+                <>
+                  <ListTree size={18} className={shellNavIconClass(isActive)} />
+                  监控管理
+                </>
+              )}
+            </NavLink>
             {isStaffUser ? (
               <div className="mt-4 border-t border-ark-border pt-2">
                 <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
@@ -168,20 +150,10 @@ export function AppShell() {
               <LayoutDashboard size={14} />
               监控总览
             </Link>
-            {monitorPins.length > 0 ? (
-              <div className="flex w-full gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {monitorPins.map((m) => (
-                  <Link
-                    key={m.id}
-                    to={`/app/monitors/${m.id}`}
-                    title={m.title}
-                    className="max-w-[44%] shrink-0 truncate rounded-full border border-ark-border bg-ark-surface/40 px-2.5 py-1 text-[11px] font-medium text-slate-300 hover:border-ark-accent/45 hover:text-ark-accent"
-                  >
-                    {m.title}
-                  </Link>
-                ))}
-              </div>
-            ) : null}
+            <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/monitors/manage">
+              <ListTree size={14} />
+              监控管理
+            </Link>
             <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/me">
               <User size={14} />
               我的

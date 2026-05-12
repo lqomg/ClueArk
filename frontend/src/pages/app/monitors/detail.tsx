@@ -113,7 +113,7 @@ export function MonitorDetailPage() {
         <div className="flex min-w-0 w-full items-center justify-between gap-3">
           <div className="min-w-0 flex-1 pr-2">
             <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-slate-500">
-              <Link to="/app/monitors" className="shrink-0 hover:text-ark-accent">
+              <Link to={`/app/monitors?monitor=${encodeURIComponent(id!)}`} className="shrink-0 hover:text-ark-accent">
                 监控总览
               </Link>
               <span aria-hidden>/</span>

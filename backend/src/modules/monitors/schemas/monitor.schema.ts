@@ -11,8 +11,18 @@ export class Monitor {
   @Prop({ required: true, trim: true, maxlength: 200 })
   title: string;
 
-  @Prop({ required: true, trim: true, maxlength: 2000 })
+  @Prop({ required: true, trim: true, maxlength: 4000 })
   description: string;
+
+  /** 用户创建时输入的简短监控意图（原始） */
+  @Prop({ default: '', trim: true, maxlength: 2000 })
+  topicPrompt: string;
+
+  @Prop({ type: [String], default: [] })
+  keywords: string[];
+
+  @Prop({ type: [String], default: [] })
+  entities: string[];
 
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Source' }], default: [] })
   sourceIds: Types.ObjectId[];
