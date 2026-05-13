@@ -1,5 +1,7 @@
 import { X } from 'lucide-react';
 import { IconButton } from '@/components/ui';
+import { formatShortDateTime, normalizeUserTimeZone } from '@/lib/datetime';
+import { useAuthStore } from '@/stores/authStore';
 import type { ClusterRow } from '../types';
 
 export interface ClusterSimilarDialogProps {
@@ -11,6 +13,7 @@ export interface ClusterSimilarDialogProps {
 }
 
 export function ClusterSimilarDialog({ open, onClose, loading, error, rows }: ClusterSimilarDialogProps) {
+  const viewerTz = useAuthStore((s) => normalizeUserTimeZone(s.user?.timeZone));
   if (!open) return null;
 
   return (
@@ -53,7 +56,7 @@ export function ClusterSimilarDialog({ open, onClose, loading, error, rows }: Cl
                   </a>
                   {row.publishedAt ? (
                     <time className="mt-1 block font-mono text-[12px] text-slate-600" dateTime={row.publishedAt}>
-                      {new Date(row.publishedAt).toLocaleString()}
+                      {formatShortDateTime(row.publishedAt, viewerTz)}
                     </time>
                   ) : null}
                 </li>

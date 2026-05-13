@@ -1,6 +1,7 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
+import { UsersModule } from '../users/users.module';
 import { LlmModule } from '../llm/llm.module';
 import { FeedItemsModule } from '../feed-items/feed-items.module';
 import { FeedItem, FeedItemSchema } from '../feed-items/schemas/feed-item.schema';
@@ -19,7 +20,8 @@ import { MonitorBriefCronTask } from './monitor-brief-cron.task';
       { name: FeedItem.name, schema: FeedItemSchema },
       { name: Source.name, schema: SourceSchema },
     ]),
-    AuthModule,
+    forwardRef(() => AuthModule),
+    UsersModule,
     LlmModule,
     FeedItemsModule,
   ],

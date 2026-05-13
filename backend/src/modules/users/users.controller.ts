@@ -23,7 +23,7 @@ export class UsersController {
   @Patch('me')
   @UseGuards(JwtAuthGuard)
   async patchMe(@CurrentUser('userId') userId: string, @Body() body: UpdateProfileDto) {
-    const user = await this.usersService.updateProfile(userId, { username: body.username });
+    const user = await this.usersService.updateProfile(userId, { username: body.username, timeZone: body.timeZone });
     return toPlainObjectWithoutFields<User>(user, ['password']);
   }
 

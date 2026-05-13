@@ -6,4 +6,10 @@ export class UpdateProfileDto {
   @MinLength(1)
   @MaxLength(64)
   username?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  timeZone?: string;
 }

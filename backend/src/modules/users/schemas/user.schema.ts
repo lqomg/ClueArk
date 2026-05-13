@@ -22,6 +22,10 @@ export class User {
 
   @Prop({ type: String, enum: [...USER_ROLE_VALUES], default: USER_ROLE.User, index: true })
   role: UserRole;
+
+  /** IANA 时区，用于展示与按日历日聚合；API 仍返回 UTC 瞬时 */
+  @Prop({ default: 'Asia/Shanghai', trim: true })
+  timeZone: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

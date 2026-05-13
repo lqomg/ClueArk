@@ -11,6 +11,13 @@ import { Source, SourceDocument } from '../sources/schemas/source.schema';
 import { FeedSimEmbeddingService } from '../feed-items/feed-sim-embedding.service';
 import { cosineSimilarity } from '../feed-items/feed-similarity.util';
 import { serializeFeedItem } from '../feed-items/feed-items.service';
+import { UsersService } from '../users/users.service';
+import {
+  dateKeyInTimeZone,
+  formatReferenceNowIsoForLlm,
+  formatReferenceNowReadableZh,
+  sevenDayTrendDateKeys,
+} from './monitor-trend-timezone.util';
 import type { CreateMonitorDto } from './dto/create-monitor.dto';
 import type { ListMonitorFeedQueryDto } from './dto/list-monitor-feed.query.dto';
 import type { ListMonitorIntelligenceQueryDto } from './dto/list-monitor-intelligence.query.dto';
@@ -121,6 +128,7 @@ export class MonitorsService {
     private readonly embeddings: FeedSimEmbeddingService,
     loggerService: LoggerService,
     @Inject(LLM_CHAT) private readonly llm: LlmChatPort,
+    private readonly usersService: UsersService,
   ) {
     this.logger = loggerService.createLogger(MonitorsService.name);
   }
@@ -224,7 +232,8 @@ export class MonitorsService {
       .sort({ createdAt: -1 })
       .exec();
     const monitors = docs.map((d) => this.serializeMonitor(d));
-    const cards = await Promise.all(docs.map((doc) => this.buildOverviewCard(doc, rh)));
+    const viewerTz = await this.usersService.getTimeZoneOrDefault(userId);
+    const cards = await Promise.all(docs.map((doc) => this.buildOverviewCard(doc, rh, viewerTz)));
     this.logger.debug(`monitor_list_overview userId=${userId} recentHours=${rh} count=${monitors.length}`);
     return { monitors, cards };
   }
@@ -554,13 +563,6 @@ export class MonitorsService {
     return { items, total, page, pageSize, recentHours, monitorId, minCosine: minSim };
   }
 
-  private utcDateKey(d: Date): string {
-    const y = d.getUTCFullYear();
-    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(d.getUTCDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  }
-
   private heatIndexFromSignals(
     count24h: number,
     count7d: number,
@@ -579,28 +581,24 @@ export class MonitorsService {
     return Math.round(raw * 100) / 10;
   }
 
-  private emptySevenDayTrend(): { date: string; count: number }[] {
-    const now = Date.now();
-    const out: { date: string; count: number }[] = [];
-    for (let d = 0; d < 7; d++) {
-      const day = new Date(now - (6 - d) * 86400000);
-      out.push({ date: this.utcDateKey(day), count: 0 });
-    }
-    return out;
+  private emptySevenDayTrend(viewerTimeZone: string): { date: string; count: number }[] {
+    return sevenDayTrendDateKeys(new Date(), viewerTimeZone).map((date) => ({ date, count: 0 }));
   }
 
   /**
    * 从 scored 聚合图表与指标；不包含 weeklyBrief。
+   * trend 按 viewerTimeZone 日历日分桶；newLast24h / count7d 仍为 UTC 毫秒窗口。
    */
   private aggregateIntelligenceFromScored(
     monitor: MonitorDocument,
     recentHours: number,
     scored: { doc: Record<string, unknown>; score: number }[],
     minSim: number,
+    viewerTimeZone: string,
   ): MonitorIntelligenceAggregate {
-    const now = Date.now();
-    const h24 = now - 24 * 3600000;
-    const h168 = now - 168 * 3600000;
+    const nowMs = Date.now();
+    const h24 = nowMs - 24 * 3600000;
+    const h168 = nowMs - 168 * 3600000;
 
     let newLast24h = 0;
     let count7d = 0;
@@ -636,17 +634,17 @@ export class MonitorsService {
           ).toISOString()
         : null;
 
+    const trendKeys = sevenDayTrendDateKeys(new Date(nowMs), viewerTimeZone);
     const trendMap = new Map<string, number>();
-    for (let d = 0; d < 7; d++) {
-      const day = new Date(now - (6 - d) * 86400000);
-      trendMap.set(this.utcDateKey(day), 0);
+    for (let k = 0; k < trendKeys.length; k++) {
+      trendMap.set(trendKeys[k], 0);
     }
     for (let i = 0; i < scored.length; i++) {
       const dt = new Date((scored[i].doc.publishedAt as Date | null | undefined) ?? (scored[i].doc.createdAt as Date));
-      const key = this.utcDateKey(dt);
+      const key = dateKeyInTimeZone(dt, viewerTimeZone);
       if (trendMap.has(key)) trendMap.set(key, (trendMap.get(key) ?? 0) + 1);
     }
-    const trend = [...trendMap.entries()].map(([date, count]) => ({ date, count }));
+    const trend = trendKeys.map((date) => ({ date, count: trendMap.get(date) ?? 0 }));
 
     const chartKeywords = [...tagCount.entries()]
       .sort((a, b) => b[1] - a[1])
@@ -818,8 +816,10 @@ export class MonitorsService {
     agg: MonitorIntelligenceAggregate;
     evidenceRows: { doc: Record<string, unknown>; score: number }[];
     briefContext: Record<string, unknown>;
+    ownerTimeZone: string;
+    referenceNow: Date;
   }): Promise<{ paragraphs: string[]; citedItemIds: string[] } | null> {
-    const { monitor, agg, evidenceRows, briefContext } = params;
+    const { monitor, agg, evidenceRows, briefContext, ownerTimeZone, referenceNow } = params;
     const pub = this.serializeMonitor(monitor);
     const monitorPayload = {
       title: pub.title,
@@ -829,12 +829,14 @@ export class MonitorsService {
       entities: pub.entities,
     };
     const { evidenceItems, allowedIds } = this.buildEvidenceItemsForLlm(evidenceRows);
+    const referenceNowIso = formatReferenceNowIsoForLlm(referenceNow, ownerTimeZone);
+    const referenceNowReadableZh = formatReferenceNowReadableZh(referenceNow, ownerTimeZone);
     const system = `你是情报监控「研判摘要」写作助手。只输出合法 JSON，不要 markdown 代码块。
 输出格式：{"paragraphs":["段落1","段落2",...],"citedItemIds":["条目id",...]}
 要求：
 1. paragraphs 共 2～3 段中文（情报综述语气），每段 30～120 字，全文总字数不超过 300。
-2. 第 1 段必须直接切入 evidenceItems 中的实质线索：主体、事件、分歧或趋势判断；禁止复述仪表盘已有信息——不得写时间窗口径、窗内总条数、24h 新增、热度指数、关键词榜排名、按日条数峰值或「共监测到 X 条」类套话。禁止以「本分析窗/近 X 小时/某日至某日 + 条数或峰值」这类统计总起句；允许且鼓励在叙事关键点写出证据中的具体时点：若某条的 publishedAt 或标题/摘要中出现明确日期、月份或相对时间，应择要写入（可写为「5 月 12 日」「昨日」[今天] [刚刚]等），须与对应 evidenceItems 一致，不得编造。
-3. 第 2、3 段展开不同角度或补充脉络，仍须基于 evidenceItems；涉及 briefContext 中的汇总指标数字时，全文至多点到 1～2 个且须与 briefContext 一致、为叙事服务而非罗列；证据中的事件日期/时点不受该条数限制，但仍须有据、忌堆砌。
+2. 第 1 段必须直接切入 evidenceItems 中的实质线索：主体、事件、分歧或趋势判断；禁止复述仪表盘已有信息——不得写时间窗口径、窗内总条数、24h 新增、热度指数、关键词榜排名、按日条数峰值或「共监测到 X 条」类套话。禁止以「本分析窗/近 X 小时/某日至某日 + 条数或峰值」这类统计总起句。凡叙述具体事件、发布或关键节点时，须写出可核对的时间：优先用相对表述（刚刚、N 分钟前、N 小时前、今天、昨天、本周等），必须以 user 中的 referenceNowIso / referenceNowReadableZh 与 userTimeZone 为「现在」参照，结合各条 publishedAt（ISO UTC）换算，与证据一致，不得编造。
+3. 第 2、3 段同样遵守第 2 条时间规则；涉及 briefContext 汇总指标数字时全文至多 1～2 个且须与 briefContext 一致；证据中的事件日期/时点不受该条数限制，忌堆砌。
 4. 叙事须基于 evidenceItems 的标题/摘要/标签/推荐语及 publishedAt；不得捏造证据中未出现的公司、产品、金额、日期。
 5. citedItemIds 为本次写作实际依据的条目 id 列表，须全部为 evidenceItems 中的 id，可为空数组。
 6. 段落中若需强调术语，可使用 Markdown 加粗：**术语**（仅此一种内联格式）。`;
@@ -843,6 +845,9 @@ export class MonitorsService {
       monitor: monitorPayload,
       briefContext,
       evidenceItems,
+      userTimeZone: ownerTimeZone,
+      referenceNowIso,
+      referenceNowReadableZh,
     });
 
     const raw = (await this.llm.completeJson<LlmMonitorBriefResponse>(system, user)) as LlmMonitorBriefResponse;
@@ -917,7 +922,14 @@ export class MonitorsService {
     }
 
     const { scored, minSim } = await this.buildScoredForWindow(monitor, window);
-    const agg = this.aggregateIntelligenceFromScored(monitor, window.rollingRecentHoursEffective, scored, minSim);
+    const ownerTz = await this.usersService.getTimeZoneOrDefault(String(userId));
+    const agg = this.aggregateIntelligenceFromScored(
+      monitor,
+      window.rollingRecentHoursEffective,
+      scored,
+      minSim,
+      ownerTz,
+    );
     const cap = this.briefEvidenceCap();
     const evidenceRows = this.selectBriefEvidenceRows(scored, cap);
     const fp = this.computeBriefInputFingerprint({
@@ -1040,6 +1052,8 @@ export class MonitorsService {
         agg,
         evidenceRows,
         briefContext,
+        ownerTimeZone: ownerTz,
+        referenceNow: now,
       });
       const completedAt = new Date();
       if (!llmOut) {
@@ -1213,6 +1227,7 @@ export class MonitorsService {
   private async buildOverviewCard(
     monitor: MonitorDocument,
     recentHours: number,
+    viewerTimeZone: string,
   ): Promise<MonitorOverviewCardPublic> {
     const monitorId = String(monitor._id);
     const m0 = monitor.toObject() as { descriptionEmbedding: number[] };
@@ -1222,11 +1237,11 @@ export class MonitorsService {
         heatIndex: null,
         newLast24h: 0,
         lastActivityAt: null,
-        trend: this.emptySevenDayTrend(),
+        trend: this.emptySevenDayTrend(viewerTimeZone),
       };
     }
     const { scored, minSim } = await this.buildScoredMonitorFeed(monitor, recentHours);
-    const agg = this.aggregateIntelligenceFromScored(monitor, recentHours, scored, minSim);
+    const agg = this.aggregateIntelligenceFromScored(monitor, recentHours, scored, minSim, viewerTimeZone);
     return {
       monitorId,
       heatIndex: agg.heatIndex,
@@ -1242,6 +1257,7 @@ export class MonitorsService {
     q: ListMonitorIntelligenceQueryDto,
   ): Promise<MonitorIntelligencePublic> {
     const monitor = await this.loadOwnedMonitor(monitorId, userId);
+    const viewerTz = await this.usersService.getTimeZoneOrDefault(userId);
     const recentHours = q.recentHours ?? this.defaultRecentHours();
     const profileId = (q.briefProfile ?? DEFAULT_BRIEF_PROFILE_ID).trim().slice(0, 64) || DEFAULT_BRIEF_PROFILE_ID;
     const profiles = resolveBriefProfiles(this.config);
@@ -1265,7 +1281,7 @@ export class MonitorsService {
         metrics: { newLast24h: 0, totalInWindow: 0, boundSourceCount: (monitor.sourceIds ?? []).length },
         heatIndex: null,
         weeklyBrief: ['无法生成 AI 研判摘要：该监控缺少描述向量。请重新创建监控或联系管理员。'],
-        trend: this.emptySevenDayTrend(),
+        trend: this.emptySevenDayTrend(viewerTz),
         chartKeywords: [],
         latestItems: [],
         briefMeta: undefined,
@@ -1273,7 +1289,7 @@ export class MonitorsService {
     }
 
     const { scored, minSim } = await this.buildScoredMonitorFeed(monitor, recentHours);
-    const agg = this.aggregateIntelligenceFromScored(monitor, recentHours, scored, minSim);
+    const agg = this.aggregateIntelligenceFromScored(monitor, recentHours, scored, minSim, viewerTz);
     const { count7d: _c7, ...intelWithoutBrief } = agg;
 
     const oid = new Types.ObjectId(monitorId);

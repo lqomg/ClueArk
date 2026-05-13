@@ -35,6 +35,7 @@ export function RegisterPage() {
         email: data.user.email,
         username: data.user.username,
         role: data.user.role,
+        timeZone: data.user.timeZone,
       });
       navigate('/app/sources', { replace: true });
     } catch (err) {

@@ -8,9 +8,12 @@ import { useSourceUiStore } from '@/stores/sourceUiStore';
 import { SourceAvatar } from '@/components/sources/SourceAvatar';
 import { Button, IconButton, Input, Select, Segmented } from '@/components/ui';
 import type { ListResponse } from './types';
+import { formatShortDateTime, normalizeUserTimeZone } from '@/lib/datetime';
+import { useAuthStore } from '@/stores/authStore';
 import { KIND_LABEL, scrollSourcesListToTop } from './utils';
 
 export function SourcesPage() {
+  const viewerTz = useAuthStore((s) => normalizeUserTimeZone(s.user?.timeZone));
   const poolView = useSourceUiStore((s) => s.poolView);
   const setPoolView = useSourceUiStore((s) => s.setPoolView);
   const [search, setSearch] = useState('');
@@ -236,7 +239,7 @@ export function SourcesPage() {
                       <td className="max-w-[180px] truncate px-3 py-2 text-slate-500" title={s.openUrl}>
                         {s.openUrl || '—'}
                       </td>
-                      <td className="px-3 py-2 text-slate-500">{new Date(s.createdAt).toLocaleString()}</td>
+                      <td className="px-3 py-2 text-slate-500">{formatShortDateTime(s.createdAt, viewerTz)}</td>
                       <td className="px-3 py-2 whitespace-nowrap">
                         <button type="button" className="text-ark-accent hover:underline" onClick={() => openSource(s)}>
                           直达

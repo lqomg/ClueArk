@@ -50,6 +50,10 @@ export class AuthService {
     this.logger.log(`User login: ${userObject.email}`);
     const role = (userObject.role as string) || USER_ROLE.User;
     const payload = { email: userObject.email as string, sub: userId, role };
+    const timeZone =
+      typeof userObject.timeZone === 'string' && userObject.timeZone.trim()
+        ? userObject.timeZone.trim()
+        : 'Asia/Shanghai';
     return {
       access_token: this.jwtService.sign(payload),
       user: {
@@ -58,6 +62,7 @@ export class AuthService {
         email: userObject.email,
         username: userObject.username,
         role,
+        timeZone,
         isActive: userObject.isActive,
         createdAt: userObject.createdAt,
         updatedAt: userObject.updatedAt,

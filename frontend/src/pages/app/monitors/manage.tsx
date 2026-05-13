@@ -7,12 +7,15 @@ import { useAppTopBar } from '@/components/layout/AppTopBar';
 import { TopBarCountPill } from '@/components/layout/TopBarCountPill';
 import { Button } from '@/components/ui';
 import { cn } from '@/lib/cn';
+import { formatShortDateTime, normalizeUserTimeZone } from '@/lib/datetime';
+import { useAuthStore } from '@/stores/authStore';
 
 const linkOutlineSm =
   'inline-flex items-center justify-center rounded-lg border border-ark-border px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-ark-accent/50 hover:text-ark-accent';
 
 export function MonitorsManagePage() {
   const navigate = useNavigate();
+  const viewerTz = useAuthStore((s) => normalizeUserTimeZone(s.user?.timeZone));
   const [rows, setRows] = useState<Monitor[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,7 +123,7 @@ export function MonitorsManagePage() {
                 <p className="mt-1 line-clamp-2 text-xs text-slate-500">{m.description}</p>
                 <p className="mt-2 text-[11px] text-slate-600">
                   {m.sourceIds.length} 个信源 ·{' '}
-                  {new Date(m.createdAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                  {formatShortDateTime(m.createdAt, viewerTz)}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2 border-t border-white/[0.06] pt-3">
                   <Link

@@ -38,6 +38,8 @@ import type { Monitor, MonitorIntelligence, MonitorOverviewCard } from '@/types/
 import { useAppTopBar } from '@/components/layout/AppTopBar';
 import { Button } from '@/components/ui';
 import { cn } from '@/lib/cn';
+import { formatClueMetaTime, normalizeUserTimeZone, relTimeIso } from '@/lib/datetime';
+import { useAuthStore } from '@/stores/authStore';
 
 const overviewSubtitle =
   '全局话题更新摘要与趋势分析。由 AI 提取关键线索与脉络。';
@@ -74,60 +76,6 @@ function formatTrendLabel(isoDate: string) {
   const p = isoDate.split('-');
   if (p.length !== 3) return isoDate;
   return `${Number(p[1])}/${Number(p[2])}`;
-}
-
-function relTime(iso: string | null) {
-  if (!iso) return '—';
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return '—';
-  const diff = Date.now() - t;
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return '刚刚';
-  if (m < 60) return `${m} 分钟前`;
-  const h = Math.floor(m / 60);
-  if (h < 48) return `${h} 小时前`;
-  const d = Math.floor(h / 24);
-  return `${d} 天前`;
-}
-
-const WEEKDAY_CN = ['日', '一', '二', '三', '四', '五', '六'] as const;
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-
-function pad2(n: number) {
-  return String(n).padStart(2, '0');
-}
-
-function startOfLocalDayMs(x: Date) {
-  return new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-}
-
-/** 最新关键线索：近 7 日为「今天/昨天/周× + 时刻」，否则短绝对时间 */
-function formatClueMetaTime(iso: string) {
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return '—';
-  const d = new Date(t);
-  const now = new Date();
-  const hm = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-  const sodPub = startOfLocalDayMs(d);
-  const sodNow = startOfLocalDayMs(now);
-  const dayDiff = Math.round((sodNow - sodPub) / 86_400_000);
-
-  if (t > now.getTime() + 60_000) {
-    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${hm}`;
-  }
-  if (dayDiff === 0) return `今天 ${hm}`;
-  if (dayDiff === 1) return `昨天 ${hm}`;
-
-  const msAgo = now.getTime() - t;
-  if (msAgo >= 0 && msAgo < SEVEN_DAYS_MS) {
-    return `周${WEEKDAY_CN[d.getDay()]} ${hm}`;
-  }
-
-  const y = d.getFullYear();
-  const mo = d.getMonth() + 1;
-  const day = d.getDate();
-  if (y === now.getFullYear()) return `${mo}/${day} ${hm}`;
-  return `${y}/${mo}/${day} ${hm}`;
 }
 
 function MonitorTopicCreateBar({
@@ -218,6 +166,7 @@ function TrendSpark({ counts, className }: { counts: number[]; className?: strin
 }
 
 export function MonitorOverviewPage() {
+  const viewerTz = useAuthStore((s) => normalizeUserTimeZone(s.user?.timeZone));
   const [searchParams, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState<Monitor[] | null>(null);
   const [monitor, setMonitor] = useState<Monitor | null>(null);
@@ -371,7 +320,7 @@ export function MonitorOverviewPage() {
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-y-auto overscroll-contain px-4 py-8 text-center">
           <p className="text-slate-400">暂无监控话题</p>
           <p className="max-w-md text-sm text-slate-500">
-            在底部输入你想持续关注的方向，系统将自动生成标题、说明、关键词并推荐至少 10 个信源。
+            在底部输入你想持续关注的方向，系统将自动生成监控。
           </p>
         </div>
         <MonitorTopicCreateBar
@@ -430,7 +379,7 @@ export function MonitorOverviewPage() {
                   {m.title}
                 </span>
                 <div className="flex items-center justify-between gap-2 border-t border-white/[0.06] pt-2">
-                  <span className="min-w-0 truncate text-[10px] text-slate-500">{relTime(lastAt)}更新</span>
+                  <span className="min-w-0 truncate text-[10px] text-slate-500">{relTimeIso(lastAt)}更新</span>
                   <div className="flex shrink-0 items-center gap-1.5">
                     <TrendSpark counts={counts} />
                     <span className="whitespace-nowrap text-[10px] font-mono font-semibold tabular-nums text-ark-accent/90">
@@ -468,7 +417,7 @@ export function MonitorOverviewPage() {
                       </span>
                       <span className="inline-flex items-center gap-1">
                         <Clock className="size-3.5 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
-                        最新更新于 {relTime(intel.lastActivityAt)}
+                        最新更新于 {relTimeIso(intel.lastActivityAt)}
                       </span>
                     </div>
                     <h2 className="text-xl font-semibold tracking-tight text-white md:text-2xl">{monitor.title}</h2>
@@ -618,7 +567,7 @@ export function MonitorOverviewPage() {
                       {intel.latestItems.slice(0, 3).map((item, index, arr) => {
                         const timePart =
                           item.publishedAt != null && item.publishedAt !== ''
-                            ? formatClueMetaTime(item.publishedAt)
+                            ? formatClueMetaTime(item.publishedAt, viewerTz)
                             : null;
                         const metaLead =  item.sourceDisplayName;
                         const metaLine = timePart ? `${metaLead} · ${timePart}` : metaLead;
