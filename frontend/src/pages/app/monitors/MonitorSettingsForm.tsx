@@ -36,7 +36,7 @@ export function MonitorSettingsForm({ monitorId, mode, onAfterSave, onCancel }: 
   const [monitor, setMonitor] = useState<Monitor | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [minCosine, setMinCosine] = useState(0.52);
+  const [minCosine, setMinCosine] = useState(0.43);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +49,7 @@ export function MonitorSettingsForm({ monitorId, mode, onAfterSave, onCancel }: 
       setMonitor(m);
       setSources(srcList);
       setSelected(new Set(m.sourceIds));
-      setMinCosine(typeof m.minCosine === 'number' && Number.isFinite(m.minCosine) ? m.minCosine : 0.52);
+      setMinCosine(typeof m.minCosine === 'number' && Number.isFinite(m.minCosine) ? m.minCosine : 0.43);
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载失败');
       setMonitor(null);
@@ -146,7 +146,7 @@ export function MonitorSettingsForm({ monitorId, mode, onAfterSave, onCancel }: 
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <input
                 type="range"
-                min={0}
+                min={0.3}
                 max={1}
                 step={0.01}
                 value={minCosine}

@@ -75,7 +75,7 @@ export type MonitorPublic = {
   keywords: string[];
   entities: string[];
   sourceIds: string[];
-  /** 时间线最低余弦相似度（0～1），存库默认 0.52 */
+  /** 时间线最低余弦相似度（0～1），存库默认 0.43 */
   minCosine: number;
   createdAt: Date;
   updatedAt: Date;
@@ -179,7 +179,7 @@ export class MonitorsService {
     const ids = (d.sourceIds as Types.ObjectId[] | undefined) ?? [];
     const mc = d.minCosine;
     const minCosine =
-      typeof mc === 'number' && Number.isFinite(mc) ? Math.min(1, Math.max(0, mc)) : 0.52;
+      typeof mc === 'number' && Number.isFinite(mc) ? Math.min(1, Math.max(0, mc)) : 0.43;
     const kw = d.keywords;
     const ent = d.entities;
     const keywords = Array.isArray(kw) ? kw.map((x) => String(x).trim()).filter(Boolean).slice(0, 40) : [];
@@ -304,7 +304,7 @@ export class MonitorsService {
     const cutoff = new Date(Date.now() - recentHours * 3600000);
     const rawMin = m.minCosine;
     const minSim =
-      typeof rawMin === 'number' && Number.isFinite(rawMin) ? Math.min(1, Math.max(0, rawMin)) : 0.52;
+      typeof rawMin === 'number' && Number.isFinite(rawMin) ? Math.min(1, Math.max(0, rawMin)) : 0.43;
     const cap = this.timelineCandidateCap();
 
     const sourceIds = (monitor.sourceIds ?? []).map((x) => new Types.ObjectId(String(x)));
@@ -364,7 +364,7 @@ export class MonitorsService {
 
     const rawMin = m.minCosine;
     const minSim =
-      typeof rawMin === 'number' && Number.isFinite(rawMin) ? Math.min(1, Math.max(0, rawMin)) : 0.52;
+      typeof rawMin === 'number' && Number.isFinite(rawMin) ? Math.min(1, Math.max(0, rawMin)) : 0.43;
     const cap = this.timelineCandidateCap();
 
     const sourceIds = (monitor.sourceIds ?? []).map((x) => new Types.ObjectId(String(x)));
@@ -542,7 +542,7 @@ export class MonitorsService {
     if (!Array.isArray(queryVec) || queryVec.length === 0) {
       const rawMin0 = monitor.minCosine;
       const minSim0 =
-        typeof rawMin0 === 'number' && Number.isFinite(rawMin0) ? Math.min(1, Math.max(0, rawMin0)) : 0.52;
+        typeof rawMin0 === 'number' && Number.isFinite(rawMin0) ? Math.min(1, Math.max(0, rawMin0)) : 0.43;
       this.logger.debug(
         `monitor_list_feed_items monitorId=${monitorId} page=${page} no_embedding total=0`,
       );
@@ -1267,7 +1267,7 @@ export class MonitorsService {
     const queryVec = m0.descriptionEmbedding;
     const rawMin0 = monitor.minCosine;
     const minSimFallback =
-      typeof rawMin0 === 'number' && Number.isFinite(rawMin0) ? Math.min(1, Math.max(0, rawMin0)) : 0.52;
+      typeof rawMin0 === 'number' && Number.isFinite(rawMin0) ? Math.min(1, Math.max(0, rawMin0)) : 0.43;
 
     if (!Array.isArray(queryVec) || queryVec.length === 0) {
       this.logger.debug(

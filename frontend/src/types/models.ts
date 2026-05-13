@@ -36,7 +36,7 @@ export interface Monitor {
   keywords: string[];
   entities: string[];
   sourceIds: string[];
-  /** 时间线过滤阈值（0～1），新建默认 0.52 */
+  /** 时间线过滤阈值（0～1），新建默认 0.43 */
   minCosine: number;
   createdAt: string;
   updatedAt: string;
