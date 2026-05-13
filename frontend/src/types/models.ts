@@ -53,6 +53,14 @@ export interface MonitorIntelligence {
   trend: { date: string; count: number }[];
   chartKeywords: { name: string; count: number }[];
   latestItems: FeedItem[];
+  /** 异步研判摘要元数据 */
+  briefMeta?: {
+    profileId: string;
+    periodKey: string;
+    windowLabel: string;
+    completedAt: string | null;
+    runId: string | null;
+  };
 }
 
 /** GET /monitors/overview 中各监控侧栏卡片用 */

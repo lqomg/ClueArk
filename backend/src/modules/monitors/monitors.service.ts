@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
@@ -14,7 +15,18 @@ import type { CreateMonitorDto } from './dto/create-monitor.dto';
 import type { ListMonitorFeedQueryDto } from './dto/list-monitor-feed.query.dto';
 import type { ListMonitorIntelligenceQueryDto } from './dto/list-monitor-intelligence.query.dto';
 import type { PatchMonitorSourcesDto } from './dto/patch-monitor-sources.dto';
-import { LoggerService } from "../logger";
+import type { ListMonitorBriefRunsQueryDto } from './dto/list-monitor-brief-runs.query.dto';
+import { LoggerService } from '../logger';
+import { MonitorBriefRun, MonitorBriefRunDocument } from './schemas/monitor-brief-run.schema';
+import {
+  BRIEF_LLM_SYSTEM_VERSION,
+  DEFAULT_BRIEF_PROFILE_ID,
+  getBriefProfileById,
+  resolveBriefProfiles,
+  resolveWindow,
+  type BriefProfile,
+  type ResolvedWindow,
+} from './brief-profiles';
 
 function notDeletedFilter(): Record<string, unknown> {
   return { $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }] };
@@ -36,6 +48,17 @@ type LlmMonitorPlan = {
 type LlmMonitorSourcesPick = {
   sourceIds?: unknown;
 };
+
+type LlmMonitorBriefResponse = {
+  paragraphs?: unknown;
+  citedItemIds?: unknown;
+};
+
+/** 聚合指标（不含 weeklyBrief；count7d 供 LLM 上下文，不对前端单独暴露） */
+export type MonitorIntelligenceAggregate = Omit<
+  MonitorIntelligencePublic,
+  'monitorId' | 'recentHours' | 'minCosine' | 'weeklyBrief'
+> & { count7d: number };
 
 export type MonitorPublic = {
   id: string;
@@ -66,6 +89,14 @@ export type MonitorIntelligencePublic = {
   trend: { date: string; count: number }[];
   chartKeywords: { name: string; count: number }[];
   latestItems: Array<ReturnType<typeof serializeFeedItem> & { relevanceScore: number }>;
+  /** 异步研判摘要元数据；无成功记录时可为 null */
+  briefMeta?: {
+    profileId: string;
+    periodKey: string;
+    windowLabel: string;
+    completedAt: string | null;
+    runId: string | null;
+  };
 };
 
 /** 总览侧栏卡片用轻量指标（与情报同一时间窗逻辑一致） */
@@ -80,8 +111,10 @@ export type MonitorOverviewCardPublic = {
 @Injectable()
 export class MonitorsService {
   private readonly logger: LoggerService;
+
   constructor(
     @InjectModel(Monitor.name) private readonly monitorModel: Model<MonitorDocument>,
+    @InjectModel(MonitorBriefRun.name) private readonly briefRunModel: Model<MonitorBriefRunDocument>,
     @InjectModel(FeedItem.name) private readonly feedItemModel: Model<FeedItemDocument>,
     @InjectModel(Source.name) private readonly sourceModel: Model<SourceDocument>,
     private readonly config: ConfigService,
@@ -89,8 +122,8 @@ export class MonitorsService {
     loggerService: LoggerService,
     @Inject(LLM_CHAT) private readonly llm: LlmChatPort,
   ) {
-    this.logger =loggerService.createLogger(MonitorsService.name);
-   }
+    this.logger = loggerService.createLogger(MonitorsService.name);
+  }
 
   private maxSources(): number {
     const raw = Number(this.config.get('MONITOR_MAX_SOURCES'));
@@ -116,6 +149,21 @@ export class MonitorsService {
   private llmCatalogCap(): number {
     const raw = Number(this.config.get('MONITOR_LLM_SOURCE_CATALOG_CAP'));
     return Number.isFinite(raw) && raw >= 20 && raw <= 500 ? Math.floor(raw) : 200;
+  }
+
+  private briefEvidenceCap(): number {
+    const raw = Number(this.config.get('MONITOR_BRIEF_EVIDENCE_CAP'));
+    return Number.isFinite(raw) && raw >= 3 && raw <= 40 ? Math.floor(raw) : 14;
+  }
+
+  private briefSummaryMaxChars(): number {
+    const raw = Number(this.config.get('MONITOR_BRIEF_SUMMARY_MAX_CHARS'));
+    return Number.isFinite(raw) && raw >= 80 && raw <= 4000 ? Math.floor(raw) : 480;
+  }
+
+  private briefRecommendMaxChars(): number {
+    const raw = Number(this.config.get('MONITOR_BRIEF_RECOMMEND_MAX_CHARS'));
+    return Number.isFinite(raw) && raw >= 0 && raw <= 2000 ? Math.floor(raw) : 240;
   }
 
   private serializeMonitor(doc: MonitorDocument | Record<string, unknown>): MonitorPublic {
@@ -160,6 +208,7 @@ export class MonitorsService {
       .sort({ createdAt: -1 })
       .lean()
       .exec();
+    this.logger.debug(`monitor_list_for_user userId=${userId} count=${rows.length}`);
     return rows.map((r) => this.serializeMonitor(r as Record<string, unknown>));
   }
 
@@ -176,11 +225,13 @@ export class MonitorsService {
       .exec();
     const monitors = docs.map((d) => this.serializeMonitor(d));
     const cards = await Promise.all(docs.map((doc) => this.buildOverviewCard(doc, rh)));
+    this.logger.debug(`monitor_list_overview userId=${userId} recentHours=${rh} count=${monitors.length}`);
     return { monitors, cards };
   }
 
   async getOne(monitorId: string, userId: string): Promise<MonitorPublic> {
     const doc = await this.loadOwnedMonitor(monitorId, userId);
+    this.logger.debug(`monitor_get_one monitorId=${monitorId} userId=${userId}`);
     return this.serializeMonitor(doc);
   }
 
@@ -259,6 +310,72 @@ export class MonitorsService {
         'simEmbedFull.0': { $exists: true },
         $expr: {
           $gte: [{ $ifNull: ['$publishedAt', '$createdAt'] }, cutoff],
+        },
+      })
+      .sort({ publishedAt: -1, createdAt: -1 })
+      .limit(cap)
+      .populate({ path: 'sourceId', select: 'displayName' })
+      .lean()
+      .exec();
+
+    const scored: { doc: Record<string, unknown>; score: number }[] = [];
+    for (let i = 0; i < candidates.length; i++) {
+      const row = candidates[i] as Record<string, unknown>;
+      const emb = row.simEmbedFull as number[] | undefined;
+      if (!Array.isArray(emb) || emb.length === 0) continue;
+      if (emb.length !== queryVec.length) continue;
+      const score = cosineSimilarity(queryVec, emb);
+      if (score < minSim) continue;
+      scored.push({ doc: row, score });
+    }
+    scored.sort((a, b) => {
+      const ta = new Date((a.doc.publishedAt as Date | null | undefined) ?? (a.doc.createdAt as Date)).getTime();
+      const tb = new Date((b.doc.publishedAt as Date | null | undefined) ?? (b.doc.createdAt as Date)).getTime();
+      if (tb !== ta) return tb - ta;
+      return b.score - a.score;
+    });
+
+    return { scored, minSim };
+  }
+
+  /** 按解析后的时间窗 [periodStart, periodEnd] 拉取候选并打分（与 buildScoredMonitorFeed 逻辑一致，双边界） */
+  private async buildScoredForWindow(
+    monitor: MonitorDocument,
+    window: ResolvedWindow,
+  ): Promise<{ scored: { doc: Record<string, unknown>; score: number }[]; minSim: number }> {
+    const m = monitor.toObject() as {
+      descriptionEmbedding: number[];
+      sourceIds: Types.ObjectId[];
+      minCosine?: number;
+    };
+    const queryVec = m.descriptionEmbedding;
+    if (!Array.isArray(queryVec) || queryVec.length === 0) {
+      throw new ServiceUnavailableException('monitor_missing_embedding');
+    }
+
+    const rawMin = m.minCosine;
+    const minSim =
+      typeof rawMin === 'number' && Number.isFinite(rawMin) ? Math.min(1, Math.max(0, rawMin)) : 0.52;
+    const cap = this.timelineCandidateCap();
+
+    const sourceIds = (monitor.sourceIds ?? []).map((x) => new Types.ObjectId(String(x)));
+    if (sourceIds.length === 0) {
+      return { scored: [], minSim };
+    }
+
+    const periodStart = window.periodStart;
+    const periodEnd = window.periodEnd;
+
+    const candidates = await this.feedItemModel
+      .find({
+        sourceId: { $in: sourceIds },
+        llmStatus: 'done',
+        'simEmbedFull.0': { $exists: true },
+        $expr: {
+          $and: [
+            { $gte: [{ $ifNull: ['$publishedAt', '$createdAt'] }, periodStart] },
+            { $lte: [{ $ifNull: ['$publishedAt', '$createdAt'] }, periodEnd] },
+          ],
         },
       })
       .sort({ publishedAt: -1, createdAt: -1 })
@@ -399,6 +516,9 @@ export class MonitorsService {
       deletedAt: null,
     });
 
+    this.logger.log(
+      `monitor_created id=${String(doc._id)} userId=${userId} sources=${sourceIdStrs.length}`,
+    );
     return this.serializeMonitor(doc);
   }
 
@@ -414,6 +534,9 @@ export class MonitorsService {
       const rawMin0 = monitor.minCosine;
       const minSim0 =
         typeof rawMin0 === 'number' && Number.isFinite(rawMin0) ? Math.min(1, Math.max(0, rawMin0)) : 0.52;
+      this.logger.debug(
+        `monitor_list_feed_items monitorId=${monitorId} page=${page} no_embedding total=0`,
+      );
       return { items: [], total: 0, page, pageSize, recentHours, monitorId, minCosine: minSim0 };
     }
 
@@ -425,6 +548,9 @@ export class MonitorsService {
       relevanceScore: Math.round(s.score * 1000) / 1000,
     }));
 
+    this.logger.debug(
+      `monitor_list_feed_items monitorId=${monitorId} page=${page} recentHours=${recentHours} total=${total} returned=${items.length}`,
+    );
     return { items, total, page, pageSize, recentHours, monitorId, minCosine: minSim };
   }
 
@@ -446,10 +572,10 @@ export class MonitorsService {
     const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
     const n = (x: number, lo: number, hi: number) => (hi <= lo ? 0 : clamp01((x - lo) / (hi - lo)));
     const raw =
-      0.35 * n(count24h, 0, 20) +
-      0.25 * n(avgRelevance, 0.52, 0.92) +
-      0.2 * n(boundSourceCount, 8, 24) +
-      0.2 * n(count7d, 0, 100);
+      0.35 * n(count24h, 0, 10) +
+      0.25 * n(avgRelevance, 0.42, 0.92) +
+      0.1 * n(boundSourceCount, 8, 24) +
+      0.3 * n(count7d, 0, 50);
     return Math.round(raw * 100) / 10;
   }
 
@@ -463,12 +589,15 @@ export class MonitorsService {
     return out;
   }
 
-  private intelligenceFromScored(
+  /**
+   * 从 scored 聚合图表与指标；不包含 weeklyBrief。
+   */
+  private aggregateIntelligenceFromScored(
     monitor: MonitorDocument,
     recentHours: number,
     scored: { doc: Record<string, unknown>; score: number }[],
     minSim: number,
-  ): Omit<MonitorIntelligencePublic, 'monitorId' | 'recentHours' | 'minCosine'> {
+  ): MonitorIntelligenceAggregate {
     const now = Date.now();
     const h24 = now - 24 * 3600000;
     const h168 = now - 168 * 3600000;
@@ -524,17 +653,6 @@ export class MonitorsService {
       .slice(0, 16)
       .map(([name, count]) => ({ name, count }));
 
-    const topKw = chartKeywords.map((k) => k.name);
-    const weeklyBrief: string[] = [];
-    weeklyBrief.push(
-      `在当前时间窗（近 ${recentHours} 小时）内，与监控描述语义匹配且达到相似度阈值（≥${minSim}）的条目共 ${totalInWindow} 条；其中过去 24 小时新增 ${newLast24h} 条，近 7 日（按条目发布时间计）共 ${count7d} 条。`,
-    );
-    if (topKw.length > 0) {
-      weeklyBrief.push(`从条目标签聚合的高频词包括：${topKw.slice(0, 10).join('、')}。以上为基于站内采集数据的自动摘要，具体线索请查看时间线。`);
-    } else {
-      weeklyBrief.push('暂无足够标签聚合关键词；请确认信源已产出且条目已完成富化。');
-    }
-
     const latestItems = scored.slice(0, 5).map((s) => ({
       ...serializeFeedItem(s.doc),
       relevanceScore: Math.round(s.score * 1000) / 1000,
@@ -548,10 +666,547 @@ export class MonitorsService {
         boundSourceCount,
       },
       heatIndex,
-      weeklyBrief,
       trend,
       chartKeywords,
       latestItems,
+      count7d,
+    };
+  }
+
+  /** 同簇只保留首条（scored 已按时间/分数排序），再截断条数上限 */
+  private selectBriefEvidenceRows(
+    scored: { doc: Record<string, unknown>; score: number }[],
+    cap: number,
+  ): { doc: Record<string, unknown>; score: number }[] {
+    const seen = new Set<string>();
+    const out: { doc: Record<string, unknown>; score: number }[] = [];
+    for (let i = 0; i < scored.length && out.length < cap; i++) {
+      const row = scored[i].doc;
+      const cid = row.clusterId as Types.ObjectId | null | undefined;
+      const groupKey = cid ? String(cid) : String(row._id);
+      if (seen.has(groupKey)) continue;
+      seen.add(groupKey);
+      out.push(scored[i]);
+    }
+    return out;
+  }
+
+  private briefLogSkippedEnabled(): boolean {
+    const v = this.config.get<string>('MONITOR_BRIEF_LOG_SKIPPED')?.trim().toLowerCase();
+    return v === '1' || v === 'true' || v === 'yes';
+  }
+
+  private computeBriefInputFingerprint(params: {
+    monitorId: string;
+    monitorUpdatedAt: Date | null | undefined;
+    profileId: string;
+    windowMode: string;
+    periodKey: string;
+    minSim: number;
+    agg: MonitorIntelligenceAggregate;
+    evidenceRows: { doc: Record<string, unknown>; score: number }[];
+  }): string {
+    const idParts = params.evidenceRows.map((e) => {
+      const d = e.doc;
+      const id = String(d._id);
+      const u = d.updatedAt ? new Date(d.updatedAt as Date).toISOString() : '';
+      return `${id}:${u}`;
+    });
+    const mu = params.monitorUpdatedAt ? new Date(params.monitorUpdatedAt).toISOString() : '';
+    const payload = {
+      monitorId: params.monitorId,
+      monitorUpdatedAt: mu,
+      profileId: params.profileId,
+      windowMode: params.windowMode,
+      periodKey: params.periodKey,
+      minSim: params.minSim,
+      sys: BRIEF_LLM_SYSTEM_VERSION,
+      m: params.agg.metrics,
+      c7: params.agg.count7d,
+      hi: params.agg.heatIndex,
+      ck: params.agg.chartKeywords.slice(0, 8),
+      ev: idParts,
+    };
+    return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+  }
+
+  private buildEvidenceSnapshot(
+    evidenceRows: { doc: Record<string, unknown>; score: number }[],
+    summaryMax: number,
+  ): Record<string, unknown>[] {
+    const out: Record<string, unknown>[] = [];
+    for (let i = 0; i < evidenceRows.length; i++) {
+      const row = evidenceRows[i].doc;
+      const ser = serializeFeedItem(row);
+      let summary = ser.summary;
+      if (summary.length > summaryMax) summary = `${summary.slice(0, summaryMax)}…`;
+      const cid = row.clusterId as Types.ObjectId | null | undefined;
+      out.push({
+        feedItemId: ser.id,
+        title: ser.title,
+        summary,
+        publishedAt: ser.publishedAt,
+        sourceId: ser.sourceId,
+        sourceDisplayName: ser.sourceDisplayName,
+        relevanceScore: Math.round(evidenceRows[i].score * 1000) / 1000,
+        clusterId: cid ? String(cid) : null,
+        updatedAt: row.updatedAt ? new Date(row.updatedAt as Date).toISOString() : null,
+      });
+    }
+    return out;
+  }
+
+  private validateLlmBrief(
+    out: LlmMonitorBriefResponse,
+    allowedIds: Set<string>,
+  ): { paragraphs: string[]; citedItemIds: string[] } | null {
+    const raw = out.paragraphs;
+    if (!Array.isArray(raw) || raw.length === 0) return null;
+    const paragraphs: string[] = [];
+    for (let i = 0; i < raw.length && paragraphs.length < 4; i++) {
+      const p = String(raw[i] ?? '').trim();
+      if (p) paragraphs.push(p);
+    }
+    if (paragraphs.length < 2 || paragraphs.length > 4) return null;
+    const idsRaw = out.citedItemIds;
+    if (!Array.isArray(idsRaw)) return null;
+    const citedItemIds: string[] = [];
+    for (let i = 0; i < idsRaw.length; i++) {
+      const id = String(idsRaw[i] ?? '').trim();
+      if (!id) continue;
+      if (!allowedIds.has(id)) return null;
+      citedItemIds.push(id);
+    }
+    return { paragraphs, citedItemIds };
+  }
+
+  private buildEvidenceItemsForLlm(
+    evidenceRows: { doc: Record<string, unknown>; score: number }[],
+  ): {
+    evidenceItems: Record<string, unknown>[];
+    allowedIds: Set<string>;
+  } {
+    const summaryMax = this.briefSummaryMaxChars();
+    const recMax = this.briefRecommendMaxChars();
+    const evidenceItems = evidenceRows.map((s) => {
+      const row = s.doc;
+      const ser = serializeFeedItem(row);
+      let summary = ser.summary;
+      if (summary.length > summaryMax) summary = `${summary.slice(0, summaryMax)}…`;
+      let recommendReason = ser.recommendReason ?? '';
+      if (recMax > 0 && recommendReason.length > recMax) {
+        recommendReason = `${recommendReason.slice(0, recMax)}…`;
+      } else if (recMax === 0) {
+        recommendReason = '';
+      }
+      return {
+        id: ser.id,
+        title: ser.title,
+        summary,
+        publishedAt: ser.publishedAt,
+        sourceDisplayName: ser.sourceDisplayName,
+        relevanceScore: Math.round(s.score * 1000) / 1000,
+        tags: ser.tags,
+        recommendReason,
+      };
+    });
+    return { evidenceItems, allowedIds: new Set(evidenceItems.map((e) => String(e.id))) };
+  }
+
+  private async buildWeeklyBriefViaLlm(params: {
+    monitor: MonitorDocument;
+    agg: MonitorIntelligenceAggregate;
+    evidenceRows: { doc: Record<string, unknown>; score: number }[];
+    briefContext: Record<string, unknown>;
+  }): Promise<{ paragraphs: string[]; citedItemIds: string[] } | null> {
+    const { monitor, agg, evidenceRows, briefContext } = params;
+    const pub = this.serializeMonitor(monitor);
+    const monitorPayload = {
+      title: pub.title,
+      description: pub.description,
+      topicPrompt: pub.topicPrompt,
+      keywords: pub.keywords,
+      entities: pub.entities,
+    };
+    const { evidenceItems, allowedIds } = this.buildEvidenceItemsForLlm(evidenceRows);
+    const system = `你是情报监控「研判摘要」写作助手。只输出合法 JSON，不要 markdown 代码块。
+输出格式：{"paragraphs":["段落1","段落2",...],"citedItemIds":["条目id",...]}
+要求：
+1. paragraphs 共 2～3 段中文（情报综述语气），每段 30～120 字，全文总字数不超过 300。
+2. 第 1 段必须直接切入 evidenceItems 中的实质线索：主体、事件、分歧或趋势判断；禁止复述仪表盘已有信息——不得写时间窗口径、窗内总条数、24h 新增、热度指数、关键词榜排名、按日条数峰值或「共监测到 X 条」类套话。禁止以「本分析窗/近 X 小时/某日至某日 + 条数或峰值」这类统计总起句；允许且鼓励在叙事关键点写出证据中的具体时点：若某条的 publishedAt 或标题/摘要中出现明确日期、月份或相对时间，应择要写入（可写为「5 月 12 日」「昨日」[今天] [刚刚]等），须与对应 evidenceItems 一致，不得编造。
+3. 第 2、3 段展开不同角度或补充脉络，仍须基于 evidenceItems；涉及 briefContext 中的汇总指标数字时，全文至多点到 1～2 个且须与 briefContext 一致、为叙事服务而非罗列；证据中的事件日期/时点不受该条数限制，但仍须有据、忌堆砌。
+4. 叙事须基于 evidenceItems 的标题/摘要/标签/推荐语及 publishedAt；不得捏造证据中未出现的公司、产品、金额、日期。
+5. citedItemIds 为本次写作实际依据的条目 id 列表，须全部为 evidenceItems 中的 id，可为空数组。
+6. 段落中若需强调术语，可使用 Markdown 加粗：**术语**（仅此一种内联格式）。`;
+
+    const user = JSON.stringify({
+      monitor: monitorPayload,
+      briefContext,
+      evidenceItems,
+    });
+
+    const raw = (await this.llm.completeJson<LlmMonitorBriefResponse>(system, user)) as LlmMonitorBriefResponse;
+    return this.validateLlmBrief(raw, allowedIds);
+  }
+
+  private async findLatestSucceededBriefRun(
+    monitorOid: Types.ObjectId,
+    profileId: string,
+    minCosine: number,
+  ): Promise<MonitorBriefRunDocument | null> {
+    return this.briefRunModel
+      .findOne({
+        monitorId: monitorOid,
+        profileId,
+        status: 'succeeded',
+        minCosine,
+      })
+      .sort({ completedAt: -1 })
+      .exec();
+  }
+
+  /** 供定时任务批量调用 */
+  async runAllMonitorsBriefTick(): Promise<void> {
+    const t0 = Date.now();
+    const profiles = resolveBriefProfiles(this.config);
+    const rows = await this.monitorModel
+      .find({
+        deletedAt: null,
+        $expr: { $gt: [{ $size: { $ifNull: ['$descriptionEmbedding', []] } }, 0] },
+      })
+      .select({ _id: 1 })
+      .lean()
+      .exec();
+    let failures = 0;
+    for (let i = 0; i < rows.length; i++) {
+      const id = rows[i]._id as Types.ObjectId;
+      const doc = await this.monitorModel.findById(id).exec();
+      if (!doc) continue;
+      for (let j = 0; j < profiles.length; j++) {
+        try {
+          await this.runBriefPipelineForMonitor(doc, profiles[j], new Date());
+        } catch (e) {
+          failures++;
+          const msg = e instanceof Error ? e.message : String(e);
+          this.logger.warn(`monitor_brief_tick_failed monitorId=${String(id)} err=${msg}`);
+        }
+      }
+    }
+    this.logger.log(
+      `monitor_brief_tick_cycle_done monitors=${rows.length} profiles=${profiles.length} failures=${failures} ms=${Date.now() - t0}`,
+    );
+  }
+
+  async runBriefPipelineForMonitor(monitor: MonitorDocument, profile: BriefProfile, now: Date): Promise<void> {
+    const monitorId = monitor._id as Types.ObjectId;
+    const userId = monitor.userId as Types.ObjectId;
+    const monitorIdStr = String(monitorId);
+    const m0 = monitor.toObject() as { descriptionEmbedding?: number[] };
+    if (!Array.isArray(m0.descriptionEmbedding) || m0.descriptionEmbedding.length === 0) {
+      this.logger.debug(`monitor_brief_skip_no_embedding monitorId=${monitorIdStr}`);
+      return;
+    }
+
+    let window: ResolvedWindow;
+    try {
+      window = resolveWindow(profile, now.getTime(), this.defaultRecentHours());
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.warn(`monitor_brief_resolve_window monitorId=${monitorIdStr} err=${msg}`);
+      return;
+    }
+
+    const { scored, minSim } = await this.buildScoredForWindow(monitor, window);
+    const agg = this.aggregateIntelligenceFromScored(monitor, window.rollingRecentHoursEffective, scored, minSim);
+    const cap = this.briefEvidenceCap();
+    const evidenceRows = this.selectBriefEvidenceRows(scored, cap);
+    const fp = this.computeBriefInputFingerprint({
+      monitorId: monitorIdStr,
+      monitorUpdatedAt: (monitor.toObject() as { updatedAt?: Date }).updatedAt,
+      profileId: profile.profileId,
+      windowMode: profile.windowMode,
+      periodKey: window.periodKey,
+      minSim,
+      agg,
+      evidenceRows,
+    });
+
+    const lastOk = await this.findLatestSucceededBriefRun(monitorId, profile.profileId, minSim);
+    if (lastOk && lastOk.inputFingerprint === fp) {
+      if (this.briefLogSkippedEnabled()) {
+        const t0 = Date.now();
+        await this.briefRunModel.create({
+          monitorId,
+          userId,
+          profileId: profile.profileId,
+          windowMode: profile.windowMode,
+          periodKey: window.periodKey,
+          periodStart: window.periodStart,
+          periodEnd: window.periodEnd,
+          minCosine: minSim,
+          inputFingerprint: fp,
+          status: 'skipped_unchanged',
+          evidenceSnapshot: [],
+          briefContextSnapshot: null,
+          monitorSnapshot: null,
+          systemPromptVersion: BRIEF_LLM_SYSTEM_VERSION,
+          paragraphs: [],
+          citedItemIds: [],
+          errorMessage: '',
+          durationMs: Date.now() - t0,
+          startedAt: new Date(t0),
+          completedAt: new Date(),
+        });
+        this.logger.log(
+          `monitor_brief_skipped_unchanged_logged monitorId=${monitorIdStr} profileId=${profile.profileId} periodKey=${window.periodKey}`,
+        );
+      } else {
+        this.logger.debug(
+          `monitor_brief_skipped_unchanged monitorId=${monitorIdStr} profileId=${profile.profileId} periodKey=${window.periodKey}`,
+        );
+      }
+      return;
+    }
+
+    const summaryMax = this.briefSummaryMaxChars();
+    const evidenceSnapshot = this.buildEvidenceSnapshot(evidenceRows, summaryMax);
+    const pub = this.serializeMonitor(monitor);
+    const monitorSnapshot = {
+      title: pub.title,
+      description: pub.description,
+      topicPrompt: pub.topicPrompt,
+      keywords: pub.keywords,
+      entities: pub.entities,
+      sourceIds: pub.sourceIds,
+      minCosine: pub.minCosine,
+    };
+
+    const briefContext: Record<string, unknown> = {
+      profileId: profile.profileId,
+      windowMode: profile.windowMode,
+      periodKey: window.periodKey,
+      windowLabel: window.windowLabel,
+      periodStart: window.periodStart.toISOString(),
+      periodEnd: window.periodEnd.toISOString(),
+      rollingRecentHours: window.rollingRecentHoursEffective,
+      minCosine: minSim,
+      systemPromptVersion: BRIEF_LLM_SYSTEM_VERSION,
+      totalInWindow: agg.metrics.totalInWindow,
+      newLast24h: agg.metrics.newLast24h,
+      count7d: agg.count7d,
+      heatIndex: agg.heatIndex,
+      boundSourceCount: agg.metrics.boundSourceCount,
+      chartKeywords: agg.chartKeywords.slice(0, 12),
+      trend7d: agg.trend,
+    };
+
+    const startedAt = new Date();
+    if (scored.length === 0) {
+      const paragraphs = [
+        '当前时间窗内无达到相似度阈值的条目。',
+        '以上为系统自动结论；有新线索进入时间窗后，定时任务将重新生成研判摘要。',
+      ];
+      await this.briefRunModel.create({
+        monitorId,
+        userId,
+        profileId: profile.profileId,
+        windowMode: profile.windowMode,
+        periodKey: window.periodKey,
+        periodStart: window.periodStart,
+        periodEnd: window.periodEnd,
+        minCosine: minSim,
+        inputFingerprint: fp,
+        status: 'succeeded',
+        evidenceSnapshot: [],
+        briefContextSnapshot: { ...briefContext, totalInWindow: 0 },
+        monitorSnapshot,
+        systemPromptVersion: BRIEF_LLM_SYSTEM_VERSION,
+        paragraphs,
+        citedItemIds: [],
+        errorMessage: '',
+        durationMs: Date.now() - startedAt.getTime(),
+        startedAt,
+        completedAt: new Date(),
+      });
+      this.logger.log(
+        `monitor_brief_empty_window_succeeded monitorId=${monitorIdStr} profileId=${profile.profileId} periodKey=${window.periodKey}`,
+      );
+      return;
+    }
+
+    try {
+      const llmOut = await this.buildWeeklyBriefViaLlm({
+        monitor,
+        agg,
+        evidenceRows,
+        briefContext,
+      });
+      const completedAt = new Date();
+      if (!llmOut) {
+        await this.briefRunModel.create({
+          monitorId,
+          userId,
+          profileId: profile.profileId,
+          windowMode: profile.windowMode,
+          periodKey: window.periodKey,
+          periodStart: window.periodStart,
+          periodEnd: window.periodEnd,
+          minCosine: minSim,
+          inputFingerprint: fp,
+          status: 'failed',
+          evidenceSnapshot,
+          briefContextSnapshot: briefContext,
+          monitorSnapshot,
+          systemPromptVersion: BRIEF_LLM_SYSTEM_VERSION,
+          paragraphs: [],
+          citedItemIds: [],
+          errorMessage: 'llm_invalid_response',
+          durationMs: completedAt.getTime() - startedAt.getTime(),
+          startedAt,
+          completedAt,
+        });
+        this.logger.warn(
+          `monitor_brief_llm_invalid monitorId=${monitorIdStr} profileId=${profile.profileId}`,
+        );
+        return;
+      }
+      await this.briefRunModel.create({
+        monitorId,
+        userId,
+        profileId: profile.profileId,
+        windowMode: profile.windowMode,
+        periodKey: window.periodKey,
+        periodStart: window.periodStart,
+        periodEnd: window.periodEnd,
+        minCosine: minSim,
+        inputFingerprint: fp,
+        status: 'succeeded',
+        evidenceSnapshot,
+        briefContextSnapshot: briefContext,
+        monitorSnapshot,
+        systemPromptVersion: BRIEF_LLM_SYSTEM_VERSION,
+        paragraphs: llmOut.paragraphs,
+        citedItemIds: llmOut.citedItemIds,
+        errorMessage: '',
+        durationMs: completedAt.getTime() - startedAt.getTime(),
+        startedAt,
+        completedAt,
+      });
+      this.logger.log(
+        `monitor_brief_succeeded monitorId=${monitorIdStr} profileId=${profile.profileId} paragraphs=${llmOut.paragraphs.length} ms=${completedAt.getTime() - startedAt.getTime()}`,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const completedAt = new Date();
+      await this.briefRunModel.create({
+        monitorId,
+        userId,
+        profileId: profile.profileId,
+        windowMode: profile.windowMode,
+        periodKey: window.periodKey,
+        periodStart: window.periodStart,
+        periodEnd: window.periodEnd,
+        minCosine: minSim,
+        inputFingerprint: fp,
+        status: 'failed',
+        evidenceSnapshot,
+        briefContextSnapshot: briefContext,
+        monitorSnapshot,
+        systemPromptVersion: BRIEF_LLM_SYSTEM_VERSION,
+        paragraphs: [],
+        citedItemIds: [],
+        errorMessage: msg.slice(0, 2000),
+        durationMs: completedAt.getTime() - startedAt.getTime(),
+        startedAt,
+        completedAt,
+      });
+      this.logger.warn(
+        `monitor_brief_llm_exception monitorId=${monitorIdStr} profileId=${profile.profileId} err=${msg.slice(0, 300)}`,
+      );
+    }
+  }
+
+  async listBriefRuns(monitorId: string, userId: string, q: ListMonitorBriefRunsQueryDto) {
+    await this.loadOwnedMonitor(monitorId, userId);
+    const oid = new Types.ObjectId(monitorId);
+    const limit = Math.min(Math.max(q.limit ?? 20, 1), 50);
+    const filter: Record<string, unknown> = { monitorId: oid };
+    if (q.profileId?.trim()) {
+      filter.profileId = q.profileId.trim().slice(0, 64);
+    }
+    const rows = await this.briefRunModel
+      .find(filter)
+      .sort({ completedAt: -1 })
+      .limit(limit)
+      .select({
+        profileId: 1,
+        windowMode: 1,
+        periodKey: 1,
+        periodStart: 1,
+        periodEnd: 1,
+        status: 1,
+        inputFingerprint: 1,
+        completedAt: 1,
+        durationMs: 1,
+        errorMessage: 1,
+        paragraphs: 1,
+        citedItemIds: 1,
+        evidenceSnapshot: 1,
+      })
+      .lean()
+      .exec();
+    this.logger.debug(
+      `monitor_list_brief_runs monitorId=${monitorId} limit=${limit} profileFilter=${q.profileId?.trim() ? 'yes' : 'no'} returned=${rows.length}`,
+    );
+    return rows.map((r) => ({
+      id: String(r._id),
+      profileId: r.profileId,
+      windowMode: r.windowMode,
+      periodKey: r.periodKey,
+      periodStart: r.periodStart ? new Date(r.periodStart as Date).toISOString() : null,
+      periodEnd: r.periodEnd ? new Date(r.periodEnd as Date).toISOString() : null,
+      status: r.status,
+      inputFingerprint: r.inputFingerprint,
+      completedAt: r.completedAt ? new Date(r.completedAt as Date).toISOString() : null,
+      durationMs: r.durationMs,
+      errorMessage: r.errorMessage ?? '',
+      paragraphCount: Array.isArray(r.paragraphs) ? r.paragraphs.length : 0,
+      citedItemCount: Array.isArray(r.citedItemIds) ? r.citedItemIds.length : 0,
+      evidenceCount: Array.isArray(r.evidenceSnapshot) ? r.evidenceSnapshot.length : 0,
+    }));
+  }
+
+  async getBriefRunById(monitorId: string, runId: string, userId: string) {
+    await this.loadOwnedMonitor(monitorId, userId);
+    if (!Types.ObjectId.isValid(runId)) throw new NotFoundException('monitor_brief_run_not_found');
+    const oid = new Types.ObjectId(monitorId);
+    const rid = new Types.ObjectId(runId);
+    const row = await this.briefRunModel.findOne({ _id: rid, monitorId: oid }).lean().exec();
+    if (!row) throw new NotFoundException('monitor_brief_run_not_found');
+    this.logger.debug(`monitor_get_brief_run monitorId=${monitorId} runId=${runId} status=${row.status}`);
+    return {
+      id: String(row._id),
+      profileId: row.profileId,
+      windowMode: row.windowMode,
+      periodKey: row.periodKey,
+      periodStart: row.periodStart ? new Date(row.periodStart as Date).toISOString() : null,
+      periodEnd: row.periodEnd ? new Date(row.periodEnd as Date).toISOString() : null,
+      minCosine: row.minCosine,
+      inputFingerprint: row.inputFingerprint,
+      status: row.status,
+      evidenceSnapshot: row.evidenceSnapshot ?? [],
+      briefContextSnapshot: row.briefContextSnapshot ?? null,
+      monitorSnapshot: row.monitorSnapshot ?? null,
+      systemPromptVersion: row.systemPromptVersion ?? '',
+      paragraphs: row.paragraphs ?? [],
+      citedItemIds: row.citedItemIds ?? [],
+      errorMessage: row.errorMessage ?? '',
+      durationMs: row.durationMs,
+      startedAt: row.startedAt ? new Date(row.startedAt as Date).toISOString() : null,
+      completedAt: row.completedAt ? new Date(row.completedAt as Date).toISOString() : null,
+      createdAt: (row as Record<string, unknown>).createdAt
+        ? new Date((row as Record<string, unknown>).createdAt as Date).toISOString()
+        : null,
     };
   }
 
@@ -571,7 +1226,7 @@ export class MonitorsService {
       };
     }
     const { scored, minSim } = await this.buildScoredMonitorFeed(monitor, recentHours);
-    const agg = this.intelligenceFromScored(monitor, recentHours, scored, minSim);
+    const agg = this.aggregateIntelligenceFromScored(monitor, recentHours, scored, minSim);
     return {
       monitorId,
       heatIndex: agg.heatIndex,
@@ -588,6 +1243,9 @@ export class MonitorsService {
   ): Promise<MonitorIntelligencePublic> {
     const monitor = await this.loadOwnedMonitor(monitorId, userId);
     const recentHours = q.recentHours ?? this.defaultRecentHours();
+    const profileId = (q.briefProfile ?? DEFAULT_BRIEF_PROFILE_ID).trim().slice(0, 64) || DEFAULT_BRIEF_PROFILE_ID;
+    const profiles = resolveBriefProfiles(this.config);
+    const profile = getBriefProfileById(profiles, profileId);
 
     const m0 = monitor.toObject() as { descriptionEmbedding: number[] };
     const queryVec = m0.descriptionEmbedding;
@@ -596,6 +1254,9 @@ export class MonitorsService {
       typeof rawMin0 === 'number' && Number.isFinite(rawMin0) ? Math.min(1, Math.max(0, rawMin0)) : 0.52;
 
     if (!Array.isArray(queryVec) || queryVec.length === 0) {
+      this.logger.debug(
+        `monitor_get_intelligence_no_embedding monitorId=${monitorId} userId=${userId} recentHours=${recentHours} briefProfile=${profile.profileId}`,
+      );
       return {
         monitorId,
         recentHours,
@@ -603,20 +1264,55 @@ export class MonitorsService {
         lastActivityAt: null,
         metrics: { newLast24h: 0, totalInWindow: 0, boundSourceCount: (monitor.sourceIds ?? []).length },
         heatIndex: null,
-        weeklyBrief: ['该监控缺少描述向量，无法聚合情报；请重新创建或联系管理员。'],
+        weeklyBrief: ['无法生成 AI 研判摘要：该监控缺少描述向量。请重新创建监控或联系管理员。'],
         trend: this.emptySevenDayTrend(),
         chartKeywords: [],
         latestItems: [],
+        briefMeta: undefined,
       };
     }
 
     const { scored, minSim } = await this.buildScoredMonitorFeed(monitor, recentHours);
-    const agg = this.intelligenceFromScored(monitor, recentHours, scored, minSim);
+    const agg = this.aggregateIntelligenceFromScored(monitor, recentHours, scored, minSim);
+    const { count7d: _c7, ...intelWithoutBrief } = agg;
+
+    const oid = new Types.ObjectId(monitorId);
+    const latestRun = await this.findLatestSucceededBriefRun(oid, profile.profileId, minSim);
+    let weeklyBrief: string[];
+    let briefMeta: MonitorIntelligencePublic['briefMeta'];
+    if (latestRun && latestRun.paragraphs?.length) {
+      weeklyBrief = latestRun.paragraphs as string[];
+      briefMeta = {
+        profileId: latestRun.profileId,
+        periodKey: latestRun.periodKey,
+        windowLabel:
+          typeof latestRun.briefContextSnapshot?.['windowLabel'] === 'string'
+            ? (latestRun.briefContextSnapshot['windowLabel'] as string)
+            : '',
+        completedAt: latestRun.completedAt ? latestRun.completedAt.toISOString() : null,
+        runId: String(latestRun._id),
+      };
+    } else {
+      weeklyBrief = ['研判摘要尚未生成，请等待定时任务（默认每小时）执行后再查看。'];
+      briefMeta = {
+        profileId: profile.profileId,
+        periodKey: '',
+        windowLabel: '',
+        completedAt: null,
+        runId: null,
+      };
+    }
+
+    this.logger.debug(
+      `monitor_get_intelligence monitorId=${monitorId} userId=${userId} recentHours=${recentHours} briefProfile=${profile.profileId} latestRun=${latestRun && latestRun.paragraphs?.length ? String(latestRun._id) : 'none'}`,
+    );
     return {
       monitorId,
       recentHours,
       minCosine: minSim,
-      ...agg,
+      ...intelWithoutBrief,
+      weeklyBrief,
+      briefMeta,
     };
   }
 
@@ -628,6 +1324,9 @@ export class MonitorsService {
       monitor.minCosine = dto.minCosine;
     }
     await monitor.save();
+    this.logger.log(
+      `monitor_patch_sources monitorId=${monitorId} userId=${userId} sourceCount=${resolved.length} minCosineUpdated=${dto.minCosine !== undefined}`,
+    );
     return this.serializeMonitor(monitor);
   }
 
@@ -660,5 +1359,6 @@ export class MonitorsService {
     const monitor = await this.loadOwnedMonitor(monitorId, userId);
     monitor.deletedAt = new Date();
     await monitor.save();
+    this.logger.log(`monitor_soft_delete monitorId=${monitorId} userId=${userId}`);
   }
 }

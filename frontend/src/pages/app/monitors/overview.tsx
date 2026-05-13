@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type Ref } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+  type Ref,
+} from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   Activity,
@@ -32,6 +41,34 @@ import { cn } from '@/lib/cn';
 
 const overviewSubtitle =
   '全局话题更新摘要与趋势分析。由 AI 提取关键线索与脉络。';
+
+/** 仅支持 `**加粗**`，其它内容原样输出，避免 HTML 注入 */
+function renderBriefParagraph(text: string, key: number): ReactNode {
+  const nodes: ReactNode[] = [];
+  const re = /\*\*([^*]+)\*\*/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let i = 0;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) {
+      nodes.push(<span key={`t-${key}-${i++}`}>{text.slice(last, m.index)}</span>);
+    }
+    nodes.push(
+      <strong key={`b-${key}-${i++}`} className="font-semibold text-slate-200">
+        {m[1]}
+      </strong>,
+    );
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) {
+    nodes.push(<span key={`t-${key}-${i++}`}>{text.slice(last)}</span>);
+  }
+  return (
+    <p key={key} className="[overflow-wrap:anywhere]">
+      {nodes.length > 0 ? nodes : text}
+    </p>
+  );
+}
 
 function formatTrendLabel(isoDate: string) {
   const p = isoDate.split('-');
@@ -244,7 +281,7 @@ export function MonitorOverviewPage() {
       try {
         const [m, i] = await Promise.all([
           getMonitor(currentId),
-          getMonitorIntelligence(currentId, '?recentHours=720'),
+          getMonitorIntelligence(currentId, '?recentHours=720&briefProfile=weekly_rolling'),
         ]);
         if (!cancelled) {
           setMonitor(m);
@@ -464,16 +501,21 @@ export function MonitorOverviewPage() {
                 </div>
               </div>
 
-              <div className="grid min-h-0 divide-y divide-ark-border lg:grid-cols-2 lg:divide-x lg:divide-y-0 lg:items-stretch">
+              <div className="grid min-h-0 divide-y divide-ark-border lg:grid-cols-3 lg:divide-x lg:divide-y-0 lg:items-stretch">
                 <div className="flex min-h-0 flex-col p-3 md:p-4 lg:h-full lg:min-h-0">
-                  <h3 className="mb-4 flex shrink-0 items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    <Target className="size-4 shrink-0 text-ark-accent" strokeWidth={2} aria-hidden />
-                    本周研判摘要
+                  <h3 className="mb-4 flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <span className="inline-flex items-center gap-2">
+                      <Target className="size-4 shrink-0 text-ark-accent" strokeWidth={2} aria-hidden />
+                      本周研判摘要
+                    </span>
+                    {intel.briefMeta?.windowLabel ? (
+                      <span className="max-w-full font-normal normal-case tracking-normal text-[10px] text-slate-600">
+                        {intel.briefMeta.windowLabel}
+                      </span>
+                    ) : null}
                   </h3>
                   <div className="min-h-0 space-y-3 text-xs leading-relaxed text-slate-400 [overflow-wrap:anywhere] lg:flex-1 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain [scrollbar-width:thin]">
-                    {intel.weeklyBrief.map((p, i) => (
-                      <p key={i}>{p}</p>
-                    ))}
+                    {intel.weeklyBrief.map((p, i) => renderBriefParagraph(p, i))}
                   </div>
                   <div className="shrink-0  pt-3">
                     <div className="grid grid-cols-3 gap-2">
@@ -504,7 +546,7 @@ export function MonitorOverviewPage() {
                       近 7 日
                     </span>
                   </div>
-                  <div className="h-36 w-full shrink-0">
+                  <div className="h-44 w-full shrink-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
@@ -524,7 +566,6 @@ export function MonitorOverviewPage() {
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="min-h-0 flex-1" aria-hidden={true} />
                   <div className="flex shrink-0 flex-col gap-2  pt-3">
                     <h4 className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
                       <Hash className="size-3 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
@@ -552,45 +593,63 @@ export function MonitorOverviewPage() {
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="border-t border-white/[0.06] bg-ark-bg/30 p-3 md:p-4">
-                <div className="mb-4 flex items-center justify-between gap-2">
-                  <h3 className="flex items-center gap-2 text-sm font-semibold tracking-wide text-white">
-                    <Activity className="size-4 shrink-0 text-violet-400" strokeWidth={2} aria-hidden />
-                    最新关键线索
-                  </h3>
-                  <Link
-                    to={`/app/monitors/${monitor.id}/timeline`}
-                    className="flex shrink-0 items-center gap-1 text-[11px] text-slate-500 transition hover:text-ark-accent"
-                  >
-                    查看全时间线 <ArrowRight className="size-3" aria-hidden />
-                  </Link>
+                <div className="flex min-h-0 flex-col bg-ark-bg/30 p-3 md:p-4 lg:h-full lg:min-h-0">
+                  <div className="mb-3 flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      <Activity className="size-4 shrink-0 text-ark-accent" strokeWidth={2} aria-hidden />
+                      最新关键线索
+                    </h3>
+                    <Link
+                      to={`/app/monitors/${monitor.id}/timeline`}
+                      className="flex shrink-0 items-center gap-0.5 self-start text-[11px] text-slate-500 transition hover:text-ark-accent sm:self-auto"
+                    >
+                      查看时间线
+                      <ArrowRight className="size-3" aria-hidden />
+                    </Link>
+                  </div>
+                  {intel.latestItems.length === 0 ? (
+                    <p className="text-xs text-slate-600">暂无匹配条目，请稍候采集或调整信源与相似度阈值。</p>
+                  ) : (
+                    <ul
+                      className="m-0 flex min-h-0 list-none flex-col p-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain [scrollbar-width:thin]"
+                      role="list"
+                    >
+                      {intel.latestItems.slice(0, 3).map((item, index, arr) => {
+                        const timePart =
+                          item.publishedAt != null && item.publishedAt !== ''
+                            ? formatClueMetaTime(item.publishedAt)
+                            : null;
+                        const metaLead =  item.sourceDisplayName;
+                        const metaLine = timePart ? `${metaLead} · ${timePart}` : metaLead;
+                        const showStem = index < arr.length - 1;
+                        return (
+                          <li key={item.id} className="flex min-w-0 gap-3">
+                            <div className="flex w-3 shrink-0 flex-col items-center pt-1.5" aria-hidden>
+                              <span className="size-[] shrink-0 rounded-full bg-ark-accent shadow-[0_0_0_2px_rgba(15,23,42,0.9)] ring-1 ring-ark-accent/35" />
+                              {showStem ? (
+                                <span className="mt-2 w-px flex-1 min-h-[2.75rem] bg-gradient-to-b from-ark-accent/10 to-ark-accent/[0.08]" />
+                              ) : null}
+                            </div>
+                            <div className={cn('min-w-0 flex-1', showStem ? 'pb-5' : 'pb-0')}>
+                              <a
+                                href={item.link}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="group block min-w-0 rounded-lg py-0.5 transition [overflow-wrap:anywhere]"
+                              >
+                                <span className="line-clamp-3 text-[13px] font-semibold leading-snug text-white group-hover:text-ark-accent">
+                                  {item.title}
+                                </span>
+                                <span className="mt-1.5 block text-[11px] leading-relaxed text-slate-500">{metaLine}</span>
+                              </a>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </div>
-                {intel.latestItems.length === 0 ? (
-                  <p className="text-xs text-slate-600">暂无匹配条目，请稍候采集或调整信源与相似度阈值。</p>
-                ) : (
-                  <ul className="flex list-none flex-col gap-4 sm:flex-row sm:gap-4" role="list">
-                    {intel.latestItems.slice(0, 3).map((item) => (
-                      <li key={item.id} className="min-w-0 sm:flex-1">
-                        <a
-                          href={item.link}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex h-full min-h-[6rem] min-w-0 flex-col rounded-xl border border-ark-border bg-ark-surface/70 p-4 shadow-sm transition hover:border-ark-accent/35 hover:bg-ark-surface/90"
-                        >
-                          <span className="line-clamp-2 text-sm font-semibold leading-snug text-white [overflow-wrap:anywhere] hover:text-ark-accent">
-                            {item.title}
-                          </span>
-                          <span className="min-w-0 truncate mt-atuo pt-2 text-[11px] text-slate-500">
-                            {item.sourceDisplayName}
-                            {item.publishedAt ? ` · ${formatClueMetaTime(item.publishedAt)}` : null}
-                          </span>
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                )}
               </div>
             </section>
           )}
