@@ -81,9 +81,6 @@ export function SourcesPage() {
 
   const isEmpty = !loading && list && list.items.length === 0;
 
-  const sourcesHelp =
-    '浏览全站信源池并直达入口；新增与编辑由管理员在「管理后台 → 信源管理」维护。';
-
   useAppTopBar(
     () => (
       <div className="flex min-w-0 w-full items-center justify-between gap-4">
@@ -123,7 +120,6 @@ export function SourcesPage() {
   return (
     <div className="relative flex min-h-0 flex-1 flex-col gap-3">
       <div className="shrink-0 rounded-xl border border-ark-border bg-ark-sidebar p-4 sm:p-6">
-        <p className="mb-6 text-sm text-slate-500">{sourcesHelp}</p>
         <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:gap-x-3 md:gap-y-2">
           <div className="group relative min-w-0 flex-1 md:min-w-[10rem]">
             <Search

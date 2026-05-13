@@ -104,7 +104,7 @@ export function ProfilePage() {
       <section className="rounded-lg border border-ark-border bg-ark-surface p-5">
         <h2 className="text-sm font-semibold text-ark-text">显示时区</h2>
         <p className="mt-2 text-xs leading-relaxed text-ark-muted">
-          情报列表、监控总览中的时间与近 7 日趋势按此时区解释。条目仍以 UTC 存储。
+          情报列表、话题监控中的时间与近 7 日趋势按此时区解释。条目仍以 UTC 存储。
         </p>
         <form className="mt-4 space-y-3" onSubmit={saveTimeZone}>
           {tzErr ? <div className="text-sm text-red-300">{tzErr}</div> : null}

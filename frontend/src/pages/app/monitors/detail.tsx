@@ -114,7 +114,7 @@ export function MonitorDetailPage() {
           <div className="min-w-0 flex-1 pr-2">
             <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-slate-500">
               <Link to={`/app/monitors?monitor=${encodeURIComponent(id!)}`} className="shrink-0 hover:text-ark-accent">
-                监控总览
+                话题监控
               </Link>
               <span aria-hidden>/</span>
               <span className="shrink-0 text-slate-600">时间线</span>

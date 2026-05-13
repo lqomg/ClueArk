@@ -17,11 +17,12 @@ import {
   Clock,
   Flame,
   Hash,
-  LayoutDashboard,
   Layers,
   Plus,
+  Settings2,
   Sparkles,
   Target,
+  Trash2,
   TrendingUp,
 } from 'lucide-react';
 import {
@@ -33,10 +34,17 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { createMonitor, getMonitor, getMonitorIntelligence, listMonitorsOverview } from '@/api/monitors';
+import {
+  createMonitor,
+  deleteMonitor,
+  getMonitor,
+  getMonitorIntelligence,
+  listMonitorsOverview,
+} from '@/api/monitors';
 import type { Monitor, MonitorIntelligence, MonitorOverviewCard } from '@/types/models';
 import { useAppTopBar } from '@/components/layout/AppTopBar';
-import { Button } from '@/components/ui';
+import { Button, Drawer } from '@/components/ui';
+import { MonitorSettingsForm } from '@/pages/app/monitors/MonitorSettingsForm';
 import { cn } from '@/lib/cn';
 import { formatClueMetaTime, normalizeUserTimeZone, relTimeIso } from '@/lib/datetime';
 import { useAuthStore } from '@/stores/authStore';
@@ -178,6 +186,11 @@ export function MonitorOverviewPage() {
   const [creating, setCreating] = useState(false);
   const [cardById, setCardById] = useState<Record<string, MonitorOverviewCard>>({});
   const topicInputRef = useRef<HTMLInputElement | null>(null);
+  const [manageDrawerOpen, setManageDrawerOpen] = useState(false);
+  const [deletingMonitor, setDeletingMonitor] = useState(false);
+
+  const openManageDrawer = useCallback(() => setManageDrawerOpen(true), []);
+  const closeManageDrawer = useCallback(() => setManageDrawerOpen(false), []);
 
   const loadRows = useCallback(async () => {
     setLoadingList(true);
@@ -255,6 +268,22 @@ export function MonitorOverviewPage() {
     setSearchParams({ monitor: id }, { replace: true });
   }
 
+  async function onDeleteCurrentMonitor() {
+    if (!currentId || !monitor) return;
+    if (!window.confirm(`确定删除监控「${monitor.title}」？`)) return;
+    setDeletingMonitor(true);
+    setError(null);
+    try {
+      await deleteMonitor(currentId);
+      setManageDrawerOpen(false);
+      await loadRows();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '删除失败');
+    } finally {
+      setDeletingMonitor(false);
+    }
+  }
+
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
     const t = topicDraft.trim();
@@ -282,22 +311,25 @@ export function MonitorOverviewPage() {
         <div className="flex min-w-0 flex-1 flex-col gap-1 md:flex-row md:items-center md:gap-4">
           <h1 className="flex shrink-0 items-center gap-2 text-lg font-semibold tracking-tight text-ark-text">
             <Sparkles className="size-5 shrink-0 text-ark-accent" strokeWidth={2} aria-hidden />
-            监控总览
+            话题监控
           </h1>
           <p className="min-w-0 text-xs leading-snug text-slate-500 md:max-w-2xl md:border-l md:border-ark-border md:pl-4 md:text-sm">
             {overviewSubtitle}
           </p>
         </div>
-        <Link
-          to="/app/monitors/manage"
-          className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-ark-border bg-ark-surface px-3 py-1.5 text-xs font-medium text-ark-text shadow-sm transition-colors hover:bg-white/[0.04]"
-        >
-          <LayoutDashboard size={14} strokeWidth={2} />
-          监控管理
-        </Link>
+        {sorted.length > 0 ? (
+          <button
+            type="button"
+            onClick={openManageDrawer}
+            className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-ark-border bg-ark-surface px-3 py-1.5 text-xs font-medium text-ark-text shadow-sm transition-colors hover:bg-white/[0.04]"
+          >
+            <Settings2 size={14} strokeWidth={2} />
+            监控设置
+          </button>
+        ) : null}
       </div>
     ),
-    [],
+    [sorted.length, openManageDrawer],
   );
 
   const chartData = useMemo(
@@ -616,6 +648,56 @@ export function MonitorOverviewPage() {
         inputId="monitor-overview-topic"
         outerClassName="px-0 pb-2 pt-2 md:pt-3 md:pb-4"
       />
+
+      <Drawer
+        open={manageDrawerOpen}
+        onClose={closeManageDrawer}
+        title="监控设置"
+        description={monitor?.title}
+        panelClassName="sm:max-w-lg"
+      >
+        {currentId ? (
+          <>
+            <Link
+              to={`/app/monitors/${currentId}/timeline`}
+              className="inline-flex items-center gap-1 text-xs font-medium text-ark-accent hover:underline"
+              onClick={closeManageDrawer}
+            >
+              打开时间线
+              <ArrowRight className="size-3 shrink-0" aria-hidden />
+            </Link>
+            <div className="mt-4">
+              <MonitorSettingsForm
+                key={currentId}
+                monitorId={currentId}
+                mode="embedded"
+                onAfterSave={(upd) => {
+                  setManageDrawerOpen(false);
+                  setMonitor(upd);
+                  void loadRows();
+                  void getMonitorIntelligence(upd.id, '?recentHours=720&briefProfile=weekly_rolling')
+                    .then((i) => setIntel(i))
+                    .catch((e) => setError(e instanceof Error ? e.message : '刷新概览失败'));
+                }}
+                onCancel={closeManageDrawer}
+              />
+            </div>
+            <div className="mt-6 border-t border-white/[0.06] pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-red-400 hover:border-red-500/40 hover:text-red-300"
+                disabled={deletingMonitor}
+                onClick={() => void onDeleteCurrentMonitor()}
+              >
+                <Trash2 size={14} className="mr-1 inline" aria-hidden />
+                {deletingMonitor ? '删除中…' : '删除此监控'}
+              </Button>
+            </div>
+          </>
+        ) : null}
+      </Drawer>
     </div>
   );
 }

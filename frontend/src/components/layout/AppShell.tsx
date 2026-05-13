@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Bookmark, Database, Layers, LayoutDashboard, ListTree, LogOut, Newspaper, User, Users } from 'lucide-react';
+import { Bookmark, Database, Layers, LayoutDashboard, LogOut, Newspaper, User, Users } from 'lucide-react';
 import { ProductMark } from '@/components/brand/ProductMark';
 import { GithubRepoLink } from '@/components/GithubRepoLink';
 import { AppTopBarProvider } from '@/components/layout/AppTopBar';
@@ -35,6 +35,14 @@ export function AppShell() {
           <ProductMark variant="sidebar" to="/app/feed" className="mb-10" />
 
           <nav className="space-y-1">
+            <NavLink to="/app/monitors" end className={({ isActive }) => shellNavClass(isActive)}>
+              {({ isActive }) => (
+                <>
+                  <LayoutDashboard size={18} className={shellNavIconClass(isActive)} />
+                  话题监控
+                </>
+              )}
+            </NavLink>
             <NavLink to="/app/feed" end className={({ isActive }) => shellNavClass(isActive)}>
               {({ isActive }) => (
                 <>
@@ -48,22 +56,6 @@ export function AppShell() {
                 <>
                   <Bookmark size={18} className={shellNavIconClass(isActive)} />
                   信源
-                </>
-              )}
-            </NavLink>
-            <NavLink to="/app/monitors" end className={({ isActive }) => shellNavClass(isActive)}>
-              {({ isActive }) => (
-                <>
-                  <LayoutDashboard size={18} className={shellNavIconClass(isActive)} />
-                  监控总览
-                </>
-              )}
-            </NavLink>
-            <NavLink to="/app/monitors/manage" end className={({ isActive }) => shellNavClass(isActive)}>
-              {({ isActive }) => (
-                <>
-                  <ListTree size={18} className={shellNavIconClass(isActive)} />
-                  监控管理
                 </>
               )}
             </NavLink>
@@ -138,6 +130,10 @@ export function AppShell() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-slate-500">
+            <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/monitors">
+              <LayoutDashboard size={14} />
+              话题监控
+            </Link>
             <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/feed">
               <Newspaper size={14} />
               动态
@@ -145,14 +141,6 @@ export function AppShell() {
             <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/sources">
               <Bookmark size={14} />
               信源
-            </Link>
-            <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/monitors">
-              <LayoutDashboard size={14} />
-              监控总览
-            </Link>
-            <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/monitors/manage">
-              <ListTree size={14} />
-              监控管理
             </Link>
             <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/me">
               <User size={14} />
