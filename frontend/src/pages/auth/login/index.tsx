@@ -32,6 +32,7 @@ export function LoginPage() {
         email: data.user.email,
         username: data.user.username,
         role: data.user.role,
+        timeZone: data.user.timeZone,
       });
       navigate(from, { replace: true });
     } catch (err) {

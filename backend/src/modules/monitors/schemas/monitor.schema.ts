@@ -11,8 +11,18 @@ export class Monitor {
   @Prop({ required: true, trim: true, maxlength: 200 })
   title: string;
 
-  @Prop({ required: true, trim: true, maxlength: 2000 })
+  @Prop({ required: true, trim: true, maxlength: 4000 })
   description: string;
+
+  /** 用户创建时输入的简短监控意图（原始） */
+  @Prop({ default: '', trim: true, maxlength: 2000 })
+  topicPrompt: string;
+
+  @Prop({ type: [String], default: [] })
+  keywords: string[];
+
+  @Prop({ type: [String], default: [] })
+  entities: string[];
 
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Source' }], default: [] })
   sourceIds: Types.ObjectId[];
@@ -24,7 +34,7 @@ export class Monitor {
   embeddingModel: string;
 
   /** 时间线过滤：条目与监控描述向量的最低余弦相似度（0～1） */
-  @Prop({ type: Number, default: 0.52 })
+  @Prop({ type: Number, default: 0.43 })
   minCosine: number;
 
   @Prop({ type: Date, default: null })

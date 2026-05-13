@@ -6,6 +6,6 @@ export { Textarea } from './textarea';
 export { Checkbox, type CheckboxProps } from './checkbox';
 export { Label } from './label';
 export { FormField } from './form-field';
-export { Segmented, type SegmentedProps, type SegmentedOption } from './segmented';
+export { Segmented, type SegmentedProps, type SegmentedOption, type SegmentedVisual } from './segmented';
 export { Timeline, TimelineItem, type TimelineProps, type TimelineItemProps } from './timeline';
 export { Drawer, type DrawerProps } from './drawer';

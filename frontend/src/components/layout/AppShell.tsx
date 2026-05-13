@@ -1,8 +1,8 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Bookmark, Database, Layers, LogOut, Newspaper, Radar, User, Users } from 'lucide-react';
+import { Bookmark, Database, Layers, LayoutDashboard, LogOut, Newspaper, User, Users } from 'lucide-react';
 import { ProductMark } from '@/components/brand/ProductMark';
 import { GithubRepoLink } from '@/components/GithubRepoLink';
-import { useResolvedMonitorPins } from '@/hooks/useResolvedMonitorPins';
+import { AppTopBarProvider } from '@/components/layout/AppTopBar';
 import { useAuthStore } from '@/stores/authStore';
 import { USER_ROLE } from '@/constants/user-role';
 import { isStaffRole } from '@/utils/auth-roles';
@@ -16,18 +16,12 @@ function shellNavIconClass(isActive: boolean) {
   return `shrink-0 ${isActive ? 'text-ark-accent' : 'text-slate-500'}`;
 }
 
-function shellPinNavClass(isActive: boolean) {
-  return `flex w-full items-center gap-2 rounded-lg py-2 pl-3 pr-2 text-xs font-medium transition-all ${isActive ? 'bg-white/10 text-ark-accent' : 'text-slate-400 hover:bg-white/5 hover:text-ark-text'
-    }`;
-}
-
 export function AppShell() {
   const user = useAuthStore((s) => s.user);
   const clear = useAuthStore((s) => s.clear);
   const navigate = useNavigate();
   const isStaffUser = isStaffRole(user?.role);
   const isAdminUser = user?.role === USER_ROLE.Admin;
-  const { pins: monitorPins } = useResolvedMonitorPins();
 
   function logout() {
     clear();
@@ -41,6 +35,14 @@ export function AppShell() {
           <ProductMark variant="sidebar" to="/app/feed" className="mb-10" />
 
           <nav className="space-y-1">
+            <NavLink to="/app/monitors" end className={({ isActive }) => shellNavClass(isActive)}>
+              {({ isActive }) => (
+                <>
+                  <LayoutDashboard size={18} className={shellNavIconClass(isActive)} />
+                  话题监控
+                </>
+              )}
+            </NavLink>
             <NavLink to="/app/feed" end className={({ isActive }) => shellNavClass(isActive)}>
               {({ isActive }) => (
                 <>
@@ -57,33 +59,6 @@ export function AppShell() {
                 </>
               )}
             </NavLink>
-            <NavLink to="/app/monitors" end className={({ isActive }) => shellNavClass(isActive)}>
-              {({ isActive }) => (
-                <>
-                  <Radar size={18} className={shellNavIconClass(isActive)} />
-                  监控
-                </>
-              )}
-            </NavLink>
-            {monitorPins.length > 0 ? (
-              <div className="mt-2 border-t border-white/[0.06] pt-2">
-                <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
-                  关注
-                </p>
-                <div className="space-y-0.5">
-                  {monitorPins.map((m) => (
-                    <NavLink
-                      key={m.id}
-                      to={`/app/monitors/${m.id}`}
-                      title={m.title}
-                      className={({ isActive }) => shellPinNavClass(isActive)}
-                    >
-                      <span className="min-w-0 flex-1 truncate">{m.title}</span>
-                    </NavLink>
-                  ))}
-                </div>
-              </div>
-            ) : null}
             {isStaffUser ? (
               <div className="mt-4 border-t border-ark-border pt-2">
                 <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
@@ -155,6 +130,10 @@ export function AppShell() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-slate-500">
+            <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/monitors">
+              <LayoutDashboard size={14} />
+              话题监控
+            </Link>
             <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/feed">
               <Newspaper size={14} />
               动态
@@ -163,24 +142,6 @@ export function AppShell() {
               <Bookmark size={14} />
               信源
             </Link>
-            <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/monitors">
-              <Radar size={14} />
-              监控
-            </Link>
-            {monitorPins.length > 0 ? (
-              <div className="flex w-full gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {monitorPins.map((m) => (
-                  <Link
-                    key={m.id}
-                    to={`/app/monitors/${m.id}`}
-                    title={m.title}
-                    className="max-w-[44%] shrink-0 truncate rounded-full border border-ark-border bg-ark-surface/40 px-2.5 py-1 text-[11px] font-medium text-slate-300 hover:border-ark-accent/45 hover:text-ark-accent"
-                  >
-                    {m.title}
-                  </Link>
-                ))}
-              </div>
-            ) : null}
             <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/me">
               <User size={14} />
               我的
@@ -207,32 +168,16 @@ export function AppShell() {
           </div>
         </header>
 
-        <header className="hidden shrink-0 items-center justify-between gap-4 border-b border-ark-border bg-ark-bg px-8 py-4 md:flex">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 text-xs font-bold uppercase tracking-widest text-slate-500">
-            <span>
-              终端 <span className="font-mono text-ark-accent/90">{user?.email}</span>
-            </span>
-            <Link
-              to="/app/me"
-              className="inline-flex items-center gap-1.5 font-semibold normal-case tracking-normal text-slate-400 transition-colors hover:text-ark-accent"
-            >
-              <User size={14} />
-              个人中心
-            </Link>
-          </div>
-          <GithubRepoLink className="shrink-0 text-slate-500" />
-        </header>
-
-        <main
-          id="app-main-scroll"
-          className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-6 md:px-10 md:py-10"
-        >
-          <div
-            className={`mx-auto flex min-h-0 w-full flex-1 flex-col overflow-hidden max-w-7xl`}
+        <AppTopBarProvider>
+          <main
+            id="app-main-scroll"
+            className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 md:px-6 md:py-4"
           >
-            <Outlet />
-          </div>
-        </main>
+            <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col overflow-hidden">
+              <Outlet />
+            </div>
+          </main>
+        </AppTopBarProvider>
       </div>
     </div>
   );

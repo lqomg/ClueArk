@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "start": "vite",
+    "dev": "vite --host",
+    "start": "vite --host",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -18,10 +18,12 @@
     "axios": "^1.15.1",
     "clsx": "^2.1.1",
     "codemirror": "^6.0.2",
+    "dayjs": "^1.11.20",
     "lucide-react": "^0.468.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.0",
+    "recharts": "^2.15.0",
     "tailwind-merge": "^3.5.0",
     "zustand": "^4.5.0"
   },

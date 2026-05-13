@@ -6,6 +6,11 @@ export async function getMe(): Promise<MeResponse> {
   return data;
 }
 
+export async function patchProfile(body: { username?: string; timeZone?: string }): Promise<MeResponse> {
+  const { data } = await http.patch<MeResponse>('/users/me', body);
+  return data;
+}
+
 export async function changePassword(body: { oldPassword: string; newPassword: string }): Promise<void> {
   await http.post('/users/me/password', body);
 }

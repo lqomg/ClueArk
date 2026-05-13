@@ -5,11 +5,13 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { User, UserDocument, type UserRole } from './schemas/user.schema';
 import { USER_ROLE } from './user-role';
+import { FALLBACK_APP_TIME_ZONE, isValidIanaTimeZone } from '../../common/utils/timezone.utils';
 
 export interface CreateUserInput {
   email: string;
@@ -19,7 +21,10 @@ export interface CreateUserInput {
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectModel(User.name) private readonly userModel: Model<UserDocument>) {}
+  constructor(
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    private readonly config: ConfigService,
+  ) {}
 
   async create(input: CreateUserInput): Promise<UserDocument> {
     const email = input.email.trim().toLowerCase();
@@ -64,10 +69,30 @@ export class UsersService {
     return this.userModel.findById(id).exec();
   }
 
-  async updateProfile(userId: string, patch: { username?: string }): Promise<UserDocument> {
+  /** 解析用户 IANA 时区；缺省/非法时用 APP_DEFAULT_TIMEZONE 或 Asia/Shanghai */
+  async getTimeZoneOrDefault(userId: string): Promise<string> {
+    const raw = this.config.get<string>('APP_DEFAULT_TIMEZONE')?.trim();
+    const fromEnv = raw && isValidIanaTimeZone(raw) ? raw : FALLBACK_APP_TIME_ZONE;
+    const u = await this.findById(userId);
+    if (!u) return fromEnv;
+    const tz = typeof (u as UserDocument & { timeZone?: string }).timeZone === 'string'
+      ? (u as UserDocument & { timeZone: string }).timeZone.trim()
+      : '';
+    if (tz && isValidIanaTimeZone(tz)) return tz;
+    return fromEnv;
+  }
+
+  async updateProfile(userId: string, patch: { username?: string; timeZone?: string }): Promise<UserDocument> {
     const $set: Record<string, string> = {};
     if (patch.username != null && patch.username.trim()) {
       $set.username = patch.username.trim();
+    }
+    if (patch.timeZone != null) {
+      const t = patch.timeZone.trim();
+      if (!isValidIanaTimeZone(t)) {
+        throw new BadRequestException('invalid_time_zone');
+      }
+      $set.timeZone = t;
     }
     if (!Object.keys($set).length) {
       const u = await this.findById(userId);

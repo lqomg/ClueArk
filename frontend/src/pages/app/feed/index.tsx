@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Newspaper } from 'lucide-react';
 import { getFeedItemsByClusterId, listFeedItems } from '@/api/feed';
+import { useAppTopBar } from '@/components/layout/AppTopBar';
+import { TopBarCountPill } from '@/components/layout/TopBarCountPill';
 import { Button, Segmented, Timeline } from '@/components/ui';
 import { ClusterSimilarDialog } from './components/ClusterSimilarDialog';
 import { FeedTimelineItem } from './components/FeedTimelineItem';
@@ -79,8 +81,62 @@ export function FeedPage() {
 
   const isEmpty = !loading && list && list.items.length === 0;
 
+  useAppTopBar(
+    () => (
+      <div className="flex min-w-0 w-full items-center justify-between gap-4">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1">
+          <h1 className="shrink-0 text-lg font-semibold tracking-tight text-ark-text">动态</h1>
+          <div className="flex min-h-5 items-center border-l border-ark-border pl-4">
+            <TopBarCountPill
+              value={list?.total ?? '—'}
+              trailing={
+                list?.mode === 'featured' ? (
+                  <span className="ml-1 font-normal normal-case tracking-normal text-slate-500">· 精选</span>
+                ) : null
+              }
+            />
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-nowrap items-center gap-4 md:gap-6">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="shrink-0 text-slate-500">视图</span>
+            <Segmented
+              visual="panel"
+              value={listMode}
+              onChange={(m) => {
+                setListMode(m);
+                setPage(1);
+              }}
+              options={[
+                { value: 'all', label: '全部' },
+                { value: 'featured', label: '精选' },
+              ]}
+            />
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="shrink-0 text-slate-500">时间</span>
+            <Segmented<RecentHoursPreset>
+              visual="panel"
+              value={recentHours}
+              onChange={(h) => {
+                setRecentHours(h);
+                setPage(1);
+              }}
+              options={[
+                { value: '24', label: '24小时' },
+                { value: '72', label: '3天' },
+                { value: '168', label: '7天' },
+              ]}
+            />
+          </div>
+        </div>
+      </div>
+    ),
+    [listMode, recentHours, list?.total, list?.mode],
+  );
+
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col gap-4">
+    <div className="relative flex min-h-0 flex-1 flex-col gap-3">
       <ClusterSimilarDialog
         open={clusterDetailId != null}
         onClose={closeClusterDialog}
@@ -89,55 +145,7 @@ export function FeedPage() {
         rows={clusterRows}
       />
 
-      <div className="shrink-0 border-b border-ark-border bg-ark-bg pb-3">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
-          <div className="min-w-0 shrink-0">
-            <h1 className="text-2xl font-black leading-none tracking-tight text-white sm:text-3xl md:text-4xl">
-              动态
-            </h1>
-            <p className="mt-2 text-[11px] leading-relaxed text-slate-500 sm:text-xs">
-              共 <span className="font-semibold tabular-nums text-ark-accent">{list?.total ?? '—'}</span> 条
-              {list?.mode === 'featured' ? (
-                <span className="text-slate-500"> · 当前为精选</span>
-              ) : null}
-            </p>
-          </div>
-          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5 sm:gap-y-2 lg:justify-end">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className="w-9 shrink-0 text-right text-[11px] font-medium text-slate-500 sm:w-10">视图</span>
-              <Segmented
-                value={listMode}
-                onChange={(m) => {
-                  setListMode(m);
-                  setPage(1);
-                }}
-                options={[
-                  { value: 'all', label: '全部' },
-                  { value: 'featured', label: '精选' },
-                ]}
-              />
-            </div>
-            <div className="hidden h-8 w-px shrink-0 self-center bg-white/[0.08] sm:block" aria-hidden />
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className="w-9 shrink-0 text-right text-[11px] font-medium text-slate-500 sm:w-10">时间</span>
-              <Segmented<RecentHoursPreset>
-                value={recentHours}
-                onChange={(h) => {
-                  setRecentHours(h);
-                  setPage(1);
-                }}
-                options={[
-                  { value: '24', label: '24小时' },
-                  { value: '72', label: '3天' },
-                  { value: '168', label: '7天' },
-                ]}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="shrink-0 text-sm text-red-400">{error}</p> : null}
 
       <div id="feed-list-scroll" className="min-h-0 flex-1 overflow-y-auto">
         {loading && !list ? (

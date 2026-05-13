@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { createAdminUser, listAdminUsers, setAdminUserActive } from '@/api/admin/users';
 import { Button } from '@/components/ui';
 import { USER_ROLE, userRoleLabel } from '@/constants/user-role';
+import { formatShortDateTime, normalizeUserTimeZone } from '@/lib/datetime';
 import { useAuthStore } from '@/stores/authStore';
 import type { AdminUserListResponse, AdminUserRow } from '@/types/admin';
 
 export function AdminUsersPage() {
   const selfId = useAuthStore((s) => s.user?.id);
+  const viewerTz = useAuthStore((s) => normalizeUserTimeZone(s.user?.timeZone));
   const [page, setPage] = useState(1);
   const pageSize = 20;
   const [search, setSearch] = useState('');
@@ -244,7 +246,7 @@ export function AdminUsersPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-slate-500">
-                      {u.createdAt ? new Date(u.createdAt).toLocaleString() : '—'}
+                      {u.createdAt ? formatShortDateTime(u.createdAt, viewerTz) : '—'}
                     </td>
                     <td className="px-4 py-3">
                       {u.isActive ? (

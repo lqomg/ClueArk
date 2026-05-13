@@ -4,6 +4,8 @@ import { Radar, Settings2 } from 'lucide-react';
 import { getFeedItemsByClusterId } from '@/api/feed';
 import { getMonitor, listMonitorFeed } from '@/api/monitors';
 import type { Monitor } from '@/types/models';
+import { useAppTopBar } from '@/components/layout/AppTopBar';
+import { TopBarCountPill } from '@/components/layout/TopBarCountPill';
 import { Button, Segmented, Timeline } from '@/components/ui';
 import { ClusterSimilarDialog } from '@/pages/app/feed/components/ClusterSimilarDialog';
 import { FeedTimelineItem } from '@/pages/app/feed/components/FeedTimelineItem';
@@ -101,14 +103,65 @@ export function MonitorDetailPage() {
     setClusterError(null);
   }, []);
 
+  const isEmpty = !loading && list && list.items.length === 0;
+
+  useAppTopBar(
+    () => (
+      !id ? (
+        <span className="text-sm text-slate-500">无效的监控 ID</span>
+      ) : (
+        <div className="flex min-w-0 w-full items-center justify-between gap-3">
+          <div className="min-w-0 flex-1 pr-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-slate-500">
+              <Link to={`/app/monitors?monitor=${encodeURIComponent(id!)}`} className="shrink-0 hover:text-ark-accent">
+                话题监控
+              </Link>
+              <span aria-hidden>/</span>
+              <span className="shrink-0 text-slate-600">时间线</span>
+              <TopBarCountPill value={list?.total ?? '—'} className="shrink-0" />
+            </div>
+            <h1 className="mt-0.5 truncate text-sm font-black tracking-tight text-white md:text-base">
+              {monitor?.title ?? (metaError ? '—' : '加载中…')}
+            </h1>
+          </div>
+          <div className="flex shrink-0 flex-nowrap items-center gap-2">
+            <Link
+              to={`/app/monitors/${id}/settings`}
+              className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-ark-border px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition hover:border-ark-accent/50 hover:text-ark-accent"
+            >
+              <Settings2 size={13} />
+              配置信源
+            </Link>
+            <div className="flex items-center gap-1.5">
+              <span className="hidden shrink-0 text-[10px] font-medium text-slate-500 sm:inline">时间窗</span>
+              <Segmented<RecentHoursPreset>
+                visual="panel"
+                value={recentHours}
+                onChange={(h) => {
+                  setRecentHours(h);
+                  setPage(1);
+                }}
+                options={[
+                  { value: '24', label: '24小时' },
+                  { value: '72', label: '3天' },
+                  { value: '168', label: '7天' },
+                  { value: '720', label: '30天' },
+                ]}
+              />
+            </div>
+          </div>
+        </div>
+      )
+    ),
+    [id, monitor?.title, metaError, list?.total, recentHours],
+  );
+
   if (!id) {
     return <p className="text-sm text-slate-500">无效的监控 ID</p>;
   }
 
-  const isEmpty = !loading && list && list.items.length === 0;
-
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col gap-4">
+    <div className="relative flex min-h-0 flex-1 flex-col gap-3">
       <ClusterSimilarDialog
         open={clusterDetailId != null}
         onClose={closeClusterDialog}
@@ -117,59 +170,13 @@ export function MonitorDetailPage() {
         rows={clusterRows}
       />
 
-      <div className="shrink-0 border-b border-ark-border bg-ark-bg pb-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-              <Link to="/app/monitors" className="hover:text-ark-accent">
-                监控
-              </Link>
-              <span aria-hidden>/</span>
-              <span className="text-slate-600">时间线</span>
-            </div>
-            <h1 className="mt-1 text-2xl font-black leading-tight tracking-tight text-white sm:text-3xl md:text-4xl">
-              {monitor?.title ?? (metaError ? '—' : '加载中…')}
-            </h1>
-            {monitor ? (
-              <p className="mt-2 max-w-3xl text-xs leading-relaxed text-slate-500">{monitor.description}</p>
-            ) : null}
-            <p className="mt-2 text-[11px] text-slate-600 sm:text-xs">
-              共 <span className="font-semibold tabular-nums text-ark-accent">{list?.total ?? '—'}</span> 条（语义过滤后）
-            </p>
-          </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <Link
-              to={`/app/monitors/${id}/settings`}
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-ark-border px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-ark-accent/50 hover:text-ark-accent"
-            >
-              <Settings2 size={14} />
-              配置信源
-            </Link>
-          </div>
-        </div>
-
-        <div className="mt-4 flex min-w-0 flex-wrap items-center gap-2">
-          <span className="w-9 shrink-0 text-right text-[11px] font-medium text-slate-500 sm:w-10">时间窗</span>
-          <Segmented<RecentHoursPreset>
-            value={recentHours}
-            onChange={(h) => {
-              setRecentHours(h);
-              setPage(1);
-            }}
-            options={[
-              { value: '24', label: '24小时' },
-              { value: '72', label: '3天' },
-              { value: '168', label: '7天' },
-              { value: '720', label: '30天' },
-            ]}
-          />
-        </div>
-      </div>
-
-      {metaError ? <p className="text-sm text-red-400">{metaError}</p> : null}
-      {listError ? <p className="text-sm text-red-400">{listError}</p> : null}
+      {metaError ? <p className="shrink-0 text-sm text-red-400">{metaError}</p> : null}
+      {listError ? <p className="shrink-0 text-sm text-red-400">{listError}</p> : null}
 
       <div id="monitor-feed-scroll" className="min-h-0 flex-1 overflow-y-auto">
+        {monitor?.description ? (
+          <p className="border-b border-white/[0.06] px-1 py-2 text-xs leading-relaxed text-slate-500">{monitor.description}</p>
+        ) : null}
         {loading && !list ? (
           <div className="p-8 text-center text-sm text-slate-500">加载中…</div>
         ) : isEmpty ? (

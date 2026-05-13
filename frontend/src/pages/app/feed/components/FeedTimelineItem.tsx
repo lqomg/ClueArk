@@ -1,6 +1,8 @@
 import type { FeedItem } from '@/types/models';
 import { TimelineItem } from '@/components/ui';
-import { formatFeedCardHeaderRelative, timelineStampNode } from '../utils';
+import { formatFeedCardHeaderRelative, normalizeUserTimeZone } from '@/lib/datetime';
+import { useAuthStore } from '@/stores/authStore';
+import { timelineStampNode } from '../utils';
 
 export interface FeedTimelineItemProps {
   item: FeedItem;
@@ -13,18 +15,19 @@ const numAccent =
   'inline-flex shrink-0 items-center tabular-nums text-ark-accent font-bold leading-none';
 
 export function FeedTimelineItem({ item: it, isLast, onOpenCluster }: FeedTimelineItemProps) {
+  const tz = useAuthStore((s) => normalizeUserTimeZone(s.user?.timeZone));
   const n = it.clusterItemCount ?? 1;
   const srcCount = it.clusterSourceCount ?? 1;
   const merged = n > 1;
   const multiSource = merged && srcCount > 1;
 
-  const header = formatFeedCardHeaderRelative(it.publishedAt, it.createdAt);
+  const header = formatFeedCardHeaderRelative(it.publishedAt, it.createdAt, tz);
   const headerDateTime = it.publishedAt ?? it.createdAt ?? undefined;
 
   return (
     <TimelineItem
       isLast={isLast}
-      stamp={timelineStampNode(it.publishedAt ?? it.createdAt)}
+      stamp={timelineStampNode(it.publishedAt ?? it.createdAt, tz)}
       className="rounded-xl transition hover:bg-white/[0.005]"
     >
       <div className="flex flex-col gap-2 pr-1 sm:pr-0">

@@ -410,14 +410,6 @@
       "description": "60secondproductivity（Substack）文章更新。以短篇效率/习惯/工作方法建议为主。"
     },
     {
-      "id": "builtin-rss-linuxdo-latest-fulltext",
-      "kind": "rss",
-      "name": "Linux.do",
-      "feedUrl": "https://quanwenrss.com/linux.do",
-      "siteUrl": "https://linux.do/latest",
-      "description": "Linux.do 最新主题更新。偏 Linux/开发/工具/AI 等方向的社区讨论与求助。"
-    },
-    {
       "id": "builtin-rss-moj-legislation-solicitation",
       "kind": "rss",
       "name": "司法部 - 立法意见征集（Atom）",
