@@ -183,7 +183,7 @@ export function AppShell() {
         <AppTopBarProvider>
           <main
             id="app-main-scroll"
-            className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 md:px-10 md:py-6"
+            className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 md:px-6 md:py-4"
           >
             <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col overflow-hidden">
               <Outlet />

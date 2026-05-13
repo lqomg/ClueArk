@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type Ref } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   Activity,
@@ -31,7 +31,7 @@ import { Button } from '@/components/ui';
 import { cn } from '@/lib/cn';
 
 const overviewSubtitle =
-  '全局话题更新摘要与趋势分析，由系统基于站内采集与语义筛选聚合；研判文案为自动摘要，关键结论请以时间线原文为准。';
+  '全局话题更新摘要与趋势分析。由 AI 提取关键线索与脉络。';
 
 function formatTrendLabel(isoDate: string) {
   const p = isoDate.split('-');
@@ -91,6 +91,56 @@ function formatClueMetaTime(iso: string) {
   const day = d.getDate();
   if (y === now.getFullYear()) return `${mo}/${day} ${hm}`;
   return `${y}/${mo}/${day} ${hm}`;
+}
+
+function MonitorTopicCreateBar({
+  topicDraft,
+  setTopicDraft,
+  onSubmit,
+  creating,
+  inputRef,
+  inputId,
+  outerClassName,
+}: {
+  topicDraft: string;
+  setTopicDraft: (v: string) => void;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  creating: boolean;
+  inputRef?: Ref<HTMLInputElement>;
+  inputId?: string;
+  outerClassName?: string;
+}) {
+  return (
+    <div className={cn('shrink-0 border-t border-ark-border bg-ark-bg px-3 pb-4 pt-3 md:px-5 md:pb-5 md:pt-4', outerClassName)}>
+      <form
+        onSubmit={onSubmit}
+        className="mx-auto flex max-w-3xl items-center gap-2 rounded-full border border-white/[0.08] bg-ark-surface/85 p-1.5 pl-2 shadow-lg shadow-black/30 ring-1 ring-white/[0.05] backdrop-blur-md sm:gap-3 sm:p-2 sm:pl-2.5"
+      >
+        <div
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/[0.07] text-ark-accent ring-1 ring-white/[0.08] sm:size-10"
+          aria-hidden
+        >
+          <Sparkles className="size-[1.05rem] sm:size-[1.15rem]" strokeWidth={2} />
+        </div>
+        <input
+          ref={inputRef}
+          id={inputId}
+          value={topicDraft}
+          onChange={(e) => setTopicDraft(e.target.value)}
+          placeholder="输入你想持续监控的方向，例如：大模型在医疗影像辅助诊断中的落地与监管…"
+          className="min-h-10 min-w-0 flex-1 border-0 bg-transparent px-1 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-0"
+        />
+        <Button
+          type="submit"
+          variant="primary"
+          disabled={creating}
+          className="min-h-9 shrink-0 rounded-full px-5 py-2 text-sm font-bold shadow-md shadow-ark-accent/25 sm:min-h-10 sm:px-6"
+        >
+          {creating ? '创建中…' : '创建监控'}
+        </Button>
+      </form>
+    </div>
+  );
 }
 
 function TrendSpark({ counts, className }: { counts: number[]; className?: string }) {
@@ -287,22 +337,13 @@ export function MonitorOverviewPage() {
             在底部输入你想持续关注的方向，系统将自动生成标题、说明、关键词并推荐至少 10 个信源。
           </p>
         </div>
-        <div className="shrink-0 border-t border-ark-border bg-ark-bg px-0 pb-4 pt-3 md:pb-5 md:pt-4">
-          <form
-            onSubmit={(e) => void onCreate(e)}
-            className="mx-auto flex max-w-3xl flex-col gap-2 rounded-2xl border border-ark-border bg-ark-surface/90 p-2 shadow-lg shadow-black/20 backdrop-blur sm:flex-row sm:items-center"
-          >
-            <input
-              value={topicDraft}
-              onChange={(e) => setTopicDraft(e.target.value)}
-              placeholder="输入你想持续监控的方向，例如：大模型在医疗影像辅助诊断中的落地与监管…"
-              className="min-h-11 flex-1 rounded-xl border-0 bg-transparent px-4 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-0"
-            />
-            <Button type="submit" disabled={creating} className="shrink-0 rounded-xl px-6">
-              {creating ? '创建中…' : '创建监控'}
-            </Button>
-          </form>
-        </div>
+        <MonitorTopicCreateBar
+          topicDraft={topicDraft}
+          setTopicDraft={setTopicDraft}
+          onSubmit={(e) => void onCreate(e)}
+          creating={creating}
+          outerClassName="px-0"
+        />
       </div>
     );
   }
@@ -375,12 +416,12 @@ export function MonitorOverviewPage() {
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain lg:flex-row lg:items-stretch lg:gap-6 lg:overflow-hidden">
         <div className="flex min-h-0 min-w-0 shrink-0 flex-col gap-4 lg:flex-1 lg:shrink lg:overflow-y-auto">
           {loadingDetail || !monitor || !intel ? (
-            <div className="flex flex-1 items-center justify-center rounded-2xl border border-ark-border bg-ark-surface/30 py-24 text-sm text-slate-500">
-              加载当前监控…
+            <div className="flex flex-1 items-center justify-center rounded-xl mb-2 bg-ark-surface/30 py-24 text-sm text-slate-500">
+              加载中…
             </div>
           ) : (
-            <section className="overflow-y-auto  bg-ark-surface/40">
-              <div className="border-b border-white/[0.06] bg-gradient-to-r from-ark-accent/10 to-transparent p-5 md:p-6">
+            <section className="overflow-y-auto  bg-ark-surface/40 rounded-xl flex-1 mb-2">
+              <div className="border-b border-white/[0.06] bg-gradient-to-r from-ark-accent/10 to-transparent p-3 md:p-4">
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div className="min-w-0 flex-1 space-y-3">
                     <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
@@ -394,7 +435,9 @@ export function MonitorOverviewPage() {
                       </span>
                     </div>
                     <h2 className="text-xl font-semibold tracking-tight text-white md:text-2xl">{monitor.title}</h2>
-                    <p className="max-w-3xl text-sm leading-relaxed text-slate-400">{monitor.description}</p>
+                    <p className="max-w-3xl min-h-[2.875rem] break-words text-sm leading-relaxed text-slate-400 line-clamp-2">
+                      {monitor.description}
+                    </p>
                     {(monitor.keywords?.length || monitor.entities?.length) ? (
                       <div className="flex flex-wrap gap-1.5 pt-1">
                         {(monitor.entities ?? []).slice(0, 8).map((x) => (
@@ -421,35 +464,37 @@ export function MonitorOverviewPage() {
                 </div>
               </div>
 
-              <div className="grid divide-y divide-ark-border lg:grid-cols-2 lg:divide-x lg:divide-y-0">
-                <div className="p-5 md:p-6">
-                  <h3 className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <div className="grid min-h-0 divide-y divide-ark-border lg:grid-cols-2 lg:divide-x lg:divide-y-0 lg:items-stretch">
+                <div className="flex min-h-0 flex-col p-3 md:p-4 lg:h-full lg:min-h-0">
+                  <h3 className="mb-4 flex shrink-0 items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                     <Target className="size-4 shrink-0 text-ark-accent" strokeWidth={2} aria-hidden />
                     本周研判摘要
                   </h3>
-                  <div className="space-y-3 text-xs leading-relaxed text-slate-400">
+                  <div className="min-h-0 space-y-3 text-xs leading-relaxed text-slate-400 [overflow-wrap:anywhere] lg:flex-1 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain [scrollbar-width:thin]">
                     {intel.weeklyBrief.map((p, i) => (
                       <p key={i}>{p}</p>
                     ))}
                   </div>
-                  <div className="mt-4 grid grid-cols-3 gap-2">
-                    <div className="rounded-lg border border-ark-border bg-ark-bg/50 p-2 text-center">
-                      <div className="text-[10px] font-semibold uppercase text-slate-600">24H 新增</div>
-                      <div className="text-lg font-mono font-semibold tabular-nums text-white">+{intel.metrics.newLast24h}</div>
-                    </div>
-                    <div className="rounded-lg border border-ark-border bg-ark-bg/50 p-2 text-center">
-                      <div className="text-[10px] font-semibold uppercase text-slate-600">窗内累计</div>
-                      <div className="text-lg font-mono font-semibold tabular-nums text-white">{intel.metrics.totalInWindow}</div>
-                    </div>
-                    <div className="rounded-lg border border-ark-border bg-ark-bg/50 p-2 text-center">
-                      <div className="text-[10px] font-semibold uppercase text-slate-600">活跃信源</div>
-                      <div className="text-lg font-mono font-semibold tabular-nums text-white">{intel.metrics.boundSourceCount}</div>
+                  <div className="shrink-0  pt-3">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-lg border border-ark-border bg-ark-bg/50 p-2 text-center">
+                        <div className="text-[10px] font-semibold uppercase text-slate-600">24H 新增</div>
+                        <div className="text-lg font-mono font-semibold tabular-nums text-white">+{intel.metrics.newLast24h}</div>
+                      </div>
+                      <div className="rounded-lg border border-ark-border bg-ark-bg/50 p-2 text-center">
+                        <div className="text-[10px] font-semibold uppercase text-slate-600">窗内累计</div>
+                        <div className="text-lg font-mono font-semibold tabular-nums text-white">{intel.metrics.totalInWindow}</div>
+                      </div>
+                      <div className="rounded-lg border border-ark-border bg-ark-bg/50 p-2 text-center">
+                        <div className="text-[10px] font-semibold uppercase text-slate-600">活跃信源</div>
+                        <div className="text-lg font-mono font-semibold tabular-nums text-white">{intel.metrics.boundSourceCount}</div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="p-5 md:p-6">
-                  <div className="mb-4 flex items-center justify-between gap-2">
+                <div className="flex min-h-0 flex-col p-3 md:p-4 lg:h-full lg:min-h-0">
+                  <div className="mb-4 flex shrink-0 items-center justify-between gap-2">
                     <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                       <TrendingUp className="size-4 shrink-0 text-ark-accent" strokeWidth={2} aria-hidden />
                       趋势与热度分析
@@ -459,7 +504,7 @@ export function MonitorOverviewPage() {
                       近 7 日
                     </span>
                   </div>
-                  <div className="h-44 w-full">
+                  <div className="h-36 w-full shrink-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
@@ -479,68 +524,72 @@ export function MonitorOverviewPage() {
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="mt-4">
-                    <h4 className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                  <div className="min-h-0 flex-1" aria-hidden={true} />
+                  <div className="flex shrink-0 flex-col gap-2  pt-3">
+                    <h4 className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
                       <Hash className="size-3 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
                       高频实体 / 关键词
                     </h4>
-                    <div className="flex flex-wrap gap-1.5">
-                      {intel.chartKeywords.slice(0, 8).map((k, idx) => {
-                        const showFlame = idx === 0 && k.count >= 2;
-                        return (
-                          <span
-                            key={k.name}
-                            className="inline-flex items-center gap-1 rounded-md border border-ark-border bg-ark-bg/50 px-2 py-0.5 text-[10px] text-slate-400"
-                          >
-                            {showFlame ? (
-                              <Flame className="size-3 shrink-0 text-amber-400/90" strokeWidth={2} aria-hidden />
-                            ) : null}
-                            {k.name}
-                            <span className="tabular-nums text-slate-600">{k.count}</span>
-                          </span>
-                        );
-                      })}
-                      {intel.chartKeywords.length === 0 ? <span className="text-[10px] text-slate-600">暂无标签数据</span> : null}
+                    <div className="max-h-28 min-h-0 overflow-y-auto overscroll-contain [scrollbar-width:thin]">
+                      <div className="flex flex-wrap gap-1.5">
+                        {intel.chartKeywords.slice(0, 8).map((k, idx) => {
+                          const showFlame = idx === 0 && k.count >= 2;
+                          return (
+                            <span
+                              key={k.name}
+                              className="inline-flex items-center gap-1 rounded-md border border-ark-border bg-ark-bg/50 px-2 py-0.5 text-[10px] text-slate-400"
+                            >
+                              {showFlame ? (
+                                <Flame className="size-3 shrink-0 text-amber-400/90" strokeWidth={2} aria-hidden />
+                              ) : null}
+                              {k.name}
+                              <span className="tabular-nums text-slate-600">{k.count}</span>
+                            </span>
+                          );
+                        })}
+                        {intel.chartKeywords.length === 0 ? <span className="text-[10px] text-slate-600">暂无标签数据</span> : null}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="border-t border-white/[0.06] p-5 md:p-6">
+              <div className="border-t border-white/[0.06] bg-ark-bg/30 p-3 md:p-4">
                 <div className="mb-4 flex items-center justify-between gap-2">
-                  <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    <Activity className="size-4 shrink-0 text-ark-accent" strokeWidth={2} aria-hidden />
+                  <h3 className="flex items-center gap-2 text-sm font-semibold tracking-wide text-white">
+                    <Activity className="size-4 shrink-0 text-violet-400" strokeWidth={2} aria-hidden />
                     最新关键线索
                   </h3>
                   <Link
                     to={`/app/monitors/${monitor.id}/timeline`}
                     className="flex shrink-0 items-center gap-1 text-[11px] text-slate-500 transition hover:text-ark-accent"
                   >
-                    查看时间线 <ArrowRight className="size-3" aria-hidden />
+                    查看全时间线 <ArrowRight className="size-3" aria-hidden />
                   </Link>
                 </div>
                 {intel.latestItems.length === 0 ? (
                   <p className="text-xs text-slate-600">暂无匹配条目，请稍候采集或调整信源与相似度阈值。</p>
                 ) : (
-                  <div className="-mx-1 flex gap-3 overflow-x-auto overscroll-x-contain px-1 pb-1 pt-0.5 [scrollbar-width:thin]">
-                    {intel.latestItems.map((item) => (
-                      <a
-                        key={item.id}
-                        href={item.link}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex min-w-[220px] max-w-[280px] shrink-0 flex-col rounded-xl border border-ark-border bg-ark-bg/45 p-3 shadow-sm transition hover:border-ark-accent/35 hover:bg-ark-surface/70"
-                      >
-                        <span className="line-clamp-3 text-sm font-medium leading-snug text-slate-100 hover:text-ark-accent">
-                          {item.title}
-                        </span>
-                        <span className="mt-2 min-w-0 truncate text-[10px] text-slate-500">
-                          {item.sourceDisplayName}
-                          {item.publishedAt ? ` · ${formatClueMetaTime(item.publishedAt)}` : null}
-                        </span>
-                      </a>
+                  <ul className="flex list-none flex-col gap-4 sm:flex-row sm:gap-4" role="list">
+                    {intel.latestItems.slice(0, 3).map((item) => (
+                      <li key={item.id} className="min-w-0 sm:flex-1">
+                        <a
+                          href={item.link}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex h-full min-h-[6rem] min-w-0 flex-col rounded-xl border border-ark-border bg-ark-surface/70 p-4 shadow-sm transition hover:border-ark-accent/35 hover:bg-ark-surface/90"
+                        >
+                          <span className="line-clamp-2 text-sm font-semibold leading-snug text-white [overflow-wrap:anywhere] hover:text-ark-accent">
+                            {item.title}
+                          </span>
+                          <span className="min-w-0 truncate mt-atuo pt-2 text-[11px] text-slate-500">
+                            {item.sourceDisplayName}
+                            {item.publishedAt ? ` · ${formatClueMetaTime(item.publishedAt)}` : null}
+                          </span>
+                        </a>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 )}
               </div>
             </section>
@@ -550,24 +599,15 @@ export function MonitorOverviewPage() {
         {topicList}
       </div>
 
-      <div className="shrink-0 border-t border-ark-border bg-ark-bg px-0 pb-4 pt-3 md:pb-5 md:pt-4">
-        <form
-          onSubmit={(e) => void onCreate(e)}
-          className="mx-auto flex max-w-3xl flex-col gap-2 rounded-2xl border border-ark-border bg-ark-surface/90 p-2 shadow-lg shadow-black/20 backdrop-blur sm:flex-row sm:items-center"
-        >
-          <input
-            ref={topicInputRef}
-            id="monitor-overview-topic"
-            value={topicDraft}
-            onChange={(e) => setTopicDraft(e.target.value)}
-            placeholder="输入你想持续监控的方向，例如：大模型在医疗影像辅助诊断中的落地与监管…"
-            className="min-h-11 flex-1 rounded-xl border-0 bg-transparent px-4 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-0"
-          />
-          <Button type="submit" disabled={creating} className="shrink-0 rounded-xl px-6">
-            {creating ? '创建中…' : '创建监控'}
-          </Button>
-        </form>
-      </div>
+      <MonitorTopicCreateBar
+        topicDraft={topicDraft}
+        setTopicDraft={setTopicDraft}
+        onSubmit={(e) => void onCreate(e)}
+        creating={creating}
+        inputRef={topicInputRef}
+        inputId="monitor-overview-topic"
+        outerClassName="px-0 pb-2 pt-2 md:pt-3 md:pb-4"
+      />
     </div>
   );
 }
