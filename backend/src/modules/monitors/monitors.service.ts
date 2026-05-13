@@ -17,7 +17,7 @@ import {
   formatReferenceNowIsoForLlm,
   formatReferenceNowReadableZh,
   sevenDayTrendDateKeys,
-} from './monitor-trend-timezone.util';
+} from '../../common/utils/timezone.utils';
 import type { CreateMonitorDto } from './dto/create-monitor.dto';
 import type { ListMonitorFeedQueryDto } from './dto/list-monitor-feed.query.dto';
 import type { ListMonitorIntelligenceQueryDto } from './dto/list-monitor-intelligence.query.dto';
