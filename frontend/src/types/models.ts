@@ -10,7 +10,7 @@ export interface FeedItem {
   itemTitle?: string;
   link: string;
   summary: string;
-  publishedAt: string | null;
+  publishedAt: string;
   createdAt: string;
   updatedAt: string;
   tags: string[];

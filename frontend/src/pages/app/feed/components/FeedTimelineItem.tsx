@@ -21,13 +21,13 @@ export function FeedTimelineItem({ item: it, isLast, onOpenCluster }: FeedTimeli
   const merged = n > 1;
   const multiSource = merged && srcCount > 1;
 
-  const header = formatFeedCardHeaderRelative(it.publishedAt, it.createdAt, tz);
-  const headerDateTime = it.publishedAt ?? it.createdAt ?? undefined;
+  const header = formatFeedCardHeaderRelative(it.publishedAt, tz);
+  const headerDateTime = it.publishedAt;
 
   return (
     <TimelineItem
       isLast={isLast}
-      stamp={timelineStampNode(it.publishedAt ?? it.createdAt, tz)}
+      stamp={timelineStampNode(it.publishedAt, tz)}
       className="rounded-xl transition hover:bg-white/[0.005]"
     >
       <div className="flex flex-col gap-2 pr-1 sm:pr-0">

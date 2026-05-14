@@ -317,9 +317,7 @@ export class MonitorsService {
         sourceId: { $in: sourceIds },
         llmStatus: 'done',
         'simEmbedFull.0': { $exists: true },
-        $expr: {
-          $gte: [{ $ifNull: ['$publishedAt', '$createdAt'] }, cutoff],
-        },
+        publishedAt: { $gte: cutoff },
       })
       .sort({ publishedAt: -1, createdAt: -1 })
       .limit(cap)
@@ -338,8 +336,8 @@ export class MonitorsService {
       scored.push({ doc: row, score });
     }
     scored.sort((a, b) => {
-      const ta = new Date((a.doc.publishedAt as Date | null | undefined) ?? (a.doc.createdAt as Date)).getTime();
-      const tb = new Date((b.doc.publishedAt as Date | null | undefined) ?? (b.doc.createdAt as Date)).getTime();
+      const ta = new Date(a.doc.publishedAt as Date).getTime();
+      const tb = new Date(b.doc.publishedAt as Date).getTime();
       if (tb !== ta) return tb - ta;
       return b.score - a.score;
     });
@@ -380,12 +378,7 @@ export class MonitorsService {
         sourceId: { $in: sourceIds },
         llmStatus: 'done',
         'simEmbedFull.0': { $exists: true },
-        $expr: {
-          $and: [
-            { $gte: [{ $ifNull: ['$publishedAt', '$createdAt'] }, periodStart] },
-            { $lte: [{ $ifNull: ['$publishedAt', '$createdAt'] }, periodEnd] },
-          ],
-        },
+        publishedAt: { $gte: periodStart, $lte: periodEnd },
       })
       .sort({ publishedAt: -1, createdAt: -1 })
       .limit(cap)
@@ -404,8 +397,8 @@ export class MonitorsService {
       scored.push({ doc: row, score });
     }
     scored.sort((a, b) => {
-      const ta = new Date((a.doc.publishedAt as Date | null | undefined) ?? (a.doc.createdAt as Date)).getTime();
-      const tb = new Date((b.doc.publishedAt as Date | null | undefined) ?? (b.doc.createdAt as Date)).getTime();
+      const ta = new Date(a.doc.publishedAt as Date).getTime();
+      const tb = new Date(b.doc.publishedAt as Date).getTime();
       if (tb !== ta) return tb - ta;
       return b.score - a.score;
     });
@@ -607,7 +600,7 @@ export class MonitorsService {
 
     for (let i = 0; i < scored.length; i++) {
       const row = scored[i].doc;
-      const t = new Date((row.publishedAt as Date | null | undefined) ?? (row.createdAt as Date)).getTime();
+      const t = new Date(row.publishedAt as Date).getTime();
       const sc = scored[i].score;
       sumScore += sc;
       if (t >= h24) newLast24h += 1;
@@ -628,11 +621,7 @@ export class MonitorsService {
     const heatIndex = this.heatIndexFromSignals(newLast24h, count7d, avgRelevance, boundSourceCount, totalInWindow);
 
     const lastActivityAt =
-      scored.length > 0
-        ? new Date(
-            (scored[0].doc.publishedAt as Date | null | undefined) ?? (scored[0].doc.createdAt as Date),
-          ).toISOString()
-        : null;
+      scored.length > 0 ? new Date(scored[0].doc.publishedAt as Date).toISOString() : null;
 
     const trendKeys = sevenDayTrendDateKeys(new Date(nowMs), viewerTimeZone);
     const trendMap = new Map<string, number>();
@@ -640,7 +629,7 @@ export class MonitorsService {
       trendMap.set(trendKeys[k], 0);
     }
     for (let i = 0; i < scored.length; i++) {
-      const dt = new Date((scored[i].doc.publishedAt as Date | null | undefined) ?? (scored[i].doc.createdAt as Date));
+      const dt = new Date(scored[i].doc.publishedAt as Date);
       const key = dateKeyInTimeZone(dt, viewerTimeZone);
       if (trendMap.has(key)) trendMap.set(key, (trendMap.get(key) ?? 0) + 1);
     }

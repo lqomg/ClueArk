@@ -597,12 +597,9 @@ export function MonitorOverviewPage() {
                       role="list"
                     >
                       {intel.latestItems.slice(0, 3).map((item, index, arr) => {
-                        const timePart =
-                          item.publishedAt != null && item.publishedAt !== ''
-                            ? formatClueMetaTime(item.publishedAt, viewerTz)
-                            : null;
-                        const metaLead =  item.sourceDisplayName;
-                        const metaLine = timePart ? `${metaLead} · ${timePart}` : metaLead;
+                        const timePart = formatClueMetaTime(item.publishedAt, viewerTz);
+                        const metaLead = item.sourceDisplayName;
+                        const metaLine = `${metaLead} · ${timePart}`;
                         const showStem = index < arr.length - 1;
                         return (
                           <li key={item.id} className="flex min-w-0 gap-3">

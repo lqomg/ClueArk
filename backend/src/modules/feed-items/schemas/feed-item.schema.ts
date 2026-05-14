@@ -21,8 +21,9 @@ export class FeedItem {
   @Prop({ default: '', trim: true, maxlength: 8000 })
   summary: string;
 
-  @Prop({ type: Date, default: null, index: true })
-  publishedAt: Date | null;
+  /** 有效发布时间（入库必填；无可靠来源时间时用抓取时刻） */
+  @Prop({ type: Date, required: true, index: true })
+  publishedAt: Date;
 
   @Prop({ default: '', trim: true, maxlength: 512 })
   guid: string;
@@ -71,3 +72,15 @@ FeedItemSchema.index({ publishedAt: -1, createdAt: -1 });
 FeedItemSchema.index({ llmStatus: 1, createdAt: 1 });
 FeedItemSchema.index({ llmPriority: -1, publishedAt: -1 });
 FeedItemSchema.index({ clusterId: 1, publishedAt: -1 });
+
+/** 监控候选池：sourceId + llmStatus + 时间排序，与 monitors buildScored* 查询对齐 */
+FeedItemSchema.index(
+  { sourceId: 1, llmStatus: 1, publishedAt: -1, createdAt: -1 },
+  {
+    partialFilterExpression: {
+      llmStatus: 'done',
+      'simEmbedFull.0': { $exists: true },
+      publishedAt: { $type: 'date' },
+    },
+  },
+);

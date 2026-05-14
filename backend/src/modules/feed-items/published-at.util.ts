@@ -212,3 +212,9 @@ export function maxAllowedPublishedAt(now: Date, graceMs = DEFAULT_FUTURE_GRACE_
   return new Date(now.getTime() + graceMs);
 }
 
+/** 无有效解析结果时使用 fallback（抓取时刻）。 */
+export function coalescePublishedAtOrFallback(parsed: Date | null, fallback: Date): Date {
+  if (parsed != null && !Number.isNaN(parsed.getTime())) return parsed;
+  return fallback;
+}
+
