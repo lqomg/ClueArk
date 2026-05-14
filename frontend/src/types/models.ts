@@ -42,6 +42,19 @@ export interface Monitor {
   updatedAt: string;
 }
 
+/** GET /monitors 每条内嵌的轻量聚合指标（与 intelligence 同一时间窗逻辑一致） */
+export interface MonitorListMetrics {
+  heatIndex: number | null;
+  newLast24h: number;
+  lastActivityAt: string | null;
+  trend: { date: string; count: number }[];
+}
+
+/** GET /monitors 返回项：监控实体 + metrics */
+export interface MonitorWithListMetrics extends Monitor {
+  metrics: MonitorListMetrics;
+}
+
 export interface MonitorIntelligence {
   monitorId: string;
   recentHours: number;

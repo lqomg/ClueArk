@@ -1,13 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
-  type Ref,
-} from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   Activity,
@@ -17,12 +8,9 @@ import {
   Clock,
   Flame,
   Hash,
-  Layers,
-  Plus,
-  Settings2,
+  LayoutList,
   Sparkles,
   Target,
-  Trash2,
   TrendingUp,
 } from 'lucide-react';
 import {
@@ -34,17 +22,9 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import {
-  createMonitor,
-  deleteMonitor,
-  getMonitor,
-  getMonitorIntelligence,
-  listMonitorsOverview,
-} from '@/api/monitors';
-import type { Monitor, MonitorIntelligence, MonitorOverviewCard } from '@/types/models';
+import { getMonitorIntelligence, listMonitors } from '@/api/monitors';
+import type { MonitorIntelligence, MonitorWithListMetrics } from '@/types/models';
 import { useAppTopBar } from '@/components/layout/AppTopBar';
-import { Button, Drawer } from '@/components/ui';
-import { MonitorSettingsForm } from '@/pages/app/monitors/MonitorSettingsForm';
 import { cn } from '@/lib/cn';
 import { formatClueMetaTime, normalizeUserTimeZone, relTimeIso } from '@/lib/datetime';
 import { useAuthStore } from '@/stores/authStore';
@@ -84,56 +64,6 @@ function formatTrendLabel(isoDate: string) {
   const p = isoDate.split('-');
   if (p.length !== 3) return isoDate;
   return `${Number(p[1])}/${Number(p[2])}`;
-}
-
-function MonitorTopicCreateBar({
-  topicDraft,
-  setTopicDraft,
-  onSubmit,
-  creating,
-  inputRef,
-  inputId,
-  outerClassName,
-}: {
-  topicDraft: string;
-  setTopicDraft: (v: string) => void;
-  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
-  creating: boolean;
-  inputRef?: Ref<HTMLInputElement>;
-  inputId?: string;
-  outerClassName?: string;
-}) {
-  return (
-    <div className={cn('shrink-0 border-t border-ark-border bg-ark-bg px-3 pb-4 pt-3 md:px-5 md:pb-5 md:pt-4', outerClassName)}>
-      <form
-        onSubmit={onSubmit}
-        className="mx-auto flex max-w-3xl items-center gap-2 rounded-full border border-white/[0.08] bg-ark-surface/85 p-1.5 pl-2 shadow-lg shadow-black/30 ring-1 ring-white/[0.05] backdrop-blur-md sm:gap-3 sm:p-2 sm:pl-2.5"
-      >
-        <div
-          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/[0.07] text-ark-accent ring-1 ring-white/[0.08] sm:size-10"
-          aria-hidden
-        >
-          <Sparkles className="size-[1.05rem] sm:size-[1.15rem]" strokeWidth={2} />
-        </div>
-        <input
-          ref={inputRef}
-          id={inputId}
-          value={topicDraft}
-          onChange={(e) => setTopicDraft(e.target.value)}
-          placeholder="输入你想持续监控的方向，例如：大模型在医疗影像辅助诊断中的落地与监管…"
-          className="min-h-10 min-w-0 flex-1 border-0 bg-transparent px-1 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-0"
-        />
-        <Button
-          type="submit"
-          variant="primary"
-          disabled={creating}
-          className="min-h-9 shrink-0 rounded-full px-5 py-2 text-sm font-bold shadow-md shadow-ark-accent/25 sm:min-h-10 sm:px-6"
-        >
-          {creating ? '创建中…' : '创建监控'}
-        </Button>
-      </form>
-    </div>
-  );
 }
 
 function TrendSpark({ counts, className }: { counts: number[]; className?: string }) {
@@ -176,33 +106,21 @@ function TrendSpark({ counts, className }: { counts: number[]; className?: strin
 export function MonitorOverviewPage() {
   const viewerTz = useAuthStore((s) => normalizeUserTimeZone(s.user?.timeZone));
   const [searchParams, setSearchParams] = useSearchParams();
-  const [rows, setRows] = useState<Monitor[] | null>(null);
-  const [monitor, setMonitor] = useState<Monitor | null>(null);
+  const [rows, setRows] = useState<MonitorWithListMetrics[] | null>(null);
   const [intel, setIntel] = useState<MonitorIntelligence | null>(null);
   const [loadingList, setLoadingList] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [topicDraft, setTopicDraft] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [cardById, setCardById] = useState<Record<string, MonitorOverviewCard>>({});
-  const topicInputRef = useRef<HTMLInputElement | null>(null);
-  const [manageDrawerOpen, setManageDrawerOpen] = useState(false);
-  const [deletingMonitor, setDeletingMonitor] = useState(false);
-
-  const openManageDrawer = useCallback(() => setManageDrawerOpen(true), []);
-  const closeManageDrawer = useCallback(() => setManageDrawerOpen(false), []);
 
   const loadRows = useCallback(async () => {
     setLoadingList(true);
     setError(null);
     try {
-      const { monitors, cards } = await listMonitorsOverview('?recentHours=720');
+      const monitors = await listMonitors('?recentHours=720');
       setRows(monitors);
-      setCardById(Object.fromEntries(cards.map((c) => [c.monitorId, c])));
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载失败');
       setRows(null);
-      setCardById({});
     } finally {
       setLoadingList(false);
     }
@@ -231,28 +149,29 @@ export function MonitorOverviewPage() {
     }
   }, [currentId, paramMonitor, setSearchParams, sorted.length]);
 
+  const currentMonitor = useMemo(
+    () => (currentId ? sorted.find((m) => m.id === currentId) ?? null : null),
+    [sorted, currentId],
+  );
+
   useEffect(() => {
     if (!currentId) {
-      setMonitor(null);
       setIntel(null);
       return;
     }
+    setIntel(null);
     let cancelled = false;
     setLoadingDetail(true);
     void (async () => {
+      const requestedId = currentId;
       try {
-        const [m, i] = await Promise.all([
-          getMonitor(currentId),
-          getMonitorIntelligence(currentId, '?recentHours=720&briefProfile=weekly_rolling'),
-        ]);
-        if (!cancelled) {
-          setMonitor(m);
+        const i = await getMonitorIntelligence(requestedId, '?recentHours=720&briefProfile=weekly_rolling');
+        if (!cancelled && i.monitorId === requestedId) {
           setIntel(i);
         }
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : '加载监控详情失败');
-          setMonitor(null);
           setIntel(null);
         }
       } finally {
@@ -268,43 +187,6 @@ export function MonitorOverviewPage() {
     setSearchParams({ monitor: id }, { replace: true });
   }
 
-  async function onDeleteCurrentMonitor() {
-    if (!currentId || !monitor) return;
-    if (!window.confirm(`确定删除监控「${monitor.title}」？`)) return;
-    setDeletingMonitor(true);
-    setError(null);
-    try {
-      await deleteMonitor(currentId);
-      setManageDrawerOpen(false);
-      await loadRows();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '删除失败');
-    } finally {
-      setDeletingMonitor(false);
-    }
-  }
-
-  async function onCreate(e: React.FormEvent) {
-    e.preventDefault();
-    const t = topicDraft.trim();
-    if (!t) {
-      setError('请填写监控方向');
-      return;
-    }
-    setCreating(true);
-    setError(null);
-    try {
-      const m = await createMonitor({ topic: t });
-      setTopicDraft('');
-      await loadRows();
-      setSearchParams({ monitor: m.id }, { replace: true });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '创建失败');
-    } finally {
-      setCreating(false);
-    }
-  }
-
   useAppTopBar(
     () => (
       <div className="flex min-w-0 w-full items-center justify-between gap-4">
@@ -317,19 +199,9 @@ export function MonitorOverviewPage() {
             {overviewSubtitle}
           </p>
         </div>
-        {sorted.length > 0 ? (
-          <button
-            type="button"
-            onClick={openManageDrawer}
-            className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-ark-border bg-ark-surface px-3 py-1.5 text-xs font-medium text-ark-text shadow-sm transition-colors hover:bg-white/[0.04]"
-          >
-            <Settings2 size={14} strokeWidth={2} />
-            监控设置
-          </button>
-        ) : null}
       </div>
     ),
-    [sorted.length, openManageDrawer],
+    [],
   );
 
   const chartData = useMemo(
@@ -352,16 +224,18 @@ export function MonitorOverviewPage() {
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-y-auto overscroll-contain px-4 py-8 text-center">
           <p className="text-slate-400">暂无监控话题</p>
           <p className="max-w-md text-sm text-slate-500">
-            在底部输入你想持续关注的方向，系统将自动生成监控。
+            前往监控管理填写你想持续关注的方向，创建后将在此查看 AI 研判摘要与趋势。
           </p>
+          <Link
+            to="/app/monitors/manage"
+            className={cn(
+              'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-bold text-black shadow-lg shadow-ark-accent/15 transition hover:opacity-95',
+              'bg-ark-accent',
+            )}
+          >
+            打开监控管理
+          </Link>
         </div>
-        <MonitorTopicCreateBar
-          topicDraft={topicDraft}
-          setTopicDraft={setTopicDraft}
-          onSubmit={(e) => void onCreate(e)}
-          creating={creating}
-          outerClassName="px-0"
-        />
       </div>
     );
   }
@@ -369,8 +243,18 @@ export function MonitorOverviewPage() {
   const topicList = (
     <aside className="flex min-h-0 w-full shrink-0 flex-col border-t border-ark-border pt-4 lg:min-h-0 lg:w-80 lg:max-h-full lg:shrink-0 lg:overflow-hidden lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0 xl:w-[22rem]">
       <div className="shrink-0">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">监控列表</h2>
-        <p className="mt-0.5 text-[10px] text-slate-600">共 {sorted.length} 个</p>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">监控列表</h2>
+            <p className="mt-0.5 text-[10px] text-slate-600">共 {sorted.length} 个</p>
+          </div>
+          <Link
+            to="/app/monitors/manage"
+            className="shrink-0 text-[10px] font-medium text-ark-accent hover:underline"
+          >
+            管理
+          </Link>
+        </div>
       </div>
       <ul
         className="mt-3 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain lg:mt-4 lg:pr-1"
@@ -378,11 +262,10 @@ export function MonitorOverviewPage() {
       >
         {sorted.map((m) => {
           const active = m.id === currentId;
-          const card = cardById[m.id];
-          const counts = (card?.trend ?? []).map((p) => p.count);
-          const heat = card?.heatIndex;
-          const n24 = card?.newLast24h ?? 0;
-          const lastAt = card?.lastActivityAt ?? m.updatedAt;
+          const counts = (m.metrics.trend ?? []).map((p) => p.count);
+          const heat = m.metrics.heatIndex;
+          const n24 = m.metrics.newLast24h ?? 0;
+          const lastAt = m.metrics.lastActivityAt ?? m.updatedAt;
           return (
             <li key={m.id}>
               <button
@@ -433,7 +316,7 @@ export function MonitorOverviewPage() {
       {error ? <p className="shrink-0 text-sm text-red-400">{error}</p> : null}
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain lg:flex-row lg:items-stretch lg:gap-6 lg:overflow-hidden">
         <div className="flex min-h-0 min-w-0 shrink-0 flex-col gap-4 lg:flex-1 lg:shrink lg:overflow-y-auto">
-          {loadingDetail || !monitor || !intel ? (
+          {loadingDetail || !currentMonitor || !intel ? (
             <div className="flex flex-1 items-center justify-center rounded-xl mb-2 bg-ark-surface/30 py-24 text-sm text-slate-500">
               加载中…
             </div>
@@ -452,18 +335,18 @@ export function MonitorOverviewPage() {
                         最新更新于 {relTimeIso(intel.lastActivityAt)}
                       </span>
                     </div>
-                    <h2 className="text-xl font-semibold tracking-tight text-white md:text-2xl">{monitor.title}</h2>
+                    <h2 className="text-xl font-semibold tracking-tight text-white md:text-2xl">{currentMonitor.title}</h2>
                     <p className="max-w-3xl min-h-[2.875rem] break-words text-sm leading-relaxed text-slate-400 line-clamp-2">
-                      {monitor.description}
+                      {currentMonitor.description}
                     </p>
-                    {(monitor.keywords?.length || monitor.entities?.length) ? (
+                    {(currentMonitor.keywords?.length || currentMonitor.entities?.length) ? (
                       <div className="flex flex-wrap gap-1.5 pt-1">
-                        {(monitor.entities ?? []).slice(0, 8).map((x) => (
+                        {(currentMonitor.entities ?? []).slice(0, 8).map((x) => (
                           <span key={`e-${x}`} className="rounded-md bg-white/[0.06] px-2 py-0.5 text-[10px] text-slate-400">
                             {x}
                           </span>
                         ))}
-                        {(monitor.keywords ?? []).slice(0, 8).map((x) => (
+                        {(currentMonitor.keywords ?? []).slice(0, 8).map((x) => (
                           <span key={`k-${x}`} className="rounded-md border border-ark-border px-2 py-0.5 text-[10px] text-slate-500">
                             {x}
                           </span>
@@ -582,7 +465,7 @@ export function MonitorOverviewPage() {
                       最新关键线索
                     </h3>
                     <Link
-                      to={`/app/monitors/${monitor.id}/timeline`}
+                      to={`/app/monitors/${currentMonitor.id}/timeline`}
                       className="flex shrink-0 items-center gap-0.5 self-start text-[11px] text-slate-500 transition hover:text-ark-accent sm:self-auto"
                     >
                       查看时间线
@@ -635,66 +518,6 @@ export function MonitorOverviewPage() {
 
         {topicList}
       </div>
-
-      <MonitorTopicCreateBar
-        topicDraft={topicDraft}
-        setTopicDraft={setTopicDraft}
-        onSubmit={(e) => void onCreate(e)}
-        creating={creating}
-        inputRef={topicInputRef}
-        inputId="monitor-overview-topic"
-        outerClassName="px-0 pb-2 pt-2 md:pt-3 md:pb-4"
-      />
-
-      <Drawer
-        open={manageDrawerOpen}
-        onClose={closeManageDrawer}
-        title="监控设置"
-        description={monitor?.title}
-        panelClassName="sm:max-w-lg"
-      >
-        {currentId ? (
-          <>
-            <Link
-              to={`/app/monitors/${currentId}/timeline`}
-              className="inline-flex items-center gap-1 text-xs font-medium text-ark-accent hover:underline"
-              onClick={closeManageDrawer}
-            >
-              打开时间线
-              <ArrowRight className="size-3 shrink-0" aria-hidden />
-            </Link>
-            <div className="mt-4">
-              <MonitorSettingsForm
-                key={currentId}
-                monitorId={currentId}
-                mode="embedded"
-                onAfterSave={(upd) => {
-                  setManageDrawerOpen(false);
-                  setMonitor(upd);
-                  void loadRows();
-                  void getMonitorIntelligence(upd.id, '?recentHours=720&briefProfile=weekly_rolling')
-                    .then((i) => setIntel(i))
-                    .catch((e) => setError(e instanceof Error ? e.message : '刷新概览失败'));
-                }}
-                onCancel={closeManageDrawer}
-              />
-            </div>
-            <div className="mt-6 border-t border-white/[0.06] pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="text-red-400 hover:border-red-500/40 hover:text-red-300"
-                disabled={deletingMonitor}
-                onClick={() => void onDeleteCurrentMonitor()}
-              >
-                <Trash2 size={14} className="mr-1 inline" aria-hidden />
-                {deletingMonitor ? '删除中…' : '删除此监控'}
-              </Button>
-            </div>
-          </>
-        ) : null}
-      </Drawer>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { http } from './http';
-import type { FeedItem, Monitor, MonitorIntelligence, MonitorOverviewCard } from '@/types/models';
+import type { FeedItem, Monitor, MonitorIntelligence, MonitorWithListMetrics } from '@/types/models';
 
 export interface MonitorFeedListResponse {
   items: FeedItem[];
@@ -11,19 +11,10 @@ export interface MonitorFeedListResponse {
   minCosine: number;
 }
 
-/** `query` 须含前导 `?`，如 `?page=1&pageSize=30&recentHours=720` */
-export async function listMonitors(): Promise<Monitor[]> {
-  const { data } = await http.get<Monitor[]>('/monitors');
-  return data;
-}
-
-/** `query` 可选，如 `?recentHours=720`；返回列表与各监控侧栏卡片指标 */
-export async function listMonitorsOverview(
-  query = '',
-): Promise<{ monitors: Monitor[]; cards: MonitorOverviewCard[] }> {
-  const { data } = await http.get<{ monitors: Monitor[]; cards: MonitorOverviewCard[] }>(
-    `/monitors/overview${query}`,
-  );
+/** `query` 须含前导 `?`，如 `?recentHours=720`；返回每条含内嵌 metrics */
+export async function listMonitors(query = ''): Promise<MonitorWithListMetrics[]> {
+  const q = query || '?recentHours=720';
+  const { data } = await http.get<MonitorWithListMetrics[]>(`/monitors${q.startsWith('?') ? q : `?${q}`}`);
   return data;
 }
 

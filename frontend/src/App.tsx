@@ -12,6 +12,7 @@ import { SourcesPage } from '@/pages/app/sources';
 import { FeedPage } from '@/pages/app/feed';
 import { MonitorOverviewPage } from '@/pages/app/monitors';
 import { MonitorDetailPage } from '@/pages/app/monitors/detail';
+import { MonitorManagePage } from '@/pages/app/monitors/manage';
 import { MonitorSettingsPage } from '@/pages/app/monitors/settings';
 import { ProfilePage } from '@/pages/app/me';
 import { RequireStaff } from '@/routes/RequireStaff';
@@ -80,8 +81,8 @@ export default function App() {
         >
           <Route index element={<Navigate to="feed" replace />} />
           <Route path="feed" element={<FeedPage />} />
-          <Route path="monitors/new" element={<Navigate to="/app/monitors" replace />} />
-          <Route path="monitors/manage" element={<Navigate to="/app/monitors" replace />} />
+          <Route path="monitors/new" element={<Navigate to="/app/monitors/manage" replace />} />
+          <Route path="monitors/manage" element={<MonitorManagePage />} />
           <Route path="monitors/:id/settings" element={<MonitorSettingsPage />} />
           <Route path="monitors/:id/timeline" element={<MonitorDetailPage />} />
           <Route path="monitors" element={<MonitorOverviewPage />} />

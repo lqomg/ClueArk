@@ -5,6 +5,7 @@ import { MonitorsService } from './monitors.service';
 import { CreateMonitorDto } from './dto/create-monitor.dto';
 import { ListMonitorFeedQueryDto } from './dto/list-monitor-feed.query.dto';
 import { ListMonitorIntelligenceQueryDto } from './dto/list-monitor-intelligence.query.dto';
+import { ListMonitorsQueryDto } from './dto/list-monitors.query.dto';
 import { ListMonitorBriefRunsQueryDto } from './dto/list-monitor-brief-runs.query.dto';
 import { PatchMonitorSourcesDto } from './dto/patch-monitor-sources.dto';
 
@@ -16,9 +17,9 @@ export class MonitorsController {
   constructor(private readonly monitorsService: MonitorsService) {}
 
   @Get()
-  list(@CurrentUser('userId') userId: string) {
-    this.logger.log(`GET /monitors list userId=${userId}`);
-    return this.monitorsService.listForUser(userId);
+  list(@CurrentUser('userId') userId: string, @Query() query: ListMonitorsQueryDto) {
+    this.logger.log(`GET /monitors list userId=${userId} recentHours=${query.recentHours ?? 'default'}`);
+    return this.monitorsService.listForUser(userId, query.recentHours);
   }
 
   /** 总览页：监控列表 + 各监控侧栏卡片指标（单次请求） */

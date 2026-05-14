@@ -115,6 +115,13 @@ export type MonitorOverviewCardPublic = {
   trend: { date: string; count: number }[];
 };
 
+/** GET /monitors 每条内嵌的轻量指标（不含 monitorId，与父级 id 一致） */
+export type MonitorListMetricsPublic = Omit<MonitorOverviewCardPublic, 'monitorId'>;
+
+export type MonitorListItemPublic = MonitorPublic & {
+  metrics: MonitorListMetricsPublic;
+};
+
 @Injectable()
 export class MonitorsService {
   private readonly logger: LoggerService;
@@ -209,15 +216,33 @@ export class MonitorsService {
     return doc;
   }
 
-  async listForUser(userId: string): Promise<MonitorPublic[]> {
+  /**
+   * 监控列表：每条含与情报同一时间窗下的轻量聚合指标（Heat、24h 增量、7 日趋势等），
+   * 供研判页/管理页仅依赖 GET /monitors + GET /monitors/:id/intelligence。
+   */
+  async listForUser(userId: string, recentHours?: number): Promise<MonitorListItemPublic[]> {
     const uid = new Types.ObjectId(userId);
-    const rows = await this.monitorModel
+    const rh = recentHours ?? this.defaultRecentHours();
+    const docs = await this.monitorModel
       .find({ userId: uid, deletedAt: null })
       .sort({ createdAt: -1 })
-      .lean()
       .exec();
-    this.logger.debug(`monitor_list_for_user userId=${userId} count=${rows.length}`);
-    return rows.map((r) => this.serializeMonitor(r as Record<string, unknown>));
+    const viewerTz = await this.usersService.getTimeZoneOrDefault(userId);
+    const cards = await Promise.all(docs.map((doc) => this.buildOverviewCard(doc, rh, viewerTz)));
+    this.logger.debug(`monitor_list_for_user userId=${userId} recentHours=${rh} count=${docs.length}`);
+    return docs.map((d, i) => {
+      const m = this.serializeMonitor(d);
+      const c = cards[i];
+      return {
+        ...m,
+        metrics: {
+          heatIndex: c.heatIndex,
+          newLast24h: c.newLast24h,
+          lastActivityAt: c.lastActivityAt,
+          trend: c.trend,
+        },
+      };
+    });
   }
 
   /** 总览页一次返回监控列表 + 各监控侧栏卡片指标，减少多次 intelligence 往返 */
