@@ -10,7 +10,7 @@ function toOptionalBoolean(v: unknown): boolean | undefined {
   return undefined;
 }
 
-/** GET /feed-items：列表包含 llmStatus=done | skipped 的条目（与簇内详情一致）。 */
+/** GET /feed-items：仅返回已富化完成（llmStatus=done）的条目；簇内详情与列表一致。 */
 export class ListFeedItemsQueryDto {
   @IsOptional()
   @Type(() => Number)

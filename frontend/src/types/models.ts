@@ -15,7 +15,7 @@ export interface FeedItem {
   updatedAt: string;
   tags: string[];
   recommendReason: string;
-  llmStatus?: 'pending' | 'processing' | 'done' | 'failed' | 'skipped';
+  llmStatus: 'done';
   /** 相似簇 ID（合并行）；单条为 null */
   clusterId?: string | null;
   clusterItemCount?: number;

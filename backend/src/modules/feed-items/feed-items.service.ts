@@ -97,7 +97,7 @@ export class FeedItemsService {
     if (!Types.ObjectId.isValid(k)) throw new BadRequestException('invalid_cluster_id');
     const oid = new Types.ObjectId(k);
     const rows = await this.feedItemModel
-      .find({ clusterId: oid, llmStatus: { $in: ['done', 'skipped'] } })
+      .find({ clusterId: oid, llmStatus: 'done' })
       .sort({ publishedAt: -1, createdAt: -1 })
       .limit(80)
       .populate({ path: 'sourceId', select: 'displayName createdBy' })
@@ -122,7 +122,7 @@ export class FeedItemsService {
   async list(q: ListFeedItemsQueryDto) {
     const page = q.page ?? 1;
     const pageSize = q.pageSize ?? 30;
-    const filter: Record<string, unknown> = { llmStatus: { $in: ['done', 'skipped'] } };
+    const filter: Record<string, unknown> = { llmStatus: 'done' };
     if (q.sourceId) {
       filter.sourceId = new Types.ObjectId(q.sourceId);
     }
