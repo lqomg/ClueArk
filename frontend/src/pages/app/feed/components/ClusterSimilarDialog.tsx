@@ -54,11 +54,9 @@ export function ClusterSimilarDialog({ open, onClose, loading, error, rows }: Cl
                   >
                     {row.title}
                   </a>
-                  {row.publishedAt ? (
-                    <time className="mt-1 block font-mono text-[12px] text-slate-600" dateTime={row.publishedAt}>
-                      {formatShortDateTime(row.publishedAt, viewerTz)}
-                    </time>
-                  ) : null}
+                  <time className="mt-1 block font-mono text-[12px] text-slate-600" dateTime={row.publishedAt}>
+                    {formatShortDateTime(row.publishedAt, viewerTz)}
+                  </time>
                 </li>
               ))}
             </ul>

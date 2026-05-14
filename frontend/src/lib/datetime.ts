@@ -92,11 +92,10 @@ export function feedCardAbsoluteShort(iso: string, timeZone: string): string {
 }
 
 export function formatFeedCardHeaderRelative(
-  iso: string | null | undefined,
-  fallbackIso: string | undefined,
+  iso: string,
   timeZone: string,
 ): { display: string; absolute: string } {
-  const raw = iso ?? fallbackIso;
+  const raw = iso;
   if (!raw) return { display: '时间未知', absolute: '' };
   const d = dayjs(raw);
   const t = d.valueOf();
@@ -137,7 +136,7 @@ export function formatClusterTimeHint(earliestIso: string | null | undefined): s
 }
 
 export function formatTimelineStampParts(
-  publishedAt: string | null | undefined,
+  publishedAt: string,
   timeZone: string,
 ): { datePart: string; timePart: string } | null {
   if (!publishedAt) return null;

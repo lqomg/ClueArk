@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { getMonitor, patchMonitorSources } from '@/api/monitors';
 import { listSources } from '@/api/sources';
 import type { Monitor, Source } from '@/types/models';
+import { useAppTopBar } from '@/components/layout/AppTopBar';
 import { Button } from '@/components/ui';
 import { SourceAvatar } from '@/components/sources/SourceAvatar';
 
@@ -24,14 +25,9 @@ async function loadAllEnabledSources(): Promise<Source[]> {
 
 export type MonitorSettingsFormProps = {
   monitorId: string;
-  mode: 'page' | 'embedded';
-  /** 嵌入模式：保存成功后由父级刷新列表/关闭抽屉等 */
-  onAfterSave?: (updated: Monitor) => void;
-  /** 嵌入模式：取消 */
-  onCancel?: () => void;
 };
 
-export function MonitorSettingsForm({ monitorId, mode, onAfterSave, onCancel }: MonitorSettingsFormProps) {
+export function MonitorSettingsForm({ monitorId }: MonitorSettingsFormProps) {
   const navigate = useNavigate();
   const [monitor, setMonitor] = useState<Monitor | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
@@ -84,11 +80,7 @@ export function MonitorSettingsForm({ monitorId, mode, onAfterSave, onCancel }: 
     try {
       const updated = await patchMonitorSources(monitorId, { sourceIds: orderedIds, minCosine });
       setMonitor(updated);
-      if (mode === 'embedded') {
-        onAfterSave?.(updated);
-      } else {
-        navigate(`/app/monitors?monitor=${encodeURIComponent(monitorId)}`, { replace: false });
-      }
+      navigate(`/app/monitors?monitor=${encodeURIComponent(monitorId)}`, { replace: false });
     } catch (e) {
       setError(e instanceof Error ? e.message : '保存失败');
     } finally {
@@ -97,40 +89,37 @@ export function MonitorSettingsForm({ monitorId, mode, onAfterSave, onCancel }: 
   }
 
   function handleCancel() {
-    if (mode === 'embedded') {
-      onCancel?.();
-    } else {
-      navigate(`/app/monitors?monitor=${encodeURIComponent(monitorId)}`);
-    }
+    navigate(`/app/monitors/${monitorId}/timeline`);
   }
 
-  const isPage = mode === 'page';
+  useAppTopBar(
+    () => (
+      <div className="min-w-0 flex-1 pr-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-slate-500">
+          <Link to="/app/monitors/manage" className="shrink-0 hover:text-ark-accent">
+            监控管理
+          </Link>
+          <span aria-hidden>/</span>
+          <Link
+            to={`/app/monitors/${monitorId}/timeline`}
+            className="min-w-0 max-w-[10rem] truncate hover:text-ark-accent sm:max-w-[14rem]"
+          >
+            {monitor?.title ?? '时间线'}
+          </Link>
+          <span aria-hidden>/</span>
+          <span className="shrink-0 text-slate-600">监控配置</span>
+        </div>
+        <h1 className="mt-0.5 truncate text-sm font-black tracking-tight text-white md:text-base">监控配置</h1>
+      </div>
+    ),
+    [monitorId, monitor?.title],
+  );
 
   return (
-    <div className={isPage ? 'relative mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-6' : 'flex min-h-0 flex-col gap-4'}>
-      {isPage ? (
-        <div>
-          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-            <Link to="/app/monitors" className="hover:text-ark-accent">
-              话题监控
-            </Link>
-            <span aria-hidden>/</span>
-            <Link to={`/app/monitors/${monitorId}/timeline`} className="hover:text-ark-accent">
-              {monitor?.title ?? '时间线'}
-            </Link>
-            <span aria-hidden>/</span>
-            <span className="text-slate-600">信源</span>
-          </div>
-          <h1 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">配置信源</h1>
-          <p className="mt-2 text-xs text-slate-500">
-            可修改绑定信源与语义相关度阈值；信源须全部为当前已启用。保存后时间线按新条件过滤。
-          </p>
-        </div>
-      ) : (
-        <p className="text-xs text-slate-500">
-          勾选绑定信源并调整相似度阈值；保存后时间线按新条件过滤。
-        </p>
-      )}
+    <div className="relative mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-6">
+      <p className="text-xs text-slate-500">
+        可修改绑定信源与语义相关度阈值；信源须全部为当前已启用。保存后时间线按新条件过滤。
+      </p>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
@@ -157,13 +146,7 @@ export function MonitorSettingsForm({ monitorId, mode, onAfterSave, onCancel }: 
               <span className="tabular-nums text-sm font-semibold text-ark-accent">{minCosine.toFixed(2)}</span>
             </div>
           </div>
-          <ul
-            className={
-              isPage
-                ? 'max-h-[min(60vh,520px)] space-y-2 overflow-y-auto rounded-xl border border-ark-border bg-ark-surface/40 p-3'
-                : 'max-h-[min(50vh,420px)] space-y-2 overflow-y-auto rounded-xl border border-ark-border bg-ark-surface/40 p-3'
-            }
-          >
+          <ul className="max-h-[min(60vh,520px)] space-y-2 overflow-y-auto rounded-xl border border-ark-border bg-ark-surface/40 p-3">
             {sources.map((s) => {
               const on = selected.has(s.id);
               return (

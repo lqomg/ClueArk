@@ -11,7 +11,12 @@ import { fingerprintUrlKey } from '../sources/fingerprint.util';
 import type { CrawlerIngestBodyDto } from './dto/crawler-ingest.dto';
 import { applyRssPublishedAtFeedCorrection } from './rss-published-at-corrections';
 import { FEED_MIN_SUMMARY_LEN_FOR_LLM } from './feed-llm.constants';
-import { capFuturePublishedAt, maxAllowedPublishedAt, normalizePublishedAt } from './published-at.util';
+import {
+  capFuturePublishedAt,
+  coalescePublishedAtOrFallback,
+  maxAllowedPublishedAt,
+  normalizePublishedAt,
+} from './published-at.util';
 
 const FETCH_TIMEOUT_MS = 10_000;
 const MAX_SUMMARY_CHARS = 8000;
@@ -299,9 +304,10 @@ export class FeedIngestService {
       const llmStatus = summary.trim().length >= FEED_MIN_SUMMARY_LEN_FOR_LLM ? 'pending' : 'skipped';
 
       const publishedAtRaw = it.isoDate ?? it.pubDate ?? null;
-      let publishedAt: Date | null = normalizePublishedAt(publishedAtRaw, { now });
-      publishedAt = applyRssPublishedAtFeedCorrection(feedUrl, publishedAt);
-      publishedAt = capFuturePublishedAt(publishedAt, now);
+      const publishedAt = coalescePublishedAtOrFallback(
+        capFuturePublishedAt(applyRssPublishedAtFeedCorrection(feedUrl, normalizePublishedAt(publishedAtRaw, { now })), now),
+        now,
+      );
 
       ops.push({
         updateOne: {
@@ -446,7 +452,10 @@ export class FeedIngestService {
       const summary = truncate(snippet, MAX_SUMMARY_CHARS);
       const llmStatus = summary.trim().length >= FEED_MIN_SUMMARY_LEN_FOR_LLM ? 'pending' : 'skipped';
 
-      const publishedAt = capFuturePublishedAt(normalizePublishedAt(it.publishedAt, { now }), now);
+      const publishedAt = coalescePublishedAtOrFallback(
+        capFuturePublishedAt(normalizePublishedAt(it.publishedAt, { now }), now),
+        now,
+      );
 
       ops.push({
         updateOne: {
@@ -694,7 +703,10 @@ export class FeedIngestService {
       const title = truncate(titleRaw, 500);
       const summaryRaw = stripTags((it.summary ?? '').trim());
       const summary = summaryRaw ? truncate(summaryRaw, MAX_SUMMARY_CHARS) : '';
-      const publishedAt = capFuturePublishedAt(normalizePublishedAt(it.pubDate, { now }), now);
+      const publishedAt = coalescePublishedAtOrFallback(
+        capFuturePublishedAt(normalizePublishedAt(it.pubDate, { now }), now),
+        now,
+      );
 
       ops.push({
         updateOne: {

@@ -15,7 +15,7 @@ export interface ClusterRow {
   sourceDisplayName: string;
   title: string;
   link: string;
-  publishedAt: string | null;
+  publishedAt: string;
 }
 
 export interface ClusterDetailResponse {

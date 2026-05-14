@@ -4,6 +4,12 @@ import { Model, PipelineStage, Types } from 'mongoose';
 import { FeedItem, FeedItemDocument } from './schemas/feed-item.schema';
 import type { ListFeedItemsQueryDto } from './dto/list-feed-items.query.dto';
 
+function publishedAtToIso(doc: Record<string, unknown>): string {
+  const pa = doc.publishedAt;
+  if (pa instanceof Date && !Number.isNaN(pa.getTime())) return pa.toISOString();
+  throw new Error('feed_item_published_at_required');
+}
+
 export function serializeFeedItem(doc: Record<string, unknown>) {
   const sid = doc.sourceId;
   let sourceDisplayName = '';
@@ -30,7 +36,7 @@ export function serializeFeedItem(doc: Record<string, unknown>) {
     title: doc.title as string,
     link: doc.link as string,
     summary: (doc.summary as string) ?? '',
-    publishedAt: doc.publishedAt ? (doc.publishedAt as Date).toISOString() : null,
+    publishedAt: publishedAtToIso(doc),
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
     tags,
@@ -41,7 +47,6 @@ export function serializeFeedItem(doc: Record<string, unknown>) {
 
 function stripAggFields(doc: Record<string, unknown>) {
   const x = { ...doc };
-  delete x._sortPub;
   delete x._groupKey;
   delete x.simEmbedTitle;
   delete x.simEmbedFull;
@@ -69,12 +74,9 @@ function serializeFeedListRow(
   };
 }
 
-/** publishedAt 优先，缺省用 createdAt，与列表 _sortPub 语义一致 */
 function applyRecentHoursFilter(filter: Record<string, unknown>, recentHours: number) {
   const cutoff = new Date(Date.now() - recentHours * 3600000);
-  filter.$expr = {
-    $gte: [{ $ifNull: ['$publishedAt', '$createdAt'] }, cutoff],
-  };
+  filter.publishedAt = { $gte: cutoff };
 }
 
 type GroupAggRow = {
@@ -95,7 +97,7 @@ export class FeedItemsService {
     if (!Types.ObjectId.isValid(k)) throw new BadRequestException('invalid_cluster_id');
     const oid = new Types.ObjectId(k);
     const rows = await this.feedItemModel
-      .find({ clusterId: oid, llmStatus: { $in: ['done', 'skipped'] } })
+      .find({ clusterId: oid, llmStatus: 'done' })
       .sort({ publishedAt: -1, createdAt: -1 })
       .limit(80)
       .populate({ path: 'sourceId', select: 'displayName createdBy' })
@@ -111,7 +113,7 @@ export class FeedItemsService {
           sourceDisplayName: name,
           title: r.title,
           link: r.link,
-          publishedAt: r.publishedAt ? (r.publishedAt as Date).toISOString() : null,
+          publishedAt: publishedAtToIso(r as unknown as Record<string, unknown>),
         };
       }),
     };
@@ -120,7 +122,7 @@ export class FeedItemsService {
   async list(q: ListFeedItemsQueryDto) {
     const page = q.page ?? 1;
     const pageSize = q.pageSize ?? 30;
-    const filter: Record<string, unknown> = { llmStatus: { $in: ['done', 'skipped'] } };
+    const filter: Record<string, unknown> = { llmStatus: 'done' };
     if (q.sourceId) {
       filter.sourceId = new Types.ObjectId(q.sourceId);
     }
@@ -191,12 +193,7 @@ export class FeedItemsService {
   ) {
     const preSort: PipelineStage[] = [
       { $match: filter },
-      {
-        $addFields: {
-          _sortPub: { $ifNull: ['$publishedAt', '$createdAt'] },
-        },
-      },
-      { $sort: { _sortPub: -1, createdAt: -1 } },
+      { $sort: { publishedAt: -1, createdAt: -1 } },
       {
         $addFields: {
           _groupKey: { $ifNull: ['$clusterId', '$_id'] },
@@ -207,8 +204,8 @@ export class FeedItemsService {
           _id: '$_groupKey',
           doc: { $first: '$$ROOT' },
           clusterItemCount: { $sum: 1 },
-          minPub: { $min: '$_sortPub' },
-          maxPub: { $max: '$_sortPub' },
+          minPub: { $min: '$publishedAt' },
+          maxPub: { $max: '$publishedAt' },
           _uniqueSources: { $addToSet: '$sourceId' },
         },
       },
@@ -244,7 +241,6 @@ export class FeedItemsService {
           { $match: filter },
           {
             $addFields: {
-              _sortPub: { $ifNull: ['$publishedAt', '$createdAt'] },
               _gk: { $ifNull: ['$clusterId', '$_id'] },
             },
           },

@@ -12,16 +12,14 @@ type LeanItem = {
   sourceId: Types.ObjectId;
   title: string;
   summary: string;
-  publishedAt: Date | null;
+  publishedAt: Date;
   createdAt: Date;
   simEmbedTitle?: number[];
   simEmbedFull?: number[];
 };
 
 function sortKey(it: LeanItem): number {
-  const p = it.publishedAt?.getTime();
-  if (p != null && !Number.isNaN(p)) return p;
-  return it.createdAt.getTime();
+  return it.publishedAt.getTime();
 }
 
 function prepTitle(t: string): string {

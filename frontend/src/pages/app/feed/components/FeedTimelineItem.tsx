@@ -21,13 +21,13 @@ export function FeedTimelineItem({ item: it, isLast, onOpenCluster }: FeedTimeli
   const merged = n > 1;
   const multiSource = merged && srcCount > 1;
 
-  const header = formatFeedCardHeaderRelative(it.publishedAt, it.createdAt, tz);
-  const headerDateTime = it.publishedAt ?? it.createdAt ?? undefined;
+  const header = formatFeedCardHeaderRelative(it.publishedAt, tz);
+  const headerDateTime = it.publishedAt;
 
   return (
     <TimelineItem
       isLast={isLast}
-      stamp={timelineStampNode(it.publishedAt ?? it.createdAt, tz)}
+      stamp={timelineStampNode(it.publishedAt, tz)}
       className="rounded-xl transition hover:bg-white/[0.005]"
     >
       <div className="flex flex-col gap-2 pr-1 sm:pr-0">
@@ -59,22 +59,7 @@ export function FeedTimelineItem({ item: it, isLast, onOpenCluster }: FeedTimeli
         {it.summary ? (
           <p className="line-clamp-3 text-sm leading-relaxed text-slate-400">{it.summary}</p>
         ) : null}
-        {it.llmStatus === 'pending' || it.llmStatus === 'processing' ? (
-          <div className="flex flex-wrap gap-1.5">
-            <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-200/90">
-              {it.llmStatus === 'processing' ? '智能分析中…' : '等待智能分析…'}
-            </span>
-          </div>
-        ) : it.llmStatus === 'skipped' ? (
-          <div className="flex flex-wrap gap-1.5">
-            <span
-              className="rounded-md  py-0.5 text-[10px] font-medium text-slate-500"
-              title="摘要不足，已跳过智能分析"
-            >
-              未分析：摘要不足
-            </span>
-          </div>
-        ) : it.tags?.length ? (
+        {it.tags?.length ? (
           <div className="flex flex-wrap gap-1.5">
             {it.tags.map((tag) => (
               <span

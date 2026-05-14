@@ -113,8 +113,15 @@ export function MonitorDetailPage() {
         <div className="flex min-w-0 w-full items-center justify-between gap-3">
           <div className="min-w-0 flex-1 pr-2">
             <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-slate-500">
-              <Link to={`/app/monitors?monitor=${encodeURIComponent(id!)}`} className="shrink-0 hover:text-ark-accent">
-                话题监控
+              <Link to="/app/monitors/manage" className="shrink-0 hover:text-ark-accent">
+                监控管理
+              </Link>
+              <span aria-hidden>/</span>
+              <Link
+                to={`/app/monitors?monitor=${encodeURIComponent(id!)}`}
+                className="min-w-0 max-w-[10rem] truncate hover:text-ark-accent sm:max-w-[14rem]"
+              >
+                研判概览
               </Link>
               <span aria-hidden>/</span>
               <span className="shrink-0 text-slate-600">时间线</span>
@@ -130,7 +137,7 @@ export function MonitorDetailPage() {
               className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-ark-border px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition hover:border-ark-accent/50 hover:text-ark-accent"
             >
               <Settings2 size={13} />
-              配置信源
+              监控配置
             </Link>
             <div className="flex items-center gap-1.5">
               <span className="hidden shrink-0 text-[10px] font-medium text-slate-500 sm:inline">时间窗</span>

@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Bookmark, Database, Layers, LayoutDashboard, LogOut, Newspaper, User, Users } from 'lucide-react';
+import { Bookmark, Database, Layers, LayoutDashboard, LayoutList, LogOut, Newspaper, User, Users } from 'lucide-react';
 import { ProductMark } from '@/components/brand/ProductMark';
 import { GithubRepoLink } from '@/components/GithubRepoLink';
 import { AppTopBarProvider } from '@/components/layout/AppTopBar';
@@ -39,10 +39,11 @@ export function AppShell() {
               {({ isActive }) => (
                 <>
                   <LayoutDashboard size={18} className={shellNavIconClass(isActive)} />
-                  话题监控
+                  监控
                 </>
               )}
             </NavLink>
+
             <NavLink to="/app/feed" end className={({ isActive }) => shellNavClass(isActive)}>
               {({ isActive }) => (
                 <>
@@ -75,6 +76,14 @@ export function AppShell() {
                       )}
                     </NavLink>
                   ) : null}
+                  <NavLink to="/app/monitors/manage" end className={({ isActive }) => shellNavClass(isActive)}>
+                    {({ isActive }) => (
+                      <>
+                        <LayoutList size={18} className={shellNavIconClass(isActive)} />
+                        监控管理
+                      </>
+                    )}
+                  </NavLink>
                   <NavLink to="/app/admin/sources" end={false} className={({ isActive }) => shellNavClass(isActive)}>
                     {({ isActive }) => (
                       <>
@@ -132,7 +141,11 @@ export function AppShell() {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-slate-500">
             <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/monitors">
               <LayoutDashboard size={14} />
-              话题监控
+              监控
+            </Link>
+            <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/monitors/manage">
+              <LayoutList size={14} />
+              管理
             </Link>
             <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/feed">
               <Newspaper size={14} />

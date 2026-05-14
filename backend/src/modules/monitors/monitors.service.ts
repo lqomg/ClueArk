@@ -115,6 +115,13 @@ export type MonitorOverviewCardPublic = {
   trend: { date: string; count: number }[];
 };
 
+/** GET /monitors 每条内嵌的轻量指标（不含 monitorId，与父级 id 一致） */
+export type MonitorListMetricsPublic = Omit<MonitorOverviewCardPublic, 'monitorId'>;
+
+export type MonitorListItemPublic = MonitorPublic & {
+  metrics: MonitorListMetricsPublic;
+};
+
 @Injectable()
 export class MonitorsService {
   private readonly logger: LoggerService;
@@ -209,15 +216,33 @@ export class MonitorsService {
     return doc;
   }
 
-  async listForUser(userId: string): Promise<MonitorPublic[]> {
+  /**
+   * 监控列表：每条含与情报同一时间窗下的轻量聚合指标（Heat、24h 增量、7 日趋势等），
+   * 供研判页/管理页仅依赖 GET /monitors + GET /monitors/:id/intelligence。
+   */
+  async listForUser(userId: string, recentHours?: number): Promise<MonitorListItemPublic[]> {
     const uid = new Types.ObjectId(userId);
-    const rows = await this.monitorModel
+    const rh = recentHours ?? this.defaultRecentHours();
+    const docs = await this.monitorModel
       .find({ userId: uid, deletedAt: null })
       .sort({ createdAt: -1 })
-      .lean()
       .exec();
-    this.logger.debug(`monitor_list_for_user userId=${userId} count=${rows.length}`);
-    return rows.map((r) => this.serializeMonitor(r as Record<string, unknown>));
+    const viewerTz = await this.usersService.getTimeZoneOrDefault(userId);
+    const cards = await Promise.all(docs.map((doc) => this.buildOverviewCard(doc, rh, viewerTz)));
+    this.logger.debug(`monitor_list_for_user userId=${userId} recentHours=${rh} count=${docs.length}`);
+    return docs.map((d, i) => {
+      const m = this.serializeMonitor(d);
+      const c = cards[i];
+      return {
+        ...m,
+        metrics: {
+          heatIndex: c.heatIndex,
+          newLast24h: c.newLast24h,
+          lastActivityAt: c.lastActivityAt,
+          trend: c.trend,
+        },
+      };
+    });
   }
 
   /** 总览页一次返回监控列表 + 各监控侧栏卡片指标，减少多次 intelligence 往返 */
@@ -317,9 +342,7 @@ export class MonitorsService {
         sourceId: { $in: sourceIds },
         llmStatus: 'done',
         'simEmbedFull.0': { $exists: true },
-        $expr: {
-          $gte: [{ $ifNull: ['$publishedAt', '$createdAt'] }, cutoff],
-        },
+        publishedAt: { $gte: cutoff },
       })
       .sort({ publishedAt: -1, createdAt: -1 })
       .limit(cap)
@@ -338,8 +361,8 @@ export class MonitorsService {
       scored.push({ doc: row, score });
     }
     scored.sort((a, b) => {
-      const ta = new Date((a.doc.publishedAt as Date | null | undefined) ?? (a.doc.createdAt as Date)).getTime();
-      const tb = new Date((b.doc.publishedAt as Date | null | undefined) ?? (b.doc.createdAt as Date)).getTime();
+      const ta = new Date(a.doc.publishedAt as Date).getTime();
+      const tb = new Date(b.doc.publishedAt as Date).getTime();
       if (tb !== ta) return tb - ta;
       return b.score - a.score;
     });
@@ -380,12 +403,7 @@ export class MonitorsService {
         sourceId: { $in: sourceIds },
         llmStatus: 'done',
         'simEmbedFull.0': { $exists: true },
-        $expr: {
-          $and: [
-            { $gte: [{ $ifNull: ['$publishedAt', '$createdAt'] }, periodStart] },
-            { $lte: [{ $ifNull: ['$publishedAt', '$createdAt'] }, periodEnd] },
-          ],
-        },
+        publishedAt: { $gte: periodStart, $lte: periodEnd },
       })
       .sort({ publishedAt: -1, createdAt: -1 })
       .limit(cap)
@@ -404,8 +422,8 @@ export class MonitorsService {
       scored.push({ doc: row, score });
     }
     scored.sort((a, b) => {
-      const ta = new Date((a.doc.publishedAt as Date | null | undefined) ?? (a.doc.createdAt as Date)).getTime();
-      const tb = new Date((b.doc.publishedAt as Date | null | undefined) ?? (b.doc.createdAt as Date)).getTime();
+      const ta = new Date(a.doc.publishedAt as Date).getTime();
+      const tb = new Date(b.doc.publishedAt as Date).getTime();
       if (tb !== ta) return tb - ta;
       return b.score - a.score;
     });
@@ -607,7 +625,7 @@ export class MonitorsService {
 
     for (let i = 0; i < scored.length; i++) {
       const row = scored[i].doc;
-      const t = new Date((row.publishedAt as Date | null | undefined) ?? (row.createdAt as Date)).getTime();
+      const t = new Date(row.publishedAt as Date).getTime();
       const sc = scored[i].score;
       sumScore += sc;
       if (t >= h24) newLast24h += 1;
@@ -628,11 +646,7 @@ export class MonitorsService {
     const heatIndex = this.heatIndexFromSignals(newLast24h, count7d, avgRelevance, boundSourceCount, totalInWindow);
 
     const lastActivityAt =
-      scored.length > 0
-        ? new Date(
-            (scored[0].doc.publishedAt as Date | null | undefined) ?? (scored[0].doc.createdAt as Date),
-          ).toISOString()
-        : null;
+      scored.length > 0 ? new Date(scored[0].doc.publishedAt as Date).toISOString() : null;
 
     const trendKeys = sevenDayTrendDateKeys(new Date(nowMs), viewerTimeZone);
     const trendMap = new Map<string, number>();
@@ -640,7 +654,7 @@ export class MonitorsService {
       trendMap.set(trendKeys[k], 0);
     }
     for (let i = 0; i < scored.length; i++) {
-      const dt = new Date((scored[i].doc.publishedAt as Date | null | undefined) ?? (scored[i].doc.createdAt as Date));
+      const dt = new Date(scored[i].doc.publishedAt as Date);
       const key = dateKeyInTimeZone(dt, viewerTimeZone);
       if (trendMap.has(key)) trendMap.set(key, (trendMap.get(key) ?? 0) + 1);
     }

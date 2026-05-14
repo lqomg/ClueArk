@@ -10,7 +10,7 @@ function toOptionalBoolean(v: unknown): boolean | undefined {
   return undefined;
 }
 
-/** GET /feed-items：列表包含 llmStatus=done | skipped 的条目（与簇内详情一致）。 */
+/** GET /feed-items：仅返回已富化完成（llmStatus=done）的条目；簇内详情与列表一致。 */
 export class ListFeedItemsQueryDto {
   @IsOptional()
   @Type(() => Number)
@@ -34,10 +34,7 @@ export class ListFeedItemsQueryDto {
   @IsIn(['all', 'featured'])
   mode?: 'all' | 'featured';
 
-  /**
-   * 仅展示「有效发布时间」在窗口内的条目：publishedAt，缺省时用 createdAt。
-   * 24=最近24小时，72=3天，168=7天。
-   */
+  /** 仅展示 publishedAt 落在窗口内的条目。24=最近24小时，72=3天，168=7天。 */
   @IsOptional()
   @Type(() => Number)
   @IsInt()
