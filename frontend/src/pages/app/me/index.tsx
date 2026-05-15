@@ -65,7 +65,7 @@ export function ProfilePage() {
     const trimmed = tzDraft.trim();
     const normalized = normalizeUserTimeZone(trimmed);
     if (normalized !== trimmed) {
-      setTzErr('无效的 IANA 时区标识，请检查拼写（例如 Asia/Shanghai）');
+      setTzErr('时区名称无效，请从下方列表选择，或按示例格式填写（如 Asia/Shanghai）');
       return;
     }
     setTzSaving(true);
@@ -104,13 +104,13 @@ export function ProfilePage() {
       <section className="rounded-lg border border-ark-border bg-ark-surface p-5">
         <h2 className="text-sm font-semibold text-ark-text">显示时区</h2>
         <p className="mt-2 text-xs leading-relaxed text-ark-muted">
-          情报列表、话题监控中的时间与近 7 日趋势按此时区解释。条目仍以 UTC 存储。
+          情报列表、话题监控中的时间与近 7 日趋势，会按您在此选择的时区展示与统计。
         </p>
         <form className="mt-4 space-y-3" onSubmit={saveTimeZone}>
           {tzErr ? <div className="text-sm text-red-300">{tzErr}</div> : null}
           {tzMsg ? <div className="text-sm text-emerald-300">{tzMsg}</div> : null}
           <label className="block text-xs font-medium text-ark-muted" htmlFor="profile-timezone">
-            IANA 时区
+            时区
           </label>
           <input
             id="profile-timezone"
