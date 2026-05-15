@@ -1,8 +1,13 @@
-import { Equals, IsBoolean, IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
+import { Equals, IsBoolean, IsEmail, IsString, Length, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class RegisterDto {
   @IsEmail()
   email: string;
+
+  @IsString()
+  @Length(6, 6)
+  @Matches(/^\d{6}$/, { message: 'invalid_code' })
+  code: string;
 
   @IsString()
   @MinLength(6)

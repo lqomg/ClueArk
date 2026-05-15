@@ -4,7 +4,9 @@ import { confirmPasswordReset, sendPasswordResetCode } from '@/api/auth';
 import {
   AuthBrandingLayout,
   inputClass,
+  inputFlexClass,
   primaryBtnClass,
+  sendCodeBtnClass,
 } from '@/components/auth/AuthBrandingLayout';
 import { authErrBoxClass, authOkBoxClass } from '../utils';
 
@@ -24,7 +26,7 @@ export function ForgotPasswordPage() {
     setLoading(true);
     try {
       await sendPasswordResetCode({ email });
-      setMessage('若邮箱已注册，验证码已生成。开发环境请查看后端日志中的验证码。');
+      setMessage('若该邮箱已注册，我们已发送验证码，请查收邮件（含垃圾箱）。');
       setStep('reset');
     } catch (err) {
       setError(err instanceof Error ? err.message : '发送失败');
@@ -49,32 +51,34 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <AuthBrandingLayout title="密钥恢复" subtitle="通过邮箱验证码重置（验证码 15 分钟内有效）">
+    <AuthBrandingLayout title="找回密码" subtitle="向注册邮箱收取验证码，15 分钟内有效">
       {error ? <div className={authErrBoxClass}>{error}</div> : null}
       {message ? <div className={authOkBoxClass}>{message}</div> : null}
 
       {step === 'email' ? (
-        <form className="space-y-4" onSubmit={sendCode}>
-          <div className="space-y-2">
+        <form className="space-y-3.5" onSubmit={sendCode}>
+          <div className="space-y-1.5">
             <label className="pl-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              注册邮箱 <span className="text-ark-accent opacity-60">*</span>
+              邮箱 <span className="text-ark-accent opacity-60">*</span>
             </label>
-            <input
-              type="email"
-              className={inputClass}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@company.com"
-              required
-            />
+            <div className="flex min-w-0 items-stretch gap-2">
+              <input
+                type="email"
+                className={inputFlexClass}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@company.com"
+                required
+              />
+              <button type="submit" disabled={loading} className={sendCodeBtnClass}>
+                {loading ? '发送中…' : '获取验证码'}
+              </button>
+            </div>
           </div>
-          <button type="submit" disabled={loading} className={primaryBtnClass}>
-            <span className="relative z-10">{loading ? '发送中…' : '发送验证码'}</span>
-          </button>
         </form>
       ) : (
-        <form className="space-y-4" onSubmit={resetPassword}>
-          <div className="space-y-2">
+        <form className="space-y-3.5" onSubmit={resetPassword}>
+          <div className="space-y-1.5">
             <label className="pl-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">邮箱</label>
             <input
               type="email"
@@ -84,20 +88,21 @@ export function ForgotPasswordPage() {
               required
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <label className="pl-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
               6 位验证码
             </label>
             <input
-              className={inputClass}
+              className={`${inputClass} max-w-[12rem] tracking-widest`}
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              inputMode="numeric"
               maxLength={6}
               placeholder="000000"
               required
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <label className="pl-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
               新密码（至少 6 位）
             </label>

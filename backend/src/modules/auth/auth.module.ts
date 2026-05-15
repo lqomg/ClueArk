@@ -9,10 +9,18 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { UsersModule } from '../users/users.module';
 import { PasswordResetCode, PasswordResetCodeSchema } from './schemas/password-reset-code.schema';
+import { RegisterEmailCode, RegisterEmailCodeSchema } from './schemas/register-email-code.schema';
+import { LoginOtpCode, LoginOtpCodeSchema } from './schemas/login-otp-code.schema';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: PasswordResetCode.name, schema: PasswordResetCodeSchema }]),
+    MailModule,
+    MongooseModule.forFeature([
+      { name: PasswordResetCode.name, schema: PasswordResetCodeSchema },
+      { name: RegisterEmailCode.name, schema: RegisterEmailCodeSchema },
+      { name: LoginOtpCode.name, schema: LoginOtpCodeSchema },
+    ]),
     forwardRef(() => UsersModule),
     PassportModule,
     JwtModule.registerAsync({

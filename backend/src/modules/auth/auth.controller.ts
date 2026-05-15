@@ -6,11 +6,20 @@ import {
   HttpException,
   HttpStatus,
   Post,
+  ServiceUnavailableException,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { LoginDto, RegisterDto, ResetPasswordDto, SendResetCodeDto } from './dto';
+import {
+  LoginDto,
+  LoginOtpDto,
+  RegisterDto,
+  ResetPasswordDto,
+  SendRegisterCodeDto,
+  SendResetCodeDto,
+} from './dto';
 import { LoggerService } from '../logger';
 import { I18nService } from 'nestjs-i18n';
 
@@ -30,11 +39,72 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('login')
   async login(@Body() dto: LoginDto) {
-    const user = await this.authService.validateUser(dto.account, dto.password);
-    if (!user || user.isActive === false) {
-      throw new HttpException(this.i18n.t('error.invalid_credentials'), HttpStatus.UNAUTHORIZED);
+    try {
+      return await this.authService.loginWithPassword(dto.account, dto.password);
+    } catch (e: unknown) {
+      if (e instanceof UnauthorizedException) {
+        throw new HttpException(this.i18n.t('error.invalid_credentials'), HttpStatus.UNAUTHORIZED);
+      }
+      if (e instanceof ServiceUnavailableException) {
+        throw e;
+      }
+      this.logger.error(`login error: ${e instanceof Error ? e.message : String(e)}`);
+      throw new HttpException(this.i18n.t('error.internal_error'), HttpStatus.INTERNAL_SERVER_ERROR);
     }
-    return this.authService.login(user);
+  }
+
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post('login/send-code')
+  async sendLoginCode(@Body() dto: SendResetCodeDto) {
+    try {
+      return await this.authService.sendLoginOtpCode(dto.email);
+    } catch (e: unknown) {
+      if (e instanceof ServiceUnavailableException) {
+        throw e;
+      }
+      if (e instanceof HttpException) {
+        throw e;
+      }
+      this.logger.error(`sendLoginCode error: ${e instanceof Error ? e.message : String(e)}`);
+      throw new HttpException(this.i18n.t('error.internal_error'), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Post('login/otp')
+  async loginOtp(@Body() dto: LoginOtpDto) {
+    try {
+      return await this.authService.loginWithOtp(dto.email, dto.code);
+    } catch (e: unknown) {
+      if (e instanceof UnauthorizedException) {
+        throw new HttpException(this.i18n.t('error.invalid_credentials'), HttpStatus.UNAUTHORIZED);
+      }
+      this.logger.error(`loginOtp error: ${e instanceof Error ? e.message : String(e)}`);
+      throw new HttpException(this.i18n.t('error.internal_error'), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post('register/send-code')
+  async sendRegisterCode(@Body() dto: SendRegisterCodeDto) {
+    try {
+      return await this.authService.sendRegisterCode(dto.email);
+    } catch (e: unknown) {
+      if (e instanceof ConflictException) {
+        throw new HttpException(this.i18n.t('error.account_already_exists'), HttpStatus.CONFLICT);
+      }
+      if (e instanceof ServiceUnavailableException) {
+        throw e;
+      }
+      if (e instanceof HttpException) {
+        throw e;
+      }
+      this.logger.error(`sendRegisterCode error: ${e instanceof Error ? e.message : String(e)}`);
+      throw new HttpException(this.i18n.t('error.internal_error'), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   @UseGuards(ThrottlerGuard)
@@ -50,6 +120,9 @@ export class AuthController {
       if (e instanceof ConflictException) {
         throw new HttpException(this.i18n.t('error.account_already_exists'), HttpStatus.CONFLICT);
       }
+      if (e instanceof ServiceUnavailableException) {
+        throw e;
+      }
       this.logger.error(`register error: ${e instanceof Error ? e.message : String(e)}`);
       throw new HttpException(this.i18n.t('error.internal_error'), HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -59,7 +132,18 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('password-reset/send-code')
   async sendResetCode(@Body() dto: SendResetCodeDto) {
-    return this.authService.sendPasswordResetCode(dto.email);
+    try {
+      return await this.authService.sendPasswordResetCode(dto.email);
+    } catch (e: unknown) {
+      if (e instanceof ServiceUnavailableException) {
+        throw e;
+      }
+      if (e instanceof HttpException) {
+        throw e;
+      }
+      this.logger.error(`sendResetCode error: ${e instanceof Error ? e.message : String(e)}`);
+      throw new HttpException(this.i18n.t('error.internal_error'), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   @UseGuards(ThrottlerGuard)
