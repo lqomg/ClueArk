@@ -41,8 +41,8 @@ export function LoginPage() {
   const location = useLocation();
   const setSession = useAuthStore((s) => s.setSession);
   const [mode, setMode] = useState<LoginMode>('password');
-  const [account, setAccount] = useState('show@clueark.com');
-  const [password, setPassword] = useState('123456qian');
+  const [account, setAccount] = useState('');
+  const [password, setPassword] = useState('');
   const [otpEmail, setOtpEmail] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
