@@ -84,7 +84,8 @@ export function AuthBrandingLayout({
           {showLegalFooter ? (
             <>
               <p className="px-1 text-center text-[12px] gap-1  leading-loose tracking-[0.2em] ">
-                演示环境账号：<span className="font-mono text-slate-400">show@clueark.com</span>
+                演示环境账号：
+                <span className="font-mono text-slate-400">show@clueark.com</span> 
                 / <span className="font-mono text-slate-400">123456qian</span>
               </p>
               <p className=" text-center text-[12px] gap-1  leading-loose tracking-[0.2em] text-red-600">
