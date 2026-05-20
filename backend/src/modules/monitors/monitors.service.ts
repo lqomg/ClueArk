@@ -1323,7 +1323,7 @@ export class MonitorsService {
         runId: String(latestRun._id),
       };
     } else {
-      weeklyBrief = ['研判摘要尚未生成，请等待定时任务（默认每小时）执行后再查看。'];
+      weeklyBrief = ['研判摘要尚未生成，请等待定时任务（默认每天 08:00 Asia/Shanghai）执行后再查看。'];
       briefMeta = {
         profileId: profile.profileId,
         periodKey: '',

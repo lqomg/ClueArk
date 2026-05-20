@@ -14,7 +14,8 @@ export class MonitorBriefCronTask implements OnApplicationBootstrap {
     void this.runTick('startup');
   }
 
-  @Cron('0 0 * * * *')
+  /** 每日 08:00（Asia/Shanghai）为所有有效监控跑一轮研判摘要 */
+  @Cron('0 0 8 * * *', { timeZone: 'Asia/Shanghai' })
   async handleCron(): Promise<void> {
     await this.runTick('cron');
   }
