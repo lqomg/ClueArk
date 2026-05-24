@@ -18,7 +18,7 @@ export class FeedItem {
   @Prop({ required: true, trim: true, maxlength: 500 })
   title: string;
 
-  @Prop({ default: '', trim: true, maxlength: 8000 })
+  @Prop({ default: '', trim: true, maxlength: 50000 })
   summary: string;
 
   /** 有效发布时间（入库必填；无可靠来源时间时用抓取时刻） */
@@ -38,10 +38,6 @@ export class FeedItem {
   @Prop({ default: '', trim: true, maxlength: 2000 })
   llmRecommendReason: string;
 
-  /** 精选排序权重 0～100，未富化可为 null */
-  @Prop({ type: Number, default: null, min: 0, max: 100 })
-  llmPriority: number | null;
-
   @Prop({ default: '', trim: true, maxlength: 128 })
   llmModel: string;
 
@@ -59,6 +55,13 @@ export class FeedItem {
   /** 标题+摘要向量 */
   @Prop({ type: [Number], default: undefined })
   simEmbedFull?: number[];
+
+  /** 监控 pipeline：pending | embedded | matched | failed */
+  @Prop({ type: String, default: null, index: true })
+  pipelineStatus?: string | null;
+
+  @Prop({ type: Date, default: null })
+  embeddedAt?: Date | null;
 }
 
 export const FeedItemSchema = SchemaFactory.createForClass(FeedItem);
@@ -70,17 +73,4 @@ FeedItemSchema.index(
 
 FeedItemSchema.index({ publishedAt: -1, createdAt: -1 });
 FeedItemSchema.index({ llmStatus: 1, createdAt: 1 });
-FeedItemSchema.index({ llmPriority: -1, publishedAt: -1 });
-FeedItemSchema.index({ clusterId: 1, publishedAt: -1 });
-
-/** 监控候选池：sourceId + llmStatus + 时间排序，与 monitors buildScored* 查询对齐 */
-FeedItemSchema.index(
-  { sourceId: 1, llmStatus: 1, publishedAt: -1, createdAt: -1 },
-  {
-    partialFilterExpression: {
-      llmStatus: 'done',
-      'simEmbedFull.0': { $exists: true },
-      publishedAt: { $type: 'date' },
-    },
-  },
-);
+FeedItemSchema.index({ clusterId: 1, sourceId: 1, publishedAt: -1 });

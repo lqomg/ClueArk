@@ -5,6 +5,8 @@ import type { CrawlResult } from './crawl.types';
 export type CrawlSourceRow = {
   sourceId: string;
   listUrl: string;
+  pollIntervalSec?: number;
+  nextPollAt?: string | null;
   selectors?: { item: string; link: string; title: string; summary?: string; date?: string };
 };
 

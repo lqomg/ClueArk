@@ -9,18 +9,13 @@ import { ForgotPasswordPage } from '@/pages/auth/forgot-password';
 import { LegalTermsPage } from '@/pages/legal/terms';
 import { LegalPrivacyPage } from '@/pages/legal/privacy';
 import { SourcesPage } from '@/pages/app/sources';
-import { FeedPage } from '@/pages/app/feed';
+import { NotificationsPage } from '@/pages/app/notifications';
 import { MonitorOverviewPage } from '@/pages/app/monitors';
 import { MonitorDetailPage } from '@/pages/app/monitors/detail';
 import { MonitorManagePage } from '@/pages/app/monitors/manage';
 import { MonitorSettingsPage } from '@/pages/app/monitors/settings';
+import { HomePage } from '@/pages/app/home';
 import { ProfilePage } from '@/pages/app/me';
-import { RequireStaff } from '@/routes/RequireStaff';
-import { RequireAdminOnly } from '@/routes/RequireAdminOnly';
-import { AdminLayout } from '@/pages/admin/layout';
-import { AdminUsersPage } from '@/pages/admin/users';
-import { AdminSourcesPage } from '@/pages/admin/sources';
-import { AdminAggregationPolicyPage } from '@/pages/admin/aggregation-policy';
 
 function AuthBootstrap() {
   const hydrate = useAuthStore((s) => s.hydrate);
@@ -34,7 +29,7 @@ function GuestOnly({ children }: { children: React.ReactElement }) {
   const token = useAuthStore((s) => s.token);
   const location = useLocation();
   if (token) {
-    const to = (location.state as { from?: string } | null)?.from || '/app/feed';
+    const to = (location.state as { from?: string } | null)?.from || '/app/home';
     return <Navigate to={to} replace />;
   }
   return children;
@@ -79,8 +74,9 @@ export default function App() {
             </RequireAuth>
           }
         >
-          <Route index element={<Navigate to="feed" replace />} />
-          <Route path="feed" element={<FeedPage />} />
+          <Route index element={<Navigate to="home" replace />} />
+          <Route path="home" element={<HomePage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
           <Route path="monitors/new" element={<Navigate to="/app/monitors/manage" replace />} />
           <Route path="monitors/manage" element={<MonitorManagePage />} />
           <Route path="monitors/:id/settings" element={<MonitorSettingsPage />} />
@@ -88,16 +84,9 @@ export default function App() {
           <Route path="monitors" element={<MonitorOverviewPage />} />
           <Route path="sources" element={<SourcesPage />} />
           <Route path="me" element={<ProfilePage />} />
-          <Route path="admin" element={<RequireStaff><AdminLayout /></RequireStaff>}>
-            <Route index element={<Navigate to="sources" replace />} />
-            <Route path="users" element={<RequireAdminOnly><AdminUsersPage /></RequireAdminOnly>} />
-            <Route path="sources" element={<AdminSourcesPage />} />
-            <Route path="aggregation-policy" element={<AdminAggregationPolicyPage />} />
-            <Route path="sources/:id/edit" element={<Navigate to="/app/admin/sources" replace />} />
-          </Route>
         </Route>
-        <Route path="/" element={<Navigate to="/app/feed" replace />} />
-        <Route path="*" element={<Navigate to="/app/feed" replace />} />
+        <Route path="/" element={<Navigate to="/app/home" replace />} />
+        <Route path="*" element={<Navigate to="/app/home" replace />} />
       </Routes>
     </>
   );

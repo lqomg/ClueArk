@@ -1,52 +1,28 @@
-import { BadRequestException, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../admin/guards/admin.guard';
-import { FeedItemsService } from './feed-items.service';
 import { FeedIngestService } from './feed-ingest.service';
 import { FeedLlmEnrichService } from './feed-llm-enrich.service';
-import { FeedClusterService } from './feed-cluster.service';
-import { ListFeedItemsQueryDto } from './dto/list-feed-items.query.dto';
 
+/** 管理员维护：采集同步、富化（用户读路径在 /monitors） */
 @Controller('feed-items')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, AdminGuard)
 export class FeedItemsController {
   constructor(
-    private readonly feedItemsService: FeedItemsService,
     private readonly feedIngestService: FeedIngestService,
     private readonly feedLlmEnrich: FeedLlmEnrichService,
-    private readonly feedCluster: FeedClusterService,
   ) {}
 
-  /** 同一相似簇下的全部条目 */
-  @Get('by-cluster/:clusterId')
-  listByCluster(@Param('clusterId') clusterId: string) {
-    return this.feedItemsService.listByClusterId(clusterId);
-  }
-
-  @Get()
-  list(@Query() query: ListFeedItemsQueryDto) {
-    return this.feedItemsService.list(query);
-  }
-
   @Post('sync')
-  @UseGuards(AdminGuard)
   sync() {
-    return this.feedIngestService.pollAllFeedSources();
+    return this.feedIngestService.enqueueManualSourcePolls();
   }
 
-  /** 管理员：手动触发相似聚类（与定时任务相同逻辑） */
-  @Post('cluster/run')
-  @UseGuards(AdminGuard)
-  runCluster() {
-    return this.feedCluster.run();
-  }
-
-  /** 管理员：批量触发 LLM 富化 pending 条目 */
+  /** 将被监控信源上的 pending 条目入队 enrich_llm（非进程内直接富化） */
   @Post('llm/enrich-pending')
-  @UseGuards(AdminGuard)
   enrichPending(@Query('limit') limit?: string) {
     const n = limit != null && limit !== '' ? Number(limit) : 100;
     if (!Number.isFinite(n) || n < 1 || n > 500) throw new BadRequestException('invalid_limit');
-    return this.feedLlmEnrich.processPending(Math.floor(n));
+    return this.feedLlmEnrich.enqueueMonitoredPending(Math.floor(n));
   }
 }

@@ -1,17 +1,22 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Radar, Settings2 } from 'lucide-react';
-import { getFeedItemsByClusterId } from '@/api/feed';
 import { getMonitor, listMonitorFeed } from '@/api/monitors';
-import type { Monitor } from '@/types/models';
+import type { FeedItem, Monitor } from '@/types/models';
 import { useAppTopBar } from '@/components/layout/AppTopBar';
 import { TopBarCountPill } from '@/components/layout/TopBarCountPill';
 import { Button, Segmented, Timeline } from '@/components/ui';
-import { ClusterSimilarDialog } from '@/pages/app/feed/components/ClusterSimilarDialog';
-import { FeedTimelineItem } from '@/pages/app/feed/components/FeedTimelineItem';
-import type { ClusterRow, ListResponse } from '@/pages/app/feed/types';
+import { MonitorTimelineItem } from '@/pages/app/monitors/components/MonitorTimelineItem';
 
 type RecentHoursPreset = '24' | '72' | '168' | '720';
+
+interface ListResponse {
+  items: Array<FeedItem & { relevanceScore?: number }>;
+  total: number;
+  page: number;
+  pageSize: number;
+  recentHours: number;
+}
 
 export function MonitorDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -23,14 +28,14 @@ export function MonitorDetailPage() {
   const [list, setList] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
-
-  const [clusterDetailId, setClusterDetailId] = useState<string | null>(null);
-  const [clusterLoading, setClusterLoading] = useState(false);
-  const [clusterRows, setClusterRows] = useState<ClusterRow[] | null>(null);
-  const [clusterError, setClusterError] = useState<string | null>(null);
+  const listReqSeq = useRef(0);
 
   useEffect(() => {
     if (!id) return;
+    listReqSeq.current += 1;
+    setList(null);
+    setListError(null);
+    setPage(1);
     setMetaError(null);
     void (async () => {
       try {
@@ -53,10 +58,12 @@ export function MonitorDetailPage() {
 
   const loadList = useCallback(async () => {
     if (!id) return;
+    const seq = ++listReqSeq.current;
     setLoading(true);
     setListError(null);
     try {
       const res = await listMonitorFeed(id, feedQuery);
+      if (seq !== listReqSeq.current) return;
       setList({
         items: res.items,
         total: res.total,
@@ -65,10 +72,11 @@ export function MonitorDetailPage() {
         recentHours: res.recentHours,
       });
     } catch (e) {
+      if (seq !== listReqSeq.current) return;
       setListError(e instanceof Error ? e.message : '加载失败');
       setList(null);
     } finally {
-      setLoading(false);
+      if (seq === listReqSeq.current) setLoading(false);
     }
   }, [id, feedQuery]);
 
@@ -78,35 +86,10 @@ export function MonitorDetailPage() {
     return () => window.clearTimeout(t);
   }, [id, loadList]);
 
-  useEffect(() => {
-    if (!clusterDetailId) return;
-    const cid = clusterDetailId;
-    setClusterRows(null);
-    setClusterError(null);
-    setClusterLoading(true);
-    void (async () => {
-      try {
-        const res = await getFeedItemsByClusterId(cid);
-        setClusterRows(res.items ?? []);
-      } catch (e) {
-        setClusterError(e instanceof Error ? e.message : '加载失败');
-      } finally {
-        setClusterLoading(false);
-      }
-    })();
-  }, [clusterDetailId]);
-
-  const closeClusterDialog = useCallback(() => setClusterDetailId(null), []);
-  const openCluster = useCallback((clusterId: string) => {
-    setClusterDetailId(clusterId);
-    setClusterRows(null);
-    setClusterError(null);
-  }, []);
-
   const isEmpty = !loading && list && list.items.length === 0;
 
   useAppTopBar(
-    () => (
+    () =>
       !id ? (
         <span className="text-sm text-slate-500">无效的监控 ID</span>
       ) : (
@@ -158,8 +141,7 @@ export function MonitorDetailPage() {
             </div>
           </div>
         </div>
-      )
-    ),
+      ),
     [id, monitor?.title, metaError, list?.total, recentHours],
   );
 
@@ -169,20 +151,14 @@ export function MonitorDetailPage() {
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col gap-3">
-      <ClusterSimilarDialog
-        open={clusterDetailId != null}
-        onClose={closeClusterDialog}
-        loading={clusterLoading}
-        error={clusterError}
-        rows={clusterRows}
-      />
-
       {metaError ? <p className="shrink-0 text-sm text-red-400">{metaError}</p> : null}
       {listError ? <p className="shrink-0 text-sm text-red-400">{listError}</p> : null}
 
       <div id="monitor-feed-scroll" className="min-h-0 flex-1 overflow-y-auto">
         {monitor?.description ? (
-          <p className="border-b border-white/[0.06] px-1 py-2 text-xs leading-relaxed text-slate-500">{monitor.description}</p>
+          <p className="border-b border-white/[0.06] px-1 py-2 text-xs leading-relaxed text-slate-500">
+            {monitor.description}
+          </p>
         ) : null}
         {loading && !list ? (
           <div className="p-8 text-center text-sm text-slate-500">加载中…</div>
@@ -194,11 +170,11 @@ export function MonitorDetailPage() {
         ) : (
           <Timeline className="py-3">
             {(list?.items ?? []).map((it, idx, arr) => (
-              <FeedTimelineItem
+              <MonitorTimelineItem
                 key={it.id}
+                monitorId={id}
                 item={it}
                 isLast={idx === arr.length - 1}
-                onOpenCluster={openCluster}
               />
             ))}
           </Timeline>

@@ -7,6 +7,7 @@ import { LoggerService } from './logger.service';
 
 // 日志目录配置
 const LOG_DIR = process.env.LOG_DIR || join(process.cwd(), 'logs');
+const LOG_LEVEL = process.env.LOG_LEVEL?.trim() || 'info';
 
 // 自定义日志格式
 const logFormat = winston.format.combine(
@@ -73,7 +74,7 @@ const appRotateTransport = new DailyRotateFile({
       transports: [
         // 控制台输出
         new winston.transports.Console({
-          level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+          level: LOG_LEVEL,
           format: consoleFormat,
         }),
         // 统一日志文件（按小时分割）

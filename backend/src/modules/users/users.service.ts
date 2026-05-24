@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { User, UserDocument, type UserRole } from './schemas/user.schema';
 import { USER_ROLE } from './user-role';
@@ -151,29 +151,7 @@ export class UsersService {
     });
   }
 
-  /**
-   * 演示账号种子：仅当该邮箱不存在时创建；若已被占用且非 demo 角色则抛错由上层记录日志。
-   * 额外演示账号仍可在后台「用户管理」中创建。
-   */
-  async createDemoUserIfMissing(email: string, plainPassword: string): Promise<void> {
-    const normalized = email.trim().toLowerCase();
-    const exists = await this.userModel.findOne({ email: normalized }).exec();
-    if (exists) {
-      if (exists.role === USER_ROLE.Demo) return;
-      throw new ConflictException('demo_email_taken_by_user');
-    }
-    const hashed = await bcrypt.hash(plainPassword, 10);
-    const username = await this.generateUsernameFromEmail(normalized);
-    await this.userModel.create({
-      email: normalized,
-      username,
-      password: hashed,
-      role: USER_ROLE.Demo,
-      isActive: true,
-    });
-  }
-
-  /** 管理员创建用户（含管理员/演示角色）；邮箱唯一。 */
+  /** 管理员创建用户；邮箱唯一。 */
   async createUserByAdmin(input: {
     email: string;
     password: string;
@@ -206,6 +184,33 @@ export class UsersService {
       isActive: boolean;
       role: UserRole;
     } | null>;
+  }
+
+  async findManyByIds(ids: string[]): Promise<Array<{ id: string; email: string; username: string }>> {
+    const oids = ids.filter((id) => Types.ObjectId.isValid(id)).map((id) => new Types.ObjectId(id));
+    if (!oids.length) return [];
+    const rows = await this.userModel
+      .find({ _id: { $in: oids } })
+      .select('email username')
+      .lean()
+      .exec();
+    return rows.map((r) => ({
+      id: String(r._id),
+      email: String(r.email ?? ''),
+      username: String(r.username ?? ''),
+    }));
+  }
+
+  async findIdsByEmailSearch(emailPart: string): Promise<string[]> {
+    const q = emailPart.trim();
+    if (!q) return [];
+    const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rows = await this.userModel
+      .find({ email: new RegExp(esc, 'i') })
+      .select('_id')
+      .lean()
+      .exec();
+    return rows.map((r) => String(r._id));
   }
 
   async listUsersForAdmin(

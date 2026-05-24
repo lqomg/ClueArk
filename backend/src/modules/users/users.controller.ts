@@ -1,8 +1,8 @@
-import { Body, Controller, Get, NotFoundException, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Post, Put, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators';
-import { ChangePasswordDto, UpdateProfileDto } from './dto';
+import { ChangePasswordDto, SaveProfileDto } from './dto';
 import { toPlainObjectWithoutFields } from '../../common/utils';
 import type { User } from './schemas/user.schema';
 
@@ -20,10 +20,13 @@ export class UsersController {
     return toPlainObjectWithoutFields<User>(user, ['password']);
   }
 
-  @Patch('me')
+  @Put('me/profile')
   @UseGuards(JwtAuthGuard)
-  async patchMe(@CurrentUser('userId') userId: string, @Body() body: UpdateProfileDto) {
-    const user = await this.usersService.updateProfile(userId, { username: body.username, timeZone: body.timeZone });
+  async saveProfile(@CurrentUser('userId') userId: string, @Body() body: SaveProfileDto) {
+    const user = await this.usersService.updateProfile(userId, {
+      username: body.username,
+      timeZone: body.timeZone,
+    });
     return toPlainObjectWithoutFields<User>(user, ['password']);
   }
 

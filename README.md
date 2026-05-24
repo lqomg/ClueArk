@@ -34,16 +34,18 @@
 - **多类采集路径**：同一资源池内支持 **RSS/Atom**、**Web（含可选列表页爬虫）**、**JSON 热点 API（可配置字段映射）**，按需选用而非单一抓取方式。
 - **独立 Web 爬虫服务**：对无稳定 Feed 的站点，通过 **CSS 选择器** 解析列表页 HTML（NestJS + Cheerio），与主站 **契约对齐** 上报；爬虫侧不依赖 LLM。详见 [`crawler/README.md`](crawler/README.md)。
 - **可选智能化**：可按环境变量接入 DeepSeek、条目富化、Embedding 与聚类等（根目录与 `backend/.env.example`）；**创建监控**要求 Embedding 可用，且条目侧需具备与监控一致的语义向量字段，时间线才会有内容。
-- **Docker Compose 单机栈**：MongoDB、后端 API、前端（Nginx 反代）、爬虫默认同栈构建启动，适合快速部署。
+- **Docker Compose 单机栈**：MongoDB、**Redis**、**Qdrant**、后端 API、**BullMQ Worker**、用户前端、**独立运营后台**、爬虫默认同栈构建启动，适合快速部署。
+- **监控优先读模型**：列表与研判指标由 `monitor_snapshots` 物化；向量仅存 Qdrant；新条目经队列完成 embed → 匹配 → 应用内通知。
 
 面向个人的情报采集与浏览：在统一信源池上订阅话题、浏览语义筛选后的时间线并查看研判摘要，减轻自行全网检索的负担。
 
 ## 话题监控（机制说明）
 
-- **创建**：用户输入一句「监控意图」。后端调用 LLM 生成标题、正式说明、关键词与实体，并在当前**已启用**的信源目录中自动挑选一批绑定信源（数量与目录规模可通过 `MONITOR_MIN_SOURCES`、`MONITOR_MAX_SOURCES`、`MONITOR_LLM_SOURCE_CATALOG_CAP` 等调节，详见 `backend/.env.example`）。同时对正式说明做 Embedding，写入监控的描述向量。
-- **语义时间线**：只展示已绑定信源中、富化完成且具备全文语义向量的条目；按与监控说明向量的**余弦相似度**过滤，低于 `minCosine`（默认约 0.43）的不进入时间线。默认回溯窗口等见 `MONITOR_DEFAULT_RECENT_HOURS`、`MONITOR_TIMELINE_CANDIDATE_CAP`。
-- **情报卡片与趋势**：在通过阈值的条目集合上统计热度、近 7 日趋势（按用户资料中的 **IANA 时区**做日历日分桶）、标签分布与最新条目等。总览页提供合并接口，减少多次往返。
-- **研判摘要**：后端在进程启动完成后异步跑一轮，并**按小时**为所有有效监控生成摘要；结果写入 MongoDB，前端读取最近一次成功运行。摘要时间窗默认对应「近 N 小时滚动窗」（`MONITOR_BRIEF_WEEKLY_ROLLING_HOURS`，默认 168）；API 响应中字段名仍为 `weeklyBrief`，与历史命名并存。证据条数与截断等见 `MONITOR_BRIEF_*` 变量。
+- **创建**：用户输入一句「监控意图」。后端调用 LLM 生成标题、正式说明、关键词与实体，并绑定信源；描述向量写入 **Qdrant**（Mongo 仅存元数据）。创建后异步计算首份快照（`snapshotStatus: computing` → `ready`）。
+- **语义时间线**：经 Qdrant 检索 + `minCosine` 过滤；HTTP 读路径不做全量余弦计算。仅**至少被一个监控绑定**的信源在 ingest 后进入 embed/富化流水线。
+- **情报卡片与趋势**：`GET /monitors` 列表内嵌轻量指标（优先 `monitor_snapshots`）；研判详情用 `GET /monitors/:id/intelligence`。
+- **研判摘要**：经 `brief` 队列异步生成，证据来自 Qdrant 检索；结果写入 MongoDB。变量见 `MONITOR_BRIEF_*`。
+- **通知**：条目命中监控后写入 `notifications`，前端 `/app/notifications` 查看。
 
 ## 多类信源支持
 
@@ -57,25 +59,27 @@
 
 ## 演示
 
-- **访问：** [https://clueark.com](https://clueark.com) —— 普通用户可自行注册。
-- **演示账号：** show@clueark.com  / 123456qian
+- **用户产品：** [https://clueark.com](https://clueark.com) —— 普通用户可自行注册。
+- **运营后台：** 私有化部署时访问 `http://<host>:8081`（Compose 默认 `ADMIN_WEB_PORT`），使用种子管理员 `ADMIN_EMAIL` / `ADMIN_PASSWORD` 登录（`POST /api/admin/auth/login`）。
 
 ## 技术栈
 
 | 部分 | 技术 |
 |------|------|
-| 前端 | React 18、TypeScript、Vite、Tailwind CSS、Zustand、React Router |
-| 后端 | NestJS、MongoDB（Mongoose）、JWT、定时任务等 |
+| 用户前端 | React 18、TypeScript、Vite、Tailwind CSS、Zustand、React Router |
+| 运营后台 | React 18、TypeScript、Vite、Ant Design、ProComponents |
+| 后端 | NestJS、MongoDB（Mongoose）、Redis/BullMQ、Qdrant、JWT、定时任务等 |
 | 爬虫 | NestJS、Cheerio、可配置选择器（与主站契约对齐） |
 
-代码目录：`frontend/`、`backend/`、`crawler/` 分别为独立子项目（根目录无统一 `package.json`）。
+代码目录：`frontend/`（用户产品）、`admin-web/`（运营后台）、`backend/`、`crawler/` 分别为独立子项目（根目录无统一 `package.json`）。
 
 ## 仓库结构（节选）
 
 ```
 ├── backend/           # 主 API 服务（NestJS）
 ├── crawler/           # Web 列表页爬虫服务（NestJS），详见 crawler/README.md
-├── frontend/          # Web 前端（Vite + React）
+├── frontend/          # 用户 Web 前端（Vite + React）
+├── admin-web/         # 独立运营后台（Vite + React + Ant Design）
 ├── data/              # 内置信源种子等（如 built-in-catalog.json）
 ├── docker-compose.yml # 推荐部署入口
 ├── .env.example       # 环境变量模板（复制为 .env）
@@ -95,7 +99,7 @@
 
 ## 部署（Docker Compose，推荐）
 
-根目录 `docker-compose.yml` 为**推荐单机部署入口**：MongoDB + backend + web（Nginx 托管前端并反代 API）+ crawler。
+根目录 `docker-compose.yml` 为**推荐单机部署入口**：MongoDB + backend + web（用户产品）+ admin-web（运营后台）+ crawler。
 
 ### 首次启动
 
@@ -113,9 +117,10 @@ docker compose up -d --build
 
 ### 访问地址
 
-- **Web 界面**：`http://<服务器IP或域名>:<端口>`
+- **用户 Web**：`http://<服务器IP或域名>:<端口>`
   - 若已按 `.env.example` 复制并保留 `WEB_PORT=8080`，则一般为 **`http://<host>:8080`**。
   - 若未提供 `.env` 或未设置 `WEB_PORT`，Compose 默认将容器 80 映射到宿主机 **`80`**（即 `http://<host>/`）。
+- **运营后台**：默认 **`http://<host>:8081`**（`ADMIN_WEB_PORT`）；使用管理员账号登录。
 - **HTTP API**：通过前端的 **`/api`** 路径由 Nginx 反代到后端，**不单独对外暴露** backend 端口。
 
 ### 网络与安全说明

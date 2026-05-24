@@ -1,4 +1,4 @@
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, MinLength, ValidateNested } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { SOURCE_KINDS, type SourceKind } from '../../sources/source-kind';
 import { SourceWebDto } from '../../sources/dto/source-web.dto';
@@ -48,4 +48,9 @@ export class AdminCreateOfficialSourceDto {
   @IsOptional()
   @IsInt()
   sortOrder?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(30)
+  pollIntervalSec?: number | null;
 }

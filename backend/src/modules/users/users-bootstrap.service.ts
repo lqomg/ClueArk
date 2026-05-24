@@ -17,7 +17,6 @@ export class UsersBootstrapService implements OnModuleInit {
 
   async onModuleInit() {
     await this.seedSuperAdmin();
-    await this.seedDemoUser();
   }
 
   private async seedSuperAdmin() {
@@ -46,28 +45,6 @@ export class UsersBootstrapService implements OnModuleInit {
       if (e instanceof ConflictException) {
         this.logger.warn(
           `无法创建超级管理员：邮箱 ${email} 已被普通用户占用，请更换 ADMIN_EMAIL 或手动提升角色`,
-        );
-        return;
-      }
-      throw e;
-    }
-  }
-
-  private async seedDemoUser() {
-    const email = (this.config.get<string>('DEMO_EMAIL') || 'show@clueark.com').trim().toLowerCase();
-    let password = this.config.get<string>('DEMO_PASSWORD');
-    if (!password?.trim()) {
-      password = '123456qian';
-      this.logger.warn(`设置 DEMO_PASSWORD，使用默认演示密码（请勿用于生产）：${password}`);
-    }
-
-    try {
-      await this.usersService.createDemoUserIfMissing(email, password.trim());
-      this.logger.log(`演示账号已就绪：${email}`);
-    } catch (e) {
-      if (e instanceof ConflictException) {
-        this.logger.warn(
-          `无法创建演示账号：邮箱 ${email} 已被非演示用户占用，请更换 DEMO_EMAIL 或在后台用户管理创建 demo 角色`,
         );
         return;
       }

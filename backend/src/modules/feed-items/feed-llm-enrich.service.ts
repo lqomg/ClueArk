@@ -4,6 +4,8 @@ import { ConfigService } from '@nestjs/config';
 import { Model, Types } from 'mongoose';
 import { LLM_CHAT } from '../llm/llm.tokens';
 import type { LlmChatPort } from '../llm/llm.types';
+import { JobSchedulerService } from '../job-center/job-scheduler.service';
+import { Source, SourceDocument } from '../sources/schemas/source.schema';
 import { FeedItem, FeedItemDocument } from './schemas/feed-item.schema';
 import { buildFeedEnrichSystemPrompt, buildFeedEnrichUserPayload } from './feed-llm-prompts';
 import { FEED_MIN_SUMMARY_LEN_FOR_LLM } from './feed-llm.constants';
@@ -14,7 +16,6 @@ const MAX_TAG_LEN = 24;
 type EnrichJson = {
   tags?: unknown;
   recommendReason?: unknown;
-  priority?: unknown;
 };
 
 /** 开放标签：去重、长度与数量限制，不做词表过滤 */
@@ -35,12 +36,6 @@ function normalizeTags(raw: unknown): string[] {
   return out;
 }
 
-function normalizePriority(raw: unknown): number {
-  const n = typeof raw === 'number' ? raw : Number(raw);
-  if (!Number.isFinite(n)) return 30;
-  return Math.min(100, Math.max(0, Math.round(n)));
-}
-
 function normalizeReason(raw: unknown): string {
   const s = typeof raw === 'string' ? raw.trim() : String(raw ?? '').trim();
   return s.slice(0, 2000);
@@ -56,55 +51,78 @@ export class FeedLlmEnrichService {
 
   constructor(
     @InjectModel(FeedItem.name) private readonly feedItemModel: Model<FeedItemDocument>,
+    @InjectModel(Source.name) private readonly sourceModel: Model<SourceDocument>,
     @Inject(LLM_CHAT) private readonly llm: LlmChatPort,
     private readonly config: ConfigService,
+    private readonly scheduler: JobSchedulerService,
   ) {}
 
   /**
-   * 批量处理 pending；单条失败写入 failed，不阻塞后续。
-   * 未配置 DEEPSEEK_API_KEY 时跳过（skipped=true）。
+   * 将被监控信源上的 pending（或超时 processing）条目入队 enrich_llm。
+   * 供管理员补救；日常由 pipeline 在 process_new_item 后入队。
    */
-  async processPending(limit: number): Promise<{
-    processed: number;
-    ok: number;
-    failed: number;
-    skipped: boolean;
-  }> {
+  async enqueueMonitoredPending(limit: number): Promise<{ enqueued: number; skipped: boolean }> {
     const key = this.config.get<string>('DEEPSEEK_API_KEY')?.trim();
     if (!key) {
-      this.logger.warn('DEEPSEEK_API_KEY 未配置，跳过 LLM 富化');
-      return { processed: 0, ok: 0, failed: 0, skipped: true };
+      this.logger.warn('DEEPSEEK_API_KEY 未配置，跳过 LLM 富化入队');
+      return { enqueued: 0, skipped: true };
     }
-    const n = Math.min(Math.max(1, limit | 0), 200);
+    const n = Math.min(Math.max(1, limit | 0), 500);
     const staleBefore = new Date(Date.now() - 20 * 60 * 1000);
-    let ok = 0;
-    let failed = 0;
-    for (let i = 0; i < n; i++) {
-      const doc = await this.feedItemModel
-        .findOneAndUpdate(
-          {
-            $or: [{ llmStatus: 'pending' }, { llmStatus: 'processing', updatedAt: { $lt: staleBefore } }],
-          },
-          { $set: { llmStatus: 'processing' } },
-          { new: true, sort: { createdAt: 1 } },
-        )
-        .populate({ path: 'sourceId', select: 'displayName' })
-        .lean()
-        .exec();
-      if (!doc) break;
-      try {
-        await this.enrichOne(doc as Record<string, unknown>);
-        ok += 1;
-      } catch (e) {
-        failed += 1;
-        const msg = e instanceof Error ? e.message : String(e);
-        await this.feedItemModel
-          .updateOne({ _id: doc._id }, { $set: { llmStatus: 'failed', llmError: msg.slice(0, 2000) } })
-          .exec();
-        this.logger.warn(`LLM 富化失败 [${String(doc._id)}]: ${msg}`);
-      }
+    const monitored = await this.sourceModel
+      .find({
+        enabled: true,
+        monitoredByCount: { $gt: 0 },
+        $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+      })
+      .select({ _id: 1 })
+      .lean()
+      .exec();
+    const sourceIds = monitored.map((s) => s._id as Types.ObjectId);
+    if (!sourceIds.length) return { enqueued: 0, skipped: false };
+
+    const docs = await this.feedItemModel
+      .find({
+        sourceId: { $in: sourceIds },
+        $or: [{ llmStatus: 'pending' }, { llmStatus: 'processing', updatedAt: { $lt: staleBefore } }],
+      })
+      .sort({ createdAt: 1 })
+      .limit(n)
+      .select({ _id: 1 })
+      .lean()
+      .exec();
+
+    for (let i = 0; i < docs.length; i++) {
+      await this.scheduler.enqueueEnrichItem(String(docs[i]._id), { trigger: 'manual' });
     }
-    return { processed: ok + failed, ok, failed, skipped: false };
+    if (docs.length) {
+      this.logger.debug(`event=enrich_monitored_pending_enqueued count=${docs.length}`);
+    }
+    return { enqueued: docs.length, skipped: false };
+  }
+
+  /** 队列 worker：按 id 富化单条 */
+  async enrichOneById(feedItemId: string): Promise<void> {
+    const key = this.config.get<string>('DEEPSEEK_API_KEY')?.trim();
+    if (!key) return;
+    const doc = await this.feedItemModel
+      .findById(feedItemId)
+      .populate({ path: 'sourceId', select: 'displayName' })
+      .lean()
+      .exec();
+    if (!doc) return;
+    if (doc.llmStatus === 'done' || doc.llmStatus === 'skipped') {
+      return;
+    }
+    try {
+      await this.enrichOne(doc as Record<string, unknown>);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await this.feedItemModel
+        .updateOne({ _id: feedItemId }, { $set: { llmStatus: 'failed', llmError: msg.slice(0, 2000) } })
+        .exec();
+      this.logger.warn(`LLM 富化失败 [${feedItemId}]: ${msg}`);
+    }
   }
 
   private async enrichOne(doc: Record<string, unknown>): Promise<void> {
@@ -119,7 +137,6 @@ export class FeedLlmEnrichService {
               llmStatus: 'skipped',
               llmTags: [],
               llmRecommendReason: '',
-              llmPriority: null,
               llmModel: '',
               llmError: '',
             },
@@ -141,7 +158,6 @@ export class FeedLlmEnrichService {
 
     const llmTags = normalizeTags(raw.tags);
     const llmRecommendReason = normalizeReason(raw.recommendReason);
-    const llmPriority = normalizePriority(raw.priority);
     const llmModel = this.config.get<string>('DEEPSEEK_MODEL')?.trim() || 'deepseek-chat';
 
     await this.feedItemModel
@@ -152,7 +168,6 @@ export class FeedLlmEnrichService {
             llmStatus: 'done',
             llmTags,
             llmRecommendReason,
-            llmPriority,
             llmModel,
             llmError: '',
           },

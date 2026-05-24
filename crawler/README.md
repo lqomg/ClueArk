@@ -44,11 +44,11 @@ npm run start:dev
 
 ## 定时闭环（方案 1）
 
-进程**启动完成后**会先异步跑**一轮**爬取（与下面逻辑相同，不阻塞端口监听）；之后 **每 15 分钟**（`0 */15 * * * *`）自动：
+进程**启动完成后**会先异步跑**一轮**爬取（与下面逻辑相同，不阻塞端口监听）；之后 **每 30 秒**调度心跳，仅爬取 `nextPollAt` 已到期（或为空）的信源：
 
 1. `GET {CLUEARK_BACKEND_URL}/api/internal/feed-items/crawl-sources`（Bearer **`CRAWLER_INGEST_SECRET`**，须与主站相同变量一致）
-2. 对每个 `sources[]` 项：`listUrl` 为主站 **`web.crawlListUrl` 或 `web.url`**；若带 **`selectors`**（`item`/`link`/`title` 等）则与手动 `POST /api/crawl/run` 一致传入解析
-3. `POST .../crawl-ingest` 上报结果
+2. 对每个**到期**的 `sources[]` 项：`listUrl` 为主站 **`web.crawlListUrl` 或 `web.url`**；响应含 `pollIntervalSec`、`nextPollAt`
+3. `POST .../crawl-ingest` 上报结果；主站更新该信源 `lastPolledAt` / `nextPollAt`
 
 环境变量：
 
@@ -61,7 +61,7 @@ npm run start:dev
 
 ## 与主站接口
 
-- **`GET /api/internal/feed-items/crawl-sources`**：返回 `{ sources: [{ sourceId, listUrl, selectors? }] }`（经主站包装为 `data.sources`）。`selectors` 仅在主站信源配置了 `web.crawlSelectors` 时出现。
+- **`GET /api/internal/feed-items/crawl-sources`**：返回 `{ sources: [{ sourceId, listUrl, pollIntervalSec, nextPollAt, selectors? }] }`（经主站包装为 `data.sources`）。`selectors` 仅在主站信源配置了 `web.crawlSelectors` 时出现。
 - **`POST /api/internal/feed-items/crawl-ingest`**：请求体与 `POST /api/crawl/run` 的响应 JSON 同形。
 
 手动推送示例：

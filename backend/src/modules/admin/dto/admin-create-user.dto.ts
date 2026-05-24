@@ -1,5 +1,5 @@
 import { IsEmail, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
-import { USER_ROLE_VALUES, type UserRole } from '../../users/user-role';
+import { ADMIN_CREATABLE_ROLE_VALUES, type AdminCreatableRole } from '../../users/user-role';
 
 export class AdminCreateUserDto {
   @IsEmail()
@@ -10,8 +10,8 @@ export class AdminCreateUserDto {
   @MaxLength(128)
   password: string;
 
-  @IsIn([...USER_ROLE_VALUES])
-  role: UserRole;
+  @IsIn([...ADMIN_CREATABLE_ROLE_VALUES])
+  role: AdminCreatableRole;
 
   @IsOptional()
   @IsString()

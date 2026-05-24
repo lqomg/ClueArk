@@ -72,6 +72,16 @@ http.interceptors.response.use(
   (error: AxiosError<Record<string, unknown>>) => {
     const res = error.response;
     const status = res?.status ?? 0;
+    if (status === 401) {
+      useAuthStore.getState().clear();
+      if (typeof window !== 'undefined') {
+        const path = window.location.pathname;
+        if (!path.startsWith('/login') && !path.startsWith('/register')) {
+          const next = encodeURIComponent(path + window.location.search);
+          window.location.replace(`/login?from=${next}`);
+        }
+      }
+    }
     if (res?.data !== undefined) {
       try {
         unwrapBody(status, res.data);

@@ -6,12 +6,16 @@ import { Model, Types } from 'mongoose';
 import { LLM_CHAT } from '../llm/llm.tokens';
 import type { LlmChatPort } from '../llm/llm.types';
 import { Monitor, MonitorDocument } from './schemas/monitor.schema';
-import { FeedItem, FeedItemDocument } from '../feed-items/schemas/feed-item.schema';
 import { Source, SourceDocument } from '../sources/schemas/source.schema';
 import { FeedSimEmbeddingService } from '../feed-items/feed-sim-embedding.service';
-import { cosineSimilarity } from '../feed-items/feed-similarity.util';
-import { serializeFeedItem } from '../feed-items/feed-items.service';
+import { serializeFeedItem } from '../feed-items/feed-item.serialize';
+import { dedupeScoredByCluster } from '../feed-items/feed-cluster-timeline.util';
+import { MonitorPipelineService } from '../monitor-pipeline/monitor-pipeline.service';
 import { UsersService } from '../users/users.service';
+import { MonitorSnapshotService } from './monitor-snapshot.service';
+import { MonitoredSourcesService } from './monitored-sources.service';
+import { JobSchedulerService } from '../job-center/job-scheduler.service';
+import { VectorStoreService } from '../vector-store/vector-store.service';
 import {
   dateKeyInTimeZone,
   formatReferenceNowIsoForLlm,
@@ -22,7 +26,6 @@ import type { CreateMonitorDto } from './dto/create-monitor.dto';
 import type { ListMonitorFeedQueryDto } from './dto/list-monitor-feed.query.dto';
 import type { ListMonitorIntelligenceQueryDto } from './dto/list-monitor-intelligence.query.dto';
 import type { PatchMonitorSourcesDto } from './dto/patch-monitor-sources.dto';
-import type { ListMonitorBriefRunsQueryDto } from './dto/list-monitor-brief-runs.query.dto';
 import { LoggerService } from '../logger';
 import { MonitorBriefRun, MonitorBriefRunDocument } from './schemas/monitor-brief-run.schema';
 import {
@@ -119,8 +122,13 @@ export type MonitorOverviewCardPublic = {
 export type MonitorListMetricsPublic = Omit<MonitorOverviewCardPublic, 'monitorId'>;
 
 export type MonitorListItemPublic = MonitorPublic & {
+  snapshotStatus: string;
   metrics: MonitorListMetricsPublic;
 };
+
+const MONITOR_MIN_SOURCES=10;
+const MONITOR_MAX_SOURCES=30;
+
 
 @Injectable()
 export class MonitorsService {
@@ -129,10 +137,14 @@ export class MonitorsService {
   constructor(
     @InjectModel(Monitor.name) private readonly monitorModel: Model<MonitorDocument>,
     @InjectModel(MonitorBriefRun.name) private readonly briefRunModel: Model<MonitorBriefRunDocument>,
-    @InjectModel(FeedItem.name) private readonly feedItemModel: Model<FeedItemDocument>,
     @InjectModel(Source.name) private readonly sourceModel: Model<SourceDocument>,
     private readonly config: ConfigService,
     private readonly embeddings: FeedSimEmbeddingService,
+    private readonly snapshotService: MonitorSnapshotService,
+    private readonly monitoredSources: MonitoredSourcesService,
+    private readonly scheduler: JobSchedulerService,
+    private readonly vectorStore: VectorStoreService,
+    private readonly pipeline: MonitorPipelineService,
     loggerService: LoggerService,
     @Inject(LLM_CHAT) private readonly llm: LlmChatPort,
     private readonly usersService: UsersService,
@@ -140,21 +152,6 @@ export class MonitorsService {
     this.logger = loggerService.createLogger(MonitorsService.name);
   }
 
-  private maxSources(): number {
-    const raw = Number(this.config.get('MONITOR_MAX_SOURCES'));
-    return Number.isFinite(raw) && raw >= 1 && raw <= 50 ? Math.floor(raw) : 20;
-  }
-
-  /** 创建监控时 LLM 至少选择的信源数量 */
-  private minSources(): number {
-    const raw = Number(this.config.get('MONITOR_MIN_SOURCES'));
-    return Number.isFinite(raw) && raw >= 1 && raw <= 50 ? Math.floor(raw) : 10;
-  }
-
-  private timelineCandidateCap(): number {
-    const raw = Number(this.config.get('MONITOR_TIMELINE_CANDIDATE_CAP'));
-    return Number.isFinite(raw) && raw >= 100 && raw <= 20000 ? Math.floor(raw) : 3000;
-  }
 
   private defaultRecentHours(): number {
     const raw = Number(this.config.get('MONITOR_DEFAULT_RECENT_HOURS'));
@@ -235,6 +232,7 @@ export class MonitorsService {
       const c = cards[i];
       return {
         ...m,
+        snapshotStatus: String(d.snapshotStatus ?? 'pending'),
         metrics: {
           heatIndex: c.heatIndex,
           newLast24h: c.newLast24h,
@@ -243,24 +241,6 @@ export class MonitorsService {
         },
       };
     });
-  }
-
-  /** 总览页一次返回监控列表 + 各监控侧栏卡片指标，减少多次 intelligence 往返 */
-  async listOverviewForUser(
-    userId: string,
-    recentHours?: number,
-  ): Promise<{ monitors: MonitorPublic[]; cards: MonitorOverviewCardPublic[] }> {
-    const uid = new Types.ObjectId(userId);
-    const rh = recentHours ?? this.defaultRecentHours();
-    const docs = await this.monitorModel
-      .find({ userId: uid, deletedAt: null })
-      .sort({ createdAt: -1 })
-      .exec();
-    const monitors = docs.map((d) => this.serializeMonitor(d));
-    const viewerTz = await this.usersService.getTimeZoneOrDefault(userId);
-    const cards = await Promise.all(docs.map((doc) => this.buildOverviewCard(doc, rh, viewerTz)));
-    this.logger.debug(`monitor_list_overview userId=${userId} recentHours=${rh} count=${monitors.length}`);
-    return { monitors, cards };
   }
 
   async getOne(monitorId: string, userId: string): Promise<MonitorPublic> {
@@ -309,126 +289,9 @@ export class MonitorsService {
     return out.slice(0, maxN);
   }
 
-  /**
-   * 与 listFeedItems 相同的候选拉取、余弦过滤与排序；供时间线分页与情报聚合复用。
-   */
-  private async buildScoredMonitorFeed(
-    monitor: MonitorDocument,
-    recentHours: number,
-  ): Promise<{ scored: { doc: Record<string, unknown>; score: number }[]; minSim: number }> {
-    const m = monitor.toObject() as {
-      descriptionEmbedding: number[];
-      sourceIds: Types.ObjectId[];
-      minCosine?: number;
-    };
-    const queryVec = m.descriptionEmbedding;
-    if (!Array.isArray(queryVec) || queryVec.length === 0) {
-      throw new ServiceUnavailableException('monitor_missing_embedding');
-    }
-
-    const cutoff = new Date(Date.now() - recentHours * 3600000);
-    const rawMin = m.minCosine;
-    const minSim =
-      typeof rawMin === 'number' && Number.isFinite(rawMin) ? Math.min(1, Math.max(0, rawMin)) : 0.43;
-    const cap = this.timelineCandidateCap();
-
-    const sourceIds = (monitor.sourceIds ?? []).map((x) => new Types.ObjectId(String(x)));
-    if (sourceIds.length === 0) {
-      return { scored: [], minSim };
-    }
-
-    const candidates = await this.feedItemModel
-      .find({
-        sourceId: { $in: sourceIds },
-        llmStatus: 'done',
-        'simEmbedFull.0': { $exists: true },
-        publishedAt: { $gte: cutoff },
-      })
-      .sort({ publishedAt: -1, createdAt: -1 })
-      .limit(cap)
-      .populate({ path: 'sourceId', select: 'displayName' })
-      .lean()
-      .exec();
-
-    const scored: { doc: Record<string, unknown>; score: number }[] = [];
-    for (let i = 0; i < candidates.length; i++) {
-      const row = candidates[i] as Record<string, unknown>;
-      const emb = row.simEmbedFull as number[] | undefined;
-      if (!Array.isArray(emb) || emb.length === 0) continue;
-      if (emb.length !== queryVec.length) continue;
-      const score = cosineSimilarity(queryVec, emb);
-      if (score < minSim) continue;
-      scored.push({ doc: row, score });
-    }
-    scored.sort((a, b) => {
-      const ta = new Date(a.doc.publishedAt as Date).getTime();
-      const tb = new Date(b.doc.publishedAt as Date).getTime();
-      if (tb !== ta) return tb - ta;
-      return b.score - a.score;
-    });
-
-    return { scored, minSim };
-  }
-
-  /** 按解析后的时间窗 [periodStart, periodEnd] 拉取候选并打分（与 buildScoredMonitorFeed 逻辑一致，双边界） */
-  private async buildScoredForWindow(
-    monitor: MonitorDocument,
-    window: ResolvedWindow,
-  ): Promise<{ scored: { doc: Record<string, unknown>; score: number }[]; minSim: number }> {
-    const m = monitor.toObject() as {
-      descriptionEmbedding: number[];
-      sourceIds: Types.ObjectId[];
-      minCosine?: number;
-    };
-    const queryVec = m.descriptionEmbedding;
-    if (!Array.isArray(queryVec) || queryVec.length === 0) {
-      throw new ServiceUnavailableException('monitor_missing_embedding');
-    }
-
-    const rawMin = m.minCosine;
-    const minSim =
-      typeof rawMin === 'number' && Number.isFinite(rawMin) ? Math.min(1, Math.max(0, rawMin)) : 0.43;
-    const cap = this.timelineCandidateCap();
-
-    const sourceIds = (monitor.sourceIds ?? []).map((x) => new Types.ObjectId(String(x)));
-    if (sourceIds.length === 0) {
-      return { scored: [], minSim };
-    }
-
-    const periodStart = window.periodStart;
-    const periodEnd = window.periodEnd;
-
-    const candidates = await this.feedItemModel
-      .find({
-        sourceId: { $in: sourceIds },
-        llmStatus: 'done',
-        'simEmbedFull.0': { $exists: true },
-        publishedAt: { $gte: periodStart, $lte: periodEnd },
-      })
-      .sort({ publishedAt: -1, createdAt: -1 })
-      .limit(cap)
-      .populate({ path: 'sourceId', select: 'displayName' })
-      .lean()
-      .exec();
-
-    const scored: { doc: Record<string, unknown>; score: number }[] = [];
-    for (let i = 0; i < candidates.length; i++) {
-      const row = candidates[i] as Record<string, unknown>;
-      const emb = row.simEmbedFull as number[] | undefined;
-      if (!Array.isArray(emb) || emb.length === 0) continue;
-      if (emb.length !== queryVec.length) continue;
-      const score = cosineSimilarity(queryVec, emb);
-      if (score < minSim) continue;
-      scored.push({ doc: row, score });
-    }
-    scored.sort((a, b) => {
-      const ta = new Date(a.doc.publishedAt as Date).getTime();
-      const tb = new Date(b.doc.publishedAt as Date).getTime();
-      if (tb !== ta) return tb - ta;
-      return b.score - a.score;
-    });
-
-    return { scored, minSim };
+  private minSimFromMonitor(monitor: MonitorDocument): number {
+    const rawMin = monitor.minCosine;
+    return typeof rawMin === 'number' && Number.isFinite(rawMin) ? Math.min(1, Math.max(0, rawMin)) : 0.43;
   }
 
   async create(userId: string, dto: CreateMonitorDto): Promise<MonitorPublic> {
@@ -455,8 +318,8 @@ export class MonitorsService {
     }));
     const allowedIds = new Set(catalog.map((c) => c.id));
     const catalogOrderedIds = catalog.map((c) => c.id);
-    const minN = this.minSources();
-    const maxN = this.maxSources();
+    const minN = MONITOR_MIN_SOURCES;
+    const maxN = MONITOR_MAX_SOURCES;
 
     if (catalog.length < minN) {
       throw new BadRequestException('monitor_catalog_too_small_for_min_sources');
@@ -528,7 +391,6 @@ export class MonitorsService {
       throw new ServiceUnavailableException('monitor_embedding_failed');
     }
 
-    const embeddingModel = this.config.get<string>('FEED_EMBEDDING_MODEL')?.trim() || 'text-embedding-3-small';
     const uid = new Types.ObjectId(userId);
     const doc = await this.monitorModel.create({
       userId: uid,
@@ -538,15 +400,26 @@ export class MonitorsService {
       keywords,
       entities,
       sourceIds: sourceIdStrs.map((id) => new Types.ObjectId(id)),
-      descriptionEmbedding: vec,
-      embeddingModel,
       deletedAt: null,
     });
 
+    const monitorId = String(doc._id);
+    await this.pipeline.upsertMonitorPoint(doc, vec);
+    await this.monitoredSources.applyMonitorSourceDiff([], sourceIdStrs);
+    await this.scheduler.enqueueReindexMonitor(monitorId, true, { trigger: 'api' });
+    await this.scheduler.enqueueComputeSnapshot(monitorId, this.defaultRecentHours(), 2, {
+      trigger: 'api',
+    });
+
     this.logger.log(
-      `monitor_created id=${String(doc._id)} userId=${userId} sources=${sourceIdStrs.length}`,
+      `monitor_created id=${monitorId} userId=${userId} sources=${sourceIdStrs.length}`,
     );
     return this.serializeMonitor(doc);
+  }
+
+  async listClusterFeedItems(monitorId: string, clusterId: string, userId: string) {
+    const monitor = await this.loadOwnedMonitor(monitorId, userId);
+    return this.snapshotService.listClusterItemsForMonitor(monitor, clusterId);
   }
 
   async listFeedItems(monitorId: string, userId: string, q: ListMonitorFeedQueryDto) {
@@ -555,25 +428,23 @@ export class MonitorsService {
     const page = q.page ?? 1;
     const pageSize = q.pageSize ?? 30;
 
-    const m0 = monitor.toObject() as { descriptionEmbedding: number[] };
-    const queryVec = m0.descriptionEmbedding;
-    if (!Array.isArray(queryVec) || queryVec.length === 0) {
-      const rawMin0 = monitor.minCosine;
-      const minSim0 =
-        typeof rawMin0 === 'number' && Number.isFinite(rawMin0) ? Math.min(1, Math.max(0, rawMin0)) : 0.43;
+    const vec = await this.vectorStore.getMonitorVector(monitorId);
+    const rawMin0 = monitor.minCosine;
+    const minSimFallback =
+      typeof rawMin0 === 'number' && Number.isFinite(rawMin0) ? Math.min(1, Math.max(0, rawMin0)) : 0.43;
+    if (!vec?.length) {
       this.logger.debug(
-        `monitor_list_feed_items monitorId=${monitorId} page=${page} no_embedding total=0`,
+        `monitor_list_feed_items monitorId=${monitorId} page=${page} no_qdrant_vector total=0`,
       );
-      return { items: [], total: 0, page, pageSize, recentHours, monitorId, minCosine: minSim0 };
+      return { items: [], total: 0, page, pageSize, recentHours, monitorId, minCosine: minSimFallback };
     }
 
-    const { scored, minSim } = await this.buildScoredMonitorFeed(monitor, recentHours);
-    const total = scored.length;
-    const slice = scored.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
-    const items = slice.map((s) => ({
-      ...serializeFeedItem(s.doc),
-      relevanceScore: Math.round(s.score * 1000) / 1000,
-    }));
+    const { items, total, minSim } = await this.snapshotService.listFeedPage(
+      monitor,
+      recentHours,
+      page,
+      pageSize,
+    );
 
     this.logger.debug(
       `monitor_list_feed_items monitorId=${monitorId} page=${page} recentHours=${recentHours} total=${total} returned=${items.length}`,
@@ -690,17 +561,7 @@ export class MonitorsService {
     scored: { doc: Record<string, unknown>; score: number }[],
     cap: number,
   ): { doc: Record<string, unknown>; score: number }[] {
-    const seen = new Set<string>();
-    const out: { doc: Record<string, unknown>; score: number }[] = [];
-    for (let i = 0; i < scored.length && out.length < cap; i++) {
-      const row = scored[i].doc;
-      const cid = row.clusterId as Types.ObjectId | null | undefined;
-      const groupKey = cid ? String(cid) : String(row._id);
-      if (seen.has(groupKey)) continue;
-      seen.add(groupKey);
-      out.push(scored[i]);
-    }
-    return out;
+    return dedupeScoredByCluster(scored).slice(0, cap);
   }
 
   private briefLogSkippedEnabled(): boolean {
@@ -884,45 +745,34 @@ export class MonitorsService {
       .exec();
   }
 
-  /** 供定时任务批量调用 */
-  async runAllMonitorsBriefTick(): Promise<void> {
-    const t0 = Date.now();
+  /** BullMQ worker：单监控 + 单研判 profile */
+  async runBriefForMonitorId(
+    monitorId: string,
+    profileId: string,
+    jobId?: string,
+  ): Promise<void> {
+    const monitor = await this.monitorModel.findById(monitorId).exec();
+    if (!monitor || monitor.deletedAt) return;
     const profiles = resolveBriefProfiles(this.config);
-    const rows = await this.monitorModel
-      .find({
-        deletedAt: null,
-        $expr: { $gt: [{ $size: { $ifNull: ['$descriptionEmbedding', []] } }, 0] },
-      })
-      .select({ _id: 1 })
-      .lean()
-      .exec();
-    let failures = 0;
-    for (let i = 0; i < rows.length; i++) {
-      const id = rows[i]._id as Types.ObjectId;
-      const doc = await this.monitorModel.findById(id).exec();
-      if (!doc) continue;
-      for (let j = 0; j < profiles.length; j++) {
-        try {
-          await this.runBriefPipelineForMonitor(doc, profiles[j], new Date());
-        } catch (e) {
-          failures++;
-          const msg = e instanceof Error ? e.message : String(e);
-          this.logger.warn(`monitor_brief_tick_failed monitorId=${String(id)} err=${msg}`);
-        }
-      }
-    }
-    this.logger.log(
-      `monitor_brief_tick_cycle_done monitors=${rows.length} profiles=${profiles.length} failures=${failures} ms=${Date.now() - t0}`,
-    );
+    const profile = getBriefProfileById(profiles, profileId);
+    if (!profile) return;
+    await this.runBriefPipelineForMonitor(monitor, profile, new Date(), jobId);
   }
 
-  async runBriefPipelineForMonitor(monitor: MonitorDocument, profile: BriefProfile, now: Date): Promise<void> {
+  async runBriefPipelineForMonitor(
+    monitor: MonitorDocument,
+    profile: BriefProfile,
+    now: Date,
+    jobId?: string,
+  ): Promise<void> {
     const monitorId = monitor._id as Types.ObjectId;
     const userId = monitor.userId as Types.ObjectId;
     const monitorIdStr = String(monitorId);
-    const m0 = monitor.toObject() as { descriptionEmbedding?: number[] };
-    if (!Array.isArray(m0.descriptionEmbedding) || m0.descriptionEmbedding.length === 0) {
-      this.logger.debug(`monitor_brief_skip_no_embedding monitorId=${monitorIdStr}`);
+    const jobRef =
+      jobId && Types.ObjectId.isValid(jobId) ? { jobId: new Types.ObjectId(jobId) } : {};
+    const qdrantVec = await this.vectorStore.getMonitorVector(monitorIdStr);
+    if (!qdrantVec?.length) {
+      this.logger.debug(`monitor_brief_skip_no_vector monitorId=${monitorIdStr}`);
       return;
     }
 
@@ -935,7 +785,11 @@ export class MonitorsService {
       return;
     }
 
-    const { scored, minSim } = await this.buildScoredForWindow(monitor, window);
+    const { scored, minSim } = await this.snapshotService.fetchScoredForMonitor(
+      monitor,
+      window.periodStart.getTime(),
+      window.periodEnd.getTime(),
+    );
     const ownerTz = await this.usersService.getTimeZoneOrDefault(String(userId));
     const agg = this.aggregateIntelligenceFromScored(
       monitor,
@@ -962,6 +816,7 @@ export class MonitorsService {
       if (this.briefLogSkippedEnabled()) {
         const t0 = Date.now();
         await this.briefRunModel.create({
+          ...jobRef,
           monitorId,
           userId,
           profileId: profile.profileId,
@@ -1033,6 +888,7 @@ export class MonitorsService {
         '以上为系统自动结论；有新线索进入时间窗后，定时任务将重新生成研判摘要。',
       ];
       await this.briefRunModel.create({
+        ...jobRef,
         monitorId,
         userId,
         profileId: profile.profileId,
@@ -1072,6 +928,7 @@ export class MonitorsService {
       const completedAt = new Date();
       if (!llmOut) {
         await this.briefRunModel.create({
+          ...jobRef,
           monitorId,
           userId,
           profileId: profile.profileId,
@@ -1099,6 +956,7 @@ export class MonitorsService {
         return;
       }
       await this.briefRunModel.create({
+        ...jobRef,
         monitorId,
         userId,
         profileId: profile.profileId,
@@ -1127,6 +985,7 @@ export class MonitorsService {
       const msg = e instanceof Error ? e.message : String(e);
       const completedAt = new Date();
       await this.briefRunModel.create({
+        ...jobRef,
         monitorId,
         userId,
         profileId: profile.profileId,
@@ -1154,98 +1013,14 @@ export class MonitorsService {
     }
   }
 
-  async listBriefRuns(monitorId: string, userId: string, q: ListMonitorBriefRunsQueryDto) {
-    await this.loadOwnedMonitor(monitorId, userId);
-    const oid = new Types.ObjectId(monitorId);
-    const limit = Math.min(Math.max(q.limit ?? 20, 1), 50);
-    const filter: Record<string, unknown> = { monitorId: oid };
-    if (q.profileId?.trim()) {
-      filter.profileId = q.profileId.trim().slice(0, 64);
-    }
-    const rows = await this.briefRunModel
-      .find(filter)
-      .sort({ completedAt: -1 })
-      .limit(limit)
-      .select({
-        profileId: 1,
-        windowMode: 1,
-        periodKey: 1,
-        periodStart: 1,
-        periodEnd: 1,
-        status: 1,
-        inputFingerprint: 1,
-        completedAt: 1,
-        durationMs: 1,
-        errorMessage: 1,
-        paragraphs: 1,
-        citedItemIds: 1,
-        evidenceSnapshot: 1,
-      })
-      .lean()
-      .exec();
-    this.logger.debug(
-      `monitor_list_brief_runs monitorId=${monitorId} limit=${limit} profileFilter=${q.profileId?.trim() ? 'yes' : 'no'} returned=${rows.length}`,
-    );
-    return rows.map((r) => ({
-      id: String(r._id),
-      profileId: r.profileId,
-      windowMode: r.windowMode,
-      periodKey: r.periodKey,
-      periodStart: r.periodStart ? new Date(r.periodStart as Date).toISOString() : null,
-      periodEnd: r.periodEnd ? new Date(r.periodEnd as Date).toISOString() : null,
-      status: r.status,
-      inputFingerprint: r.inputFingerprint,
-      completedAt: r.completedAt ? new Date(r.completedAt as Date).toISOString() : null,
-      durationMs: r.durationMs,
-      errorMessage: r.errorMessage ?? '',
-      paragraphCount: Array.isArray(r.paragraphs) ? r.paragraphs.length : 0,
-      citedItemCount: Array.isArray(r.citedItemIds) ? r.citedItemIds.length : 0,
-      evidenceCount: Array.isArray(r.evidenceSnapshot) ? r.evidenceSnapshot.length : 0,
-    }));
-  }
-
-  async getBriefRunById(monitorId: string, runId: string, userId: string) {
-    await this.loadOwnedMonitor(monitorId, userId);
-    if (!Types.ObjectId.isValid(runId)) throw new NotFoundException('monitor_brief_run_not_found');
-    const oid = new Types.ObjectId(monitorId);
-    const rid = new Types.ObjectId(runId);
-    const row = await this.briefRunModel.findOne({ _id: rid, monitorId: oid }).lean().exec();
-    if (!row) throw new NotFoundException('monitor_brief_run_not_found');
-    this.logger.debug(`monitor_get_brief_run monitorId=${monitorId} runId=${runId} status=${row.status}`);
-    return {
-      id: String(row._id),
-      profileId: row.profileId,
-      windowMode: row.windowMode,
-      periodKey: row.periodKey,
-      periodStart: row.periodStart ? new Date(row.periodStart as Date).toISOString() : null,
-      periodEnd: row.periodEnd ? new Date(row.periodEnd as Date).toISOString() : null,
-      minCosine: row.minCosine,
-      inputFingerprint: row.inputFingerprint,
-      status: row.status,
-      evidenceSnapshot: row.evidenceSnapshot ?? [],
-      briefContextSnapshot: row.briefContextSnapshot ?? null,
-      monitorSnapshot: row.monitorSnapshot ?? null,
-      systemPromptVersion: row.systemPromptVersion ?? '',
-      paragraphs: row.paragraphs ?? [],
-      citedItemIds: row.citedItemIds ?? [],
-      errorMessage: row.errorMessage ?? '',
-      durationMs: row.durationMs,
-      startedAt: row.startedAt ? new Date(row.startedAt as Date).toISOString() : null,
-      completedAt: row.completedAt ? new Date(row.completedAt as Date).toISOString() : null,
-      createdAt: (row as Record<string, unknown>).createdAt
-        ? new Date((row as Record<string, unknown>).createdAt as Date).toISOString()
-        : null,
-    };
-  }
-
   private async buildOverviewCard(
     monitor: MonitorDocument,
     recentHours: number,
     viewerTimeZone: string,
   ): Promise<MonitorOverviewCardPublic> {
     const monitorId = String(monitor._id);
-    const m0 = monitor.toObject() as { descriptionEmbedding: number[] };
-    if (!Array.isArray(m0.descriptionEmbedding) || m0.descriptionEmbedding.length === 0) {
+    const vec = await this.vectorStore.getMonitorVector(monitorId);
+    if (!vec?.length) {
       return {
         monitorId,
         heatIndex: null,
@@ -1254,7 +1029,29 @@ export class MonitorsService {
         trend: this.emptySevenDayTrend(viewerTimeZone),
       };
     }
-    const { scored, minSim } = await this.buildScoredMonitorFeed(monitor, recentHours);
+    const snap = await this.snapshotService.getSnapshotLean(monitorId, recentHours);
+    if (snap?.status === 'ready' && snap.metrics) {
+      const m = snap.metrics as {
+        heatIndex?: number | null;
+        newLast24h?: number;
+        lastActivityAt?: string | null;
+        trend?: { date: string; count: number }[];
+      };
+      return {
+        monitorId,
+        heatIndex: m.heatIndex ?? null,
+        newLast24h: m.newLast24h ?? 0,
+        lastActivityAt: m.lastActivityAt ?? null,
+        trend:
+          Array.isArray(m.trend) && m.trend.length > 0 ? m.trend : this.emptySevenDayTrend(viewerTimeZone),
+      };
+    }
+    const nowMs = Date.now();
+    const { scored, minSim } = await this.snapshotService.fetchScoredForMonitor(
+      monitor,
+      nowMs - recentHours * 3600000,
+      nowMs,
+    );
     const agg = this.aggregateIntelligenceFromScored(monitor, recentHours, scored, minSim, viewerTimeZone);
     return {
       monitorId,
@@ -1277,22 +1074,20 @@ export class MonitorsService {
     const profiles = resolveBriefProfiles(this.config);
     const profile = getBriefProfileById(profiles, profileId);
 
-    const m0 = monitor.toObject() as { descriptionEmbedding: number[] };
-    const queryVec = m0.descriptionEmbedding;
-    const rawMin0 = monitor.minCosine;
-    const minSimFallback =
-      typeof rawMin0 === 'number' && Number.isFinite(rawMin0) ? Math.min(1, Math.max(0, rawMin0)) : 0.43;
+    const minSimFallback = this.minSimFromMonitor(monitor);
+    const boundSourceCount = (monitor.sourceIds ?? []).length;
+    const vec = await this.vectorStore.getMonitorVector(monitorId);
 
-    if (!Array.isArray(queryVec) || queryVec.length === 0) {
+    if (!vec?.length) {
       this.logger.debug(
-        `monitor_get_intelligence_no_embedding monitorId=${monitorId} userId=${userId} recentHours=${recentHours} briefProfile=${profile.profileId}`,
+        `monitor_get_intelligence_no_vector monitorId=${monitorId} userId=${userId} recentHours=${recentHours} briefProfile=${profile.profileId}`,
       );
       return {
         monitorId,
         recentHours,
         minCosine: minSimFallback,
         lastActivityAt: null,
-        metrics: { newLast24h: 0, totalInWindow: 0, boundSourceCount: (monitor.sourceIds ?? []).length },
+        metrics: { newLast24h: 0, totalInWindow: 0, boundSourceCount },
         heatIndex: null,
         weeklyBrief: ['无法生成 AI 研判摘要：该监控缺少描述向量。请重新创建监控或联系管理员。'],
         trend: this.emptySevenDayTrend(viewerTz),
@@ -1302,9 +1097,48 @@ export class MonitorsService {
       };
     }
 
-    const { scored, minSim } = await this.buildScoredMonitorFeed(monitor, recentHours);
-    const agg = this.aggregateIntelligenceFromScored(monitor, recentHours, scored, minSim, viewerTz);
-    const { count7d: _c7, ...intelWithoutBrief } = agg;
+    const snap = await this.snapshotService.getSnapshotLean(monitorId, recentHours);
+    let minSim = minSimFallback;
+    let intelWithoutBrief: Omit<MonitorIntelligencePublic, 'monitorId' | 'recentHours' | 'minCosine' | 'weeklyBrief' | 'briefMeta'>;
+
+    if (snap?.status === 'ready' && snap.metrics) {
+      const m = snap.metrics as {
+        heatIndex?: number | null;
+        newLast24h?: number;
+        totalInWindow?: number;
+        lastActivityAt?: string | null;
+        trend?: { date: string; count: number }[];
+      };
+      minSim = this.minSimFromMonitor(monitor);
+      intelWithoutBrief = {
+        lastActivityAt: m.lastActivityAt ?? null,
+        metrics: {
+          newLast24h: m.newLast24h ?? 0,
+          totalInWindow: m.totalInWindow ?? 0,
+          boundSourceCount,
+        },
+        heatIndex: m.heatIndex ?? null,
+        trend:
+          Array.isArray(m.trend) && m.trend.length > 0 ? m.trend : this.emptySevenDayTrend(viewerTz),
+        chartKeywords: Array.isArray(snap.chartKeywords)
+          ? (snap.chartKeywords as { name: string; count: number }[])
+          : [],
+        latestItems: Array.isArray(snap.latestItems)
+          ? (snap.latestItems as Array<ReturnType<typeof serializeFeedItem> & { relevanceScore: number }>)
+          : [],
+      };
+    } else {
+      const nowMs = Date.now();
+      const { scored, minSim: ms } = await this.snapshotService.fetchScoredForMonitor(
+        monitor,
+        nowMs - recentHours * 3600000,
+        nowMs,
+      );
+      minSim = ms;
+      const agg = this.aggregateIntelligenceFromScored(monitor, recentHours, scored, minSim, viewerTz);
+      const { count7d: _c7, ...rest } = agg;
+      intelWithoutBrief = rest;
+    }
 
     const oid = new Types.ObjectId(monitorId);
     const latestRun = await this.findLatestSucceededBriefRun(oid, profile.profileId, minSim);
@@ -1323,7 +1157,7 @@ export class MonitorsService {
         runId: String(latestRun._id),
       };
     } else {
-      weeklyBrief = ['研判摘要尚未生成，请等待定时任务（默认每天 08:00 Asia/Shanghai）执行后再查看。'];
+      weeklyBrief = ['研判摘要尚未生成，请等待定时任务（默认每小时）执行后再查看。'];
       briefMeta = {
         profileId: profile.profileId,
         periodKey: '',
@@ -1346,16 +1180,53 @@ export class MonitorsService {
     };
   }
 
+  /** 将 Mongo 中最新 sourceIds/minCosine 等同步到 Qdrant 监控点 payload（向量不变） */
+  private async syncMonitorVectorPayload(monitor: MonitorDocument): Promise<void> {
+    const monitorId = String(monitor._id);
+    let vec = await this.vectorStore.getMonitorVector(monitorId);
+    if (!vec?.length) {
+      const emb = await this.embeddings.embedBatch([monitor.description]);
+      vec = emb[0];
+      if (!vec?.length) {
+        this.logger.warn(`monitor_sync_vector_skip monitorId=${monitorId} reason=embed_failed`);
+        return;
+      }
+    }
+    await this.pipeline.upsertMonitorPoint(monitor, vec);
+  }
+
+  private sourceIdsChanged(prevIds: string[], nextIds: string[]): boolean {
+    if (prevIds.length !== nextIds.length) return true;
+    const next = new Set(nextIds);
+    return prevIds.some((id) => !next.has(id));
+  }
+
   async patchSources(monitorId: string, userId: string, dto: PatchMonitorSourcesDto): Promise<MonitorPublic> {
     const monitor = await this.loadOwnedMonitor(monitorId, userId);
+    const prevIds = (monitor.sourceIds ?? []).map((x) => String(x));
     const resolved = await this.resolveValidSourceObjectIds(dto.sourceIds);
     monitor.sourceIds = resolved;
     if (dto.minCosine !== undefined) {
       monitor.minCosine = dto.minCosine;
     }
     await monitor.save();
+    const nextIds = resolved.map((x) => String(x));
+    const sourcesChanged = this.sourceIdsChanged(prevIds, nextIds);
+    const minCosineUpdated = dto.minCosine !== undefined;
+
+    await this.syncMonitorVectorPayload(monitor);
+    await this.monitorModel
+      .updateOne({ _id: monitor._id }, { $set: { snapshotStatus: 'stale' } })
+      .exec();
+    await this.monitoredSources.applyMonitorSourceDiff(prevIds, nextIds);
+    await this.scheduler.enqueueComputeSnapshot(monitorId, this.defaultRecentHours(), 2, {
+      trigger: 'api',
+    });
+    if (sourcesChanged && nextIds.length > 0) {
+      await this.scheduler.enqueueReindexMonitor(monitorId, true, { trigger: 'api' });
+    }
     this.logger.log(
-      `monitor_patch_sources monitorId=${monitorId} userId=${userId} sourceCount=${resolved.length} minCosineUpdated=${dto.minCosine !== undefined}`,
+      `monitor_patch_sources monitorId=${monitorId} userId=${userId} sourceCount=${resolved.length} minCosineUpdated=${minCosineUpdated} sourcesChanged=${sourcesChanged} snapshot=stale`,
     );
     return this.serializeMonitor(monitor);
   }
@@ -1387,8 +1258,30 @@ export class MonitorsService {
 
   async softDelete(monitorId: string, userId: string): Promise<void> {
     const monitor = await this.loadOwnedMonitor(monitorId, userId);
+    await this.softDeleteMonitorDoc(monitor, userId);
+  }
+
+  /** 运营后台：跨用户软删监控 */
+  async softDeleteForAdmin(monitorId: string): Promise<void> {
+    if (!Types.ObjectId.isValid(monitorId)) {
+      throw new NotFoundException('monitor_not_found');
+    }
+    const monitor = await this.monitorModel
+      .findOne({ _id: new Types.ObjectId(monitorId), ...notDeletedFilter() })
+      .exec();
+    if (!monitor) {
+      throw new NotFoundException('monitor_not_found');
+    }
+    await this.softDeleteMonitorDoc(monitor, String(monitor.userId));
+  }
+
+  private async softDeleteMonitorDoc(monitor: MonitorDocument, logUserId: string): Promise<void> {
+    const monitorId = String(monitor._id);
+    const prevIds = (monitor.sourceIds ?? []).map((x) => String(x));
     monitor.deletedAt = new Date();
     await monitor.save();
-    this.logger.log(`monitor_soft_delete monitorId=${monitorId} userId=${userId}`);
+    await this.monitoredSources.applyMonitorSourceDiff(prevIds, []);
+    await this.vectorStore.deleteMonitor(monitorId);
+    this.logger.log(`monitor_soft_delete monitorId=${monitorId} userId=${logUserId}`);
   }
 }

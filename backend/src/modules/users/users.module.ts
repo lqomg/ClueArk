@@ -4,10 +4,10 @@ import { User, UserSchema } from './schemas/user.schema';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { UsersBootstrapService } from './users-bootstrap.service';
-import { AuthModule } from '../auth/auth.module';
+import { AuthCoreModule } from '../auth/auth-core.module';
 
 @Module({
-  imports: [forwardRef(() => AuthModule), MongooseModule.forFeature([{ name: User.name, schema: UserSchema }])],
+  imports: [forwardRef(() => AuthCoreModule), MongooseModule.forFeature([{ name: User.name, schema: UserSchema }])],
   controllers: [UsersController],
   providers: [UsersService, UsersBootstrapService],
   exports: [UsersService],

@@ -32,16 +32,16 @@ Demo: [https://clueark.com](https://clueark.com)
 - **Multiple ingestion paths**: One pool supports **RSS/Atom**, **Web (optional list-page crawling)**, and **JSON hot-topic APIs (configurable field mapping)**—pick what fits instead of a single crawl mode.
 - **Standalone web crawler service**: For sites without a stable feed, list pages are parsed with **CSS selectors** (NestJS + Cheerio) and reported to the main app with a **contract-aligned** payload; the crawler does not depend on an LLM. See [`crawler/README.md`](crawler/README.md).
 - **Optional intelligence**: Wire in DeepSeek, item enrichment, embeddings, clustering, and related features via environment variables (root `.env.example` and `backend/.env.example`). **Creating a monitor** requires embeddings to be enabled, and feed items need compatible semantic vectors for the timeline to populate.
-- **Docker Compose single-node stack**: MongoDB, backend API, frontend (Nginx reverse proxy), and crawler are built and started together by default for quick deployment.
+- **Docker Compose single-node stack**: MongoDB, backend API, user web app, **standalone admin console**, and crawler are built and started together by default for quick deployment.
 
 Personal intelligence collection: subscribe to topics on the shared pool, read a semantically filtered timeline, and review generated briefs with less manual searching.
 
 ## Topic monitoring (how it works)
 
-- **Create**: You enter a short monitoring intent. The backend calls an LLM for title, long-form description, keywords, and entities, then picks bound sources from the **enabled** catalog (limits such as `MONITOR_MIN_SOURCES`, `MONITOR_MAX_SOURCES`, `MONITOR_LLM_SOURCE_CATALOG_CAP`—see `backend/.env.example`). The long description is embedded and stored on the monitor.
+- **Create**: You enter a short monitoring intent. The backend calls an LLM for title, long-form description, keywords, and entities, then picks bound sources from the **enabled** catalog (limits such as  `MONITOR_LLM_SOURCE_CATALOG_CAP`—see `backend/.env.example`). The long description is embedded and stored on the monitor.
 - **Semantic timeline**: Only enriched items from bound sources that carry a full-text embedding are considered. Items are scored by **cosine similarity** to the monitor description vector; items below `minCosine` (default ~0.43) are dropped. Default lookback and candidate caps are controlled by `MONITOR_DEFAULT_RECENT_HOURS`, `MONITOR_TIMELINE_CANDIDATE_CAP`, etc.
 - **Intelligence cards and trends**: Heat, 7-day trend (bucketed by calendar day in the user’s **IANA timezone** from their profile), tag distribution, and latest items are derived from the filtered set. An overview API batches list plus card metrics.
-- **Briefs**: After startup the backend runs one async pass, then runs **daily at 08:00 (Asia/Shanghai)** for all active monitors. Results are stored in MongoDB; the UI reads the latest successful run. The default window is a rolling last-N-hours span (`MONITOR_BRIEF_WEEKLY_ROLLING_HOURS`, default 168). The API field is still named `weeklyBrief` for historical reasons. Evidence caps and truncation use `MONITOR_BRIEF_*` variables.
+- **Briefs**: After startup the backend runs one async pass, then runs **hourly** for all active monitors. Results are stored in MongoDB; the UI reads the latest successful run. The default window is a rolling last-N-hours span (`MONITOR_BRIEF_WEEKLY_ROLLING_HOURS`, default 168). The API field is still named `weeklyBrief` for historical reasons. Evidence caps and truncation use `MONITOR_BRIEF_*` variables.
 
 ## Source types
 
@@ -55,25 +55,27 @@ Built-in seeds live in **`data/built-in-catalog.json`** (includes RSS examples).
 
 ## Demo
 
-- **URL:** [https://clueark.com](https://clueark.com) — anyone can register as a normal user.
-- **Demo account:** `show@clueark.com` / `123456qian`
+- **User app:** [https://clueark.com](https://clueark.com) — anyone can register as a normal user.
+- **Admin console (self-hosted):** `http://<host>:8081` by default (`ADMIN_WEB_PORT`); sign in with the seeded admin (`ADMIN_EMAIL` / `ADMIN_PASSWORD`) via `POST /api/admin/auth/login`.
 
 ## Tech stack
 
 | Area | Stack |
 |------|-------|
-| Frontend | React 18, TypeScript, Vite, Tailwind CSS, Zustand, React Router |
+| User app | React 18, TypeScript, Vite, Tailwind CSS, Zustand, React Router |
+| Admin console | React 18, TypeScript, Vite, Ant Design, ProComponents |
 | Backend | NestJS, MongoDB (Mongoose), JWT, scheduled tasks |
 | Crawler | NestJS, Cheerio, configurable selectors (contract-aligned with the main app) |
 
-`frontend/`, `backend/`, and `crawler/` are independent subprojects. There is no unified root `package.json`.
+`frontend/` (user app), `admin-web/` (admin console), `backend/`, and `crawler/` are independent subprojects. There is no unified root `package.json`.
 
 ## Repository layout (excerpt)
 
 ```
 ├── backend/           # Main API (NestJS)
 ├── crawler/           # Web list crawler (NestJS); see crawler/README.md
-├── frontend/          # Web app (Vite + React)
+├── frontend/          # User web app (Vite + React)
+├── admin-web/         # Standalone admin console (Vite + React + Ant Design)
 ├── data/              # Built-in source seeds (e.g. built-in-catalog.json)
 ├── docker-compose.yml # Recommended deploy entry
 ├── .env.example       # Env template (copy to .env)
@@ -93,7 +95,7 @@ The repo’s **`data/built-in-catalog.json`** (`sources` array) is only a **boot
 
 ## Deployment (Docker Compose, recommended)
 
-Root `docker-compose.yml` is the **recommended single-machine entry**: MongoDB + backend + web (Nginx serves the frontend and proxies the API) + crawler.
+Root `docker-compose.yml` is the **recommended single-machine entry**: MongoDB + backend + web (user app) + admin-web (admin console) + crawler.
 
 ### First start
 
@@ -111,10 +113,11 @@ docker compose up -d --build
 
 ### Access
 
-- **Web UI:** `http://<server-ip-or-domain>:<port>`
+- **User web:** `http://<server-ip-or-domain>:<port>`
   - If you copied `.env.example` and keep `WEB_PORT=8080`, this is usually **`http://<host>:8080`**.
   - If there is no `.env` or `WEB_PORT`, Compose maps container port 80 to host **`80`** by default (`http://<host>/`).
-- **HTTP API:** Nginx on the frontend proxies **`/api`** to the backend; the backend port is **not** exposed separately.
+- **Admin console:** default **`http://<host>:8081`** (`ADMIN_WEB_PORT`); admin accounts only.
+- **HTTP API:** Nginx on the frontend and admin containers proxies **`/api`** to the backend; the backend port is **not** exposed separately.
 
 ### Network and security
 

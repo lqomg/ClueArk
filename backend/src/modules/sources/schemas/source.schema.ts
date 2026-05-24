@@ -131,6 +131,20 @@ export class Source {
   @Prop({ default: 0 })
   sortOrder: number;
 
+  /** 被多少监控引用；>0 时新条目走 pipeline */
+  @Prop({ default: 0, index: true })
+  monitoredByCount: number;
+
+  /** 轮询间隔（秒）；RSS / Hot API / 调度器使用 */
+  @Prop({ default: null })
+  pollIntervalSec: number | null;
+
+  @Prop({ type: Date, default: null })
+  lastPolledAt: Date | null;
+
+  @Prop({ type: Date, default: null, index: true })
+  nextPollAt: Date | null;
+
   @Prop({ type: Date, default: null })
   deletedAt: Date | null;
 }

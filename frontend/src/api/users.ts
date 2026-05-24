@@ -6,8 +6,8 @@ export async function getMe(): Promise<MeResponse> {
   return data;
 }
 
-export async function patchProfile(body: { username?: string; timeZone?: string }): Promise<MeResponse> {
-  const { data } = await http.patch<MeResponse>('/users/me', body);
+export async function saveProfile(body: { username: string; timeZone: string }): Promise<MeResponse> {
+  const { data } = await http.put<MeResponse>('/users/me/profile', body);
   return data;
 }
 

@@ -7,6 +7,7 @@ export default {
         ark: {
           bg: 'rgb(var(--ark-bg) / <alpha-value>)',
           sidebar: 'rgb(var(--ark-sidebar) / <alpha-value>)',
+          content: 'rgb(var(--ark-content) / <alpha-value>)',
           surface: 'rgb(var(--ark-surface) / <alpha-value>)',
           border: 'rgb(var(--ark-border) / <alpha-value>)',
           text: 'rgb(var(--ark-text) / <alpha-value>)',

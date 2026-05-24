@@ -7,6 +7,9 @@ export type MonitorBriefRunStatus = 'skipped_unchanged' | 'succeeded' | 'failed'
 
 @Schema({ timestamps: true, collection: 'monitor_brief_runs' })
 export class MonitorBriefRun {
+  @Prop({ type: Types.ObjectId, ref: 'Job', default: null, index: true })
+  jobId: Types.ObjectId | null;
+
   @Prop({ type: Types.ObjectId, ref: 'Monitor', required: true, index: true })
   monitorId: Types.ObjectId;
 

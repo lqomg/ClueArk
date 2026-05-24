@@ -1,5 +1,11 @@
 import { http } from './http';
-import type { FeedItem, Monitor, MonitorIntelligence, MonitorWithListMetrics } from '@/types/models';
+import type {
+  FeedItem,
+  Monitor,
+  MonitorClusterFeedItem,
+  MonitorIntelligence,
+  MonitorWithListMetrics,
+} from '@/types/models';
 
 export interface MonitorFeedListResponse {
   items: FeedItem[];
@@ -11,7 +17,7 @@ export interface MonitorFeedListResponse {
   minCosine: number;
 }
 
-/** `query` 须含前导 `?`，如 `?recentHours=720`；返回每条含内嵌 metrics */
+/** `query` 须含前导 `?`，如 `?recentHours=720`；返回每条含内嵌 metrics 与 snapshotStatus */
 export async function listMonitors(query = ''): Promise<MonitorWithListMetrics[]> {
   const q = query || '?recentHours=720';
   const { data } = await http.get<MonitorWithListMetrics[]>(`/monitors${q.startsWith('?') ? q : `?${q}`}`);
@@ -39,6 +45,16 @@ export async function getMonitor(id: string): Promise<Monitor> {
 export async function listMonitorFeed(monitorId: string, query: string): Promise<MonitorFeedListResponse> {
   const { data } = await http.get<MonitorFeedListResponse>(
     `/monitors/${encodeURIComponent(monitorId)}/feed-items${query}`,
+  );
+  return data;
+}
+
+export async function listMonitorClusterItems(
+  monitorId: string,
+  clusterId: string,
+): Promise<{ clusterId: string; items: MonitorClusterFeedItem[] }> {
+  const { data } = await http.get<{ clusterId: string; items: MonitorClusterFeedItem[] }>(
+    `/monitors/${encodeURIComponent(monitorId)}/clusters/${encodeURIComponent(clusterId)}/items`,
   );
   return data;
 }
