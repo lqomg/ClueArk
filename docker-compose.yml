@@ -126,6 +126,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE: ${VITE_API_BASE:-/api}
+        VITE_APP_ENV: ${VITE_APP_ENV:-production}
     container_name: clueark-web
     restart: unless-stopped
     ports:

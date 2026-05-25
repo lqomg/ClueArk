@@ -4,6 +4,7 @@ import { ProductMark } from '@/components/brand/ProductMark';
 import { GithubRepoLink } from '@/components/GithubRepoLink';
 import { ShellSidebarUser } from '@/components/layout/ShellSidebarUser';
 import { AppTopBarProvider } from '@/components/layout/AppTopBar';
+import { EnvironmentBanner } from '@/components/layout/EnvironmentNotice';
 import { useNotificationUnread } from '@/hooks/useNotificationUnread';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -116,6 +117,7 @@ export function AppShell() {
       </aside>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <EnvironmentBanner />
         <header className="shrink-0 space-y-2 border-b border-ark-border bg-ark-sidebar px-4 py-3 md:hidden">
           <div className="flex items-center justify-between">
             <ProductMark variant="compact" to="/app/home" />

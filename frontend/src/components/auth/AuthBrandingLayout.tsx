@@ -1,5 +1,6 @@
 import { GithubRepoLink } from '@/components/GithubRepoLink';
 import { ProductMark } from '@/components/brand/ProductMark';
+import { EnvironmentNoticeInline } from '@/components/layout/EnvironmentNotice';
 
 const inputClass =
   'w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-ark-text placeholder:text-slate-600 focus:border-ark-accent/50 focus:bg-white/[0.08] transition-all outline-none text-sm';
@@ -28,7 +29,7 @@ export function AuthBrandingLayout({
   title: string;
   subtitle: string;
   children: React.ReactNode;
-  /** 注册页已在表单内勾选协议，可关闭底部声明 */
+  /** 是否在表单下方展示环境说明（开发/演示）；注册页可关闭 */
   showLegalFooter?: boolean;
 }) {
   return (
@@ -81,18 +82,7 @@ export function AuthBrandingLayout({
             <p className="text-sm font-light text-slate-500">{subtitle}</p>
           </div>
           {children}
-          {showLegalFooter ? (
-            <>
-              <p className="px-1 text-center text-[12px] gap-1  leading-loose tracking-[0.2em] ">
-                演示环境账号：
-                <span className="font-mono text-slate-400">show@clueark.com</span> 
-                / <span className="font-mono text-slate-400">123456qian</span>
-              </p>
-              <p className=" text-center text-[12px] gap-1  leading-loose tracking-[0.2em] text-red-600">
-                此为演示环境，请勿乱修改相关数据，以免影响其他用户使用。将定期清理数据，请勿上传敏感信息。
-              </p>
-            </>
-          ) : null}
+          {showLegalFooter ? <EnvironmentNoticeInline /> : null}
           <div className="flex justify-center pt-1">
             <GithubRepoLink className="px-2 py-1" />
           </div>
