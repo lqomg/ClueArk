@@ -33,6 +33,43 @@ Demo: [https://clueark.com](https://clueark.com)
 - **Docker one-command deploy**: MongoDB, Redis, Qdrant, API, worker, user web, admin console, and crawler start together by default.
 - **Email OTP auth**: Registration, login, and password reset; when SMTP is unset, codes are logged for local development.
 
+## Roadmap
+
+> `[x]` shipped · `[ ]` planned · `[~]` partial
+
+### Shipped
+
+- [x] **AI topic monitors**: One-sentence intent → LLM brief, source planning, and binding
+- [x] **Multiple public source types**: RSS/Atom, web list crawler (Cheerio + CSS selectors), JSON hot-topic API (`hot_api`)
+- [x] **Built-in source catalog**: 50+ Chinese/English RSS and web examples (`data/built-in-catalog.json`)
+- [x] **Semantic matching & clustering**: Embeddings + Qdrant; incremental similar-article clustering
+- [x] **LLM item enrichment**: Async summaries and recommendation copy (does not block match notifications)
+- [x] **Match notifications**: In-app alerts with dedupe and cooldown
+- [x] **Intelligence briefs**: Async rolling-window reports (default: last 7 days)
+- [x] **Monitor snapshot read model**: Fast list/overview reads (`monitor_snapshots`)
+- [x] **User timezone**: IANA timezone in profile; lists and trends bucketed by user calendar
+- [x] **Standalone admin console**: Users, monitors, sources, and job audit
+- [x] **Docker Compose deploy**: MongoDB, Redis, Qdrant, API, worker, frontends, and crawler in one stack
+- [x] **Email OTP auth**: Registration, login, and password reset
+- [x] **Async job pipeline**: BullMQ (ingest → embed → match → notify / enrich)
+
+### Planned
+
+- [ ] **Native social platform integrations**
+  - [ ] **X (Twitter)**: Timelines, keyword search, or list-page ingestion
+  - [ ] **Weibo**: Author feeds, topics, and trending monitors
+  - [ ] **WeChat Official Accounts**: Subscription/service account article lists (where compliant)
+  - [ ] More: Zhihu, Toutiao, Xiaohongshu, etc. (phased rollout)
+- [ ] **Product i18n**
+  - [~] Backend `nestjs-i18n` for errors/notifications (zh-CN, en, ja, ko)
+  - [ ] User-facing UI localization (English first, then more languages)
+  - [ ] Admin console localization
+- [ ] **More built-in platform sources**: Hot API templates and preset configs
+- [ ] **Calendar-based brief windows**: Daily/weekly/monthly briefs (`calendar_range`)
+- [ ] **Real-time notifications**: SSE / WebSocket instead of polling unread counts
+
+Discuss priorities or pick up tasks via [Issues](https://github.com/lqomg/ClueArk/issues). See [AGENTS.md](AGENTS.md) for architecture conventions.
+
 ## Source types
 
 | Type | Description |
