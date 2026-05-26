@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { FeedItem, FeedItemDocument } from '../feed-items/schemas/feed-item.schema';
@@ -11,6 +12,12 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { JobSchedulerService } from '../job-center/job-scheduler.service';
 import { shouldEnqueueLlmEnrich } from '../feed-items/feed-llm.constants';
 import { LoggerService } from '../logger';
+import {
+  evaluateMonitorMatch,
+  matchPeriodMs,
+  resolveMatchRecentHours,
+  resolveMinCosine,
+} from '../monitors/monitor-match.util';
 
 @Injectable()
 export class MonitorPipelineService {
@@ -24,6 +31,7 @@ export class MonitorPipelineService {
     private readonly vectorStore: VectorStoreService,
     private readonly notifications: NotificationsService,
     private readonly scheduler: JobSchedulerService,
+    private readonly config: ConfigService,
     loggerService: LoggerService,
   ) {
     this.logger = loggerService.createLogger(MonitorPipelineService.name);
@@ -31,19 +39,6 @@ export class MonitorPipelineService {
 
   private prepTitle(title: string): string {
     return title.trim().slice(0, 512);
-  }
-
-  private keywordHit(title: string, keywords: string[], entities: string[]): boolean {
-    const t = title.toLowerCase();
-    for (const k of keywords) {
-      const w = k.trim().toLowerCase();
-      if (w && t.includes(w)) return true;
-    }
-    for (const e of entities) {
-      const w = e.trim().toLowerCase();
-      if (w && t.includes(w)) return true;
-    }
-    return false;
   }
 
   async processNewItem(feedItemId: string, sourceId: string, parentJobId?: string): Promise<void> {
@@ -103,20 +98,30 @@ export class MonitorPipelineService {
     this.logger.debug(`event=pipeline_search feedItemId=${feedItemId} qdrantHits=${hits.length}`);
 
     const matchedMonitorIds: string[] = [];
+    const recentHours = resolveMatchRecentHours(this.config.get('MONITOR_DEFAULT_RECENT_HOURS'));
+    const { periodStartMs, periodEndMs } = matchPeriodMs(recentHours);
+    const publishedAtMs = publishedAt.getTime();
 
     for (let i = 0; i < hits.length; i++) {
       const hit = hits[i];
-      const minCosine =
-        typeof hit.payload.minCosine === 'number' && Number.isFinite(hit.payload.minCosine)
-          ? Math.min(1, Math.max(0, hit.payload.minCosine))
-          : 0.43;
-      let score = hit.score;
-      if (score < minCosine) {
-        if (!this.keywordHit(title, hit.payload.keywords ?? [], hit.payload.entities ?? [])) {
-          continue;
-        }
-        score = minCosine;
+      const minCosine = resolveMinCosine(hit.payload.minCosine);
+      const monitorSourceIds = (hit.payload.sourceIds ?? []).map(String);
+      const match = evaluateMonitorMatch({
+        score: hit.score,
+        minCosine,
+        sourceId,
+        monitorSourceIds,
+        publishedAtMs,
+        periodStartMs,
+        periodEndMs,
+      });
+      if (match.matched === false) {
+        this.logger.debug(
+          `event=pipeline_match_skip feedItemId=${feedItemId} monitorId=${hit.monitorId} reason=${match.reason} score=${hit.score.toFixed(4)} minCosine=${minCosine}`,
+        );
+        continue;
       }
+      const score = match.score;
       const monitorId = hit.monitorId;
       const m = await this.monitorModel.findById(monitorId).select({ title: 1, userId: 1 }).lean().exec();
       if (!m) continue;
@@ -215,10 +220,7 @@ export class MonitorPipelineService {
       monitorId: id,
       userId: String(monitor.userId),
       sourceIds: (monitor.sourceIds ?? []).map((x) => String(x)),
-      minCosine:
-        typeof monitor.minCosine === 'number' && Number.isFinite(monitor.minCosine)
-          ? monitor.minCosine
-          : 0.43,
+      minCosine: resolveMinCosine(monitor.minCosine),
       keywords: (monitor.keywords ?? []).map(String),
       entities: (monitor.entities ?? []).map(String),
       deletedAt: monitor.deletedAt ? monitor.deletedAt.toISOString() : null,
