@@ -67,8 +67,12 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.DEPLOY_PORT || 22 }}
+          command_timeout: 45m
           script_stop: true
           script: |
+            set -euo pipefail
+            export DOCKER_BUILDKIT=1
+            export COMPOSE_DOCKER_CLI_BUILD=1
             cd "${{ secrets.DEPLOY_PATH }}"
             git fetch origin main
             git checkout main

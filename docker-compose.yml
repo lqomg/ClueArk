@@ -124,6 +124,8 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
+    healthcheck:
+      disable: true
 
   web:
     build:
