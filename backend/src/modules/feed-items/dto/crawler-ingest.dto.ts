@@ -26,7 +26,7 @@ export class CrawlerIngestItemDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(8000)
+  @MaxLength(50000)
   summary?: string;
 
   @IsOptional()

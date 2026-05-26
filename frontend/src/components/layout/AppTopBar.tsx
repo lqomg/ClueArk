@@ -19,7 +19,7 @@ type AppTopBarContextValue = {
 
 const AppTopBarContext = createContext<AppTopBarContextValue | null>(null);
 
-/** 与 demo TopBar 一致 */
+/** Compact top bar layout tokens shared across monitor pages */
 export const APP_TOPBAR_HEIGHT_CLASS = 'h-16';
 
 export function AppTopBarProvider({ children }: { children: ReactNode }) {
@@ -33,7 +33,7 @@ export function AppTopBarProvider({ children }: { children: ReactNode }) {
     <AppTopBarContext.Provider value={value}>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <header
-          className={`${APP_TOPBAR_HEIGHT_CLASS} z-10 flex shrink-0 items-center justify-between border-b border-ark-border bg-ark-bg px-6`}
+          className={`${APP_TOPBAR_HEIGHT_CLASS} z-10 flex shrink-0 items-center justify-between border-b border-ark-border/80 bg-ark-content px-4 md:px-6`}
         >
           <div className="flex min-h-0 min-w-0 flex-1 items-center gap-4 overflow-x-auto overflow-y-hidden [scrollbar-width:thin]">
             {slot}

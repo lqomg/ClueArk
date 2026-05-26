@@ -224,7 +224,7 @@ export function MonitorOverviewPage() {
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-y-auto overscroll-contain px-4 py-8 text-center">
           <p className="text-slate-400">暂无监控话题</p>
           <p className="max-w-md text-sm text-slate-500">
-            前往监控管理填写你想持续关注的方向，创建后将在此查看 AI 研判摘要与趋势。
+            前往监控管理填写你想持续监控的方向，创建后将在此查看 AI 研判摘要与趋势。
           </p>
           <Link
             to="/app/monitors/manage"
@@ -262,10 +262,15 @@ export function MonitorOverviewPage() {
       >
         {sorted.map((m) => {
           const active = m.id === currentId;
-          const counts = (m.metrics.trend ?? []).map((p) => p.count);
-          const heat = m.metrics.heatIndex;
-          const n24 = m.metrics.newLast24h ?? 0;
-          const lastAt = m.metrics.lastActivityAt ?? m.updatedAt;
+          const metrics = m.metrics;
+          const computing =
+            m.snapshotStatus === 'pending' ||
+            m.snapshotStatus === 'computing' ||
+            (!m.snapshotStatus && !metrics);
+          const counts = (metrics?.trend ?? []).map((p) => p.count);
+          const heat = metrics?.heatIndex ?? null;
+          const n24 = metrics?.newLast24h ?? 0;
+          const lastAt = metrics?.lastActivityAt ?? m.updatedAt;
           return (
             <li key={m.id}>
               <button
@@ -282,7 +287,7 @@ export function MonitorOverviewPage() {
                 <div className="pointer-events-none absolute right-2.5 top-2.5 flex flex-col items-end gap-0.5">
                   <span className="text-[9px] font-bold uppercase tracking-widest text-slate-600">Heat</span>
                   <span className="text-base font-bold tabular-nums leading-none text-ark-accent">
-                    {heat != null ? heat.toFixed(1) : '—'}
+                    {computing ? '…' : heat != null ? heat.toFixed(1) : '—'}
                   </span>
                 </div>
                 <span

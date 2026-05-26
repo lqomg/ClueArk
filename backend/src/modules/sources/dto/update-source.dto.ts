@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsOptional, IsString, MaxLength, MinLength, ValidateIf, ValidateNested } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, MaxLength, Min, MinLength, ValidateIf, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { SourceWebCrawlSelectorsPatchDto } from './source-web-crawl-selectors.dto';
 import { SourceHotApiPatchDto } from './source-hot-api-patch.dto';
@@ -80,4 +80,9 @@ export class UpdateSourceDto {
   @IsOptional()
   @IsInt()
   sortOrder?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(30)
+  pollIntervalSec?: number | null;
 }

@@ -4,9 +4,11 @@
 
 :root {
   /* 使用 RGB 变量，确保 Tailwind 的 `/xx` 透明度语法可用 */
-  --ark-bg: 15 20 26;
-  --ark-sidebar: 10 13 17;
-  --ark-surface: 26 31 38;
+  --ark-bg: 5 10 15;
+  --ark-sidebar: 8 12 18;
+  /** 主内容区画布（#020617） */
+  --ark-content: 2 6 23;
+  --ark-surface: 14 20 30;
   --ark-border: 48 55 66;
   --ark-text: 248 250 252;
   --ark-muted: 148 163 184;
@@ -84,6 +86,12 @@ input[type='checkbox'] {
     background: rgba(255, 255, 255, 0.03);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+  }
+
+  .home-page-bg {
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(0, 242, 255, 0.08), transparent),
+      radial-gradient(ellipse 60% 40% at 100% 0%, rgba(0, 242, 255, 0.04), transparent);
   }
 
   .scrollbar-hide {

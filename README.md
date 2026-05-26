@@ -13,7 +13,7 @@
   </p>
 
   <p>
-    围绕「话题监控」组织信息流：用户用一句话描述监控意图，系统结合 LLM 规划说明与信源绑定，再用 Embedding 做语义时间线与研判摘要。底层持续接入 RSS、网页爬虫与热点 API 等公开信源，并支持条目富化、语义匹配与相似报道聚类，帮助用户从高噪声信息中快速发现值得关注的线索。项目定位于轻量、可私有化部署的信息工作台，适用于行业研究、技术趋势追踪、公共事件观察与个人知识输入流管理。
+    围绕「话题监控」组织信息流：用一句话描述监控意图，系统自动规划说明、绑定信源，并以语义时间线与研判摘要呈现值得关注的线索。底层接入 RSS、网页列表与热点 API 等公开信源，支持私有化部署，适用于行业研究、趋势追踪与个人信息流管理。
   </p>
 </div>
 
@@ -23,152 +23,78 @@
 
 演示地址： [https://clueark.com](https://clueark.com)
 
-> 项目基于 React + TypeScript + NestJS + MongoDB + Docker 构建，是一套偏前端视角的全栈实践，也可作为前端开发者入门全栈开发的参考。
+> React + TypeScript + NestJS + MongoDB + Docker Compose 全栈项目，也可作为前端开发者入门全栈的参考。
 
 <img width="1920" height="919" alt="ClueArk 界面预览" src="/assets/demo.png" />
 
 ## 功能特性
 
-- **统一信源模型**：官方内置与用户自建共用同一套类型与指纹策略，便于扩展与运维。
-- **AI 辅助话题监控**：一句话描述监控意图即可创建；系统自动扩写监控说明、抽取关键词与实体，并从已启用的统一信源池中推荐绑定信源；支持在设置中调整绑定信源与相似度阈值（`minCosine`）。时间线与侧栏指标依赖 Embedding；研判摘要由后端定时任务异步生成（详见下文「话题监控」）。
-- **多类采集路径**：同一资源池内支持 **RSS/Atom**、**Web（含可选列表页爬虫）**、**JSON 热点 API（可配置字段映射）**，按需选用而非单一抓取方式。
-- **独立 Web 爬虫服务**：对无稳定 Feed 的站点，通过 **CSS 选择器** 解析列表页 HTML（NestJS + Cheerio），与主站 **契约对齐** 上报；爬虫侧不依赖 LLM。详见 [`crawler/README.md`](crawler/README.md)。
-- **可选智能化**：可按环境变量接入 DeepSeek、条目富化、Embedding 与聚类等（根目录与 `backend/.env.example`）；**创建监控**要求 Embedding 可用，且条目侧需具备与监控一致的语义向量字段，时间线才会有内容。
-- **Docker Compose 单机栈**：MongoDB、后端 API、前端（Nginx 反代）、爬虫默认同栈构建启动，适合快速部署。
+- **AI 话题监控**：一句话创建监控；自动扩写说明、推荐信源，提供语义时间线与异步研判摘要。
+- **多类信源**：RSS/Atom、网页列表（可选爬虫规则）、JSON 热点 API，统一资源池管理。
+- **独立运营后台**：用户、监控、信源与任务审计；与用户产品分离部署入口。
+- **Docker 一键部署**：MongoDB、Redis、Qdrant、API、Worker、用户前端、运营后台与爬虫默认同栈启动。
+- **邮箱验证码**：注册 / 登录 / 找回密码；未配置 SMTP 时验证码写入后端日志，便于本地开发。
 
-面向个人的情报采集与浏览：在统一信源池上订阅话题、浏览语义筛选后的时间线并查看研判摘要，减轻自行全网检索的负担。
+## 信源类型
 
-## 话题监控（机制说明）
+| 类型 | 说明 |
+|------|------|
+| **RSS / Atom** | 标准订阅 Feed 增量拉取 |
+| **Web** | 站点或列表页；无 Feed 时可配置爬虫规则 |
+| **热点 API** | JSON HTTP 接口，可配置字段映射 |
 
-- **创建**：用户输入一句「监控意图」。后端调用 LLM 生成标题、正式说明、关键词与实体，并在当前**已启用**的信源目录中自动挑选一批绑定信源（数量与目录规模可通过 `MONITOR_MIN_SOURCES`、`MONITOR_MAX_SOURCES`、`MONITOR_LLM_SOURCE_CATALOG_CAP` 等调节，详见 `backend/.env.example`）。同时对正式说明做 Embedding，写入监控的描述向量。
-- **语义时间线**：只展示已绑定信源中、富化完成且具备全文语义向量的条目；按与监控说明向量的**余弦相似度**过滤，低于 `minCosine`（默认约 0.43）的不进入时间线。默认回溯窗口等见 `MONITOR_DEFAULT_RECENT_HOURS`、`MONITOR_TIMELINE_CANDIDATE_CAP`。
-- **情报卡片与趋势**：在通过阈值的条目集合上统计热度、近 7 日趋势（按用户资料中的 **IANA 时区**做日历日分桶）、标签分布与最新条目等。总览页提供合并接口，减少多次往返。
-- **研判摘要**：后端在进程启动完成后异步跑一轮，并**按小时**为所有有效监控生成摘要；结果写入 MongoDB，前端读取最近一次成功运行。摘要时间窗默认对应「近 N 小时滚动窗」（`MONITOR_BRIEF_WEEKLY_ROLLING_HOURS`，默认 168）；API 响应中字段名仍为 `weeklyBrief`，与历史命名并存。证据条数与截断等见 `MONITOR_BRIEF_*` 变量。
-
-## 多类信源支持
-
-| 类型 | 说明 | 典型用途 |
-|------|------|----------|
-| **RSS / Atom** | 标准订阅地址增量拉取 | 资讯站、博客等提供 Feed 的信源 |
-| **Web** | 站点 URL；可选 `crawlListUrl` + `crawlSelectors` 供爬虫解析列表页 | 仅有网页列表、需规则化抽取条目的场景 |
-| **热点 API（`hot_api`）** | JSON HTTP 接口 + 可配置 mapper（如条目数组路径与字段映射） | 结构化热点/排行榜类数据源 |
-
-内置种子见 **`data/built-in-catalog.json`**（含多条 RSS 示例）；部署时可通过 **`BUILTIN_CATALOG_PATH`** 指向自定义目录。
-
-## 演示
-
-- **访问：** [https://clueark.com](https://clueark.com) —— 普通用户可自行注册。
-- **演示账号：** show@clueark.com  / 123456qian
+内置示例见 `data/built-in-catalog.json`。
 
 ## 技术栈
 
 | 部分 | 技术 |
 |------|------|
-| 前端 | React 18、TypeScript、Vite、Tailwind CSS、Zustand、React Router |
-| 后端 | NestJS、MongoDB（Mongoose）、JWT、定时任务等 |
-| 爬虫 | NestJS、Cheerio、可配置选择器（与主站契约对齐） |
+| 用户前端 | React 18、TypeScript、Vite、Tailwind CSS |
+| 运营后台 | React 18、Vite、Ant Design |
+| 后端 | NestJS、MongoDB、Redis、Qdrant |
+| 爬虫 | NestJS、Cheerio（详见 [crawler/README.md](crawler/README.md)） |
 
-代码目录：`frontend/`、`backend/`、`crawler/` 分别为独立子项目（根目录无统一 `package.json`）。
+子项目：`frontend/`、`admin-web/`、`backend/`、`crawler/`（根目录无统一 `package.json`）。
 
-## 仓库结构（节选）
+## 快速部署
 
-```
-├── backend/           # 主 API 服务（NestJS）
-├── crawler/           # Web 列表页爬虫服务（NestJS），详见 crawler/README.md
-├── frontend/          # Web 前端（Vite + React）
-├── data/              # 内置信源种子等（如 built-in-catalog.json）
-├── docker-compose.yml # 推荐部署入口
-├── .env.example       # 环境变量模板（复制为 .env）
-└── LICENSE            # MIT
-```
-
-## 信源与内置目录
-
-全站信源为统一资源池（MongoDB `sources` 集合）：官方类条目 `createdBy` 为空，用户自建条目记录创建者。
-
-仓库中 **`data/built-in-catalog.json`**（`sources` 数组）仅作为**启动种子**，用于写入官方网站类等信源；可通过环境变量 **`BUILTIN_CATALOG_PATH`** 指向其他路径（Docker 部署下默认使用挂载到容器内的路径）。
-
-## 环境要求
-
-- **推荐**：Docker、Docker Compose（v2）
-- **本地开发**：Node.js 20+（与仓库内各子项目一致即可）、MongoDB
-
-## 部署（Docker Compose，推荐）
-
-根目录 `docker-compose.yml` 为**推荐单机部署入口**：MongoDB + backend + web（Nginx 托管前端并反代 API）+ crawler。
-
-### 首次启动
+**环境**：Docker、Docker Compose（v2）。
 
 ```bash
 git clone <本仓库地址>
 cd <克隆后的目录名>
 
 cp .env.example .env
-# 编辑 .env：生产环境务必设置强密码 / 密钥，至少包括：
-#   MONGO_INITDB_ROOT_PASSWORD、JWT_SECRET、ADMIN_PASSWORD
-#   CRAWLER_INGEST_SECRET、CRAWLER_SECRET（与爬虫通信相关，见 .env.example 说明）
+# 编辑 .env：生产务必修改密码与密钥（见 .env.example 注释）
+# 须配置 FEED_EMBEDDING_API_KEY、DEEPSEEK_API_KEY
 
 docker compose up -d --build
 ```
 
-### 访问地址
+**访问地址**
 
-- **Web 界面**：`http://<服务器IP或域名>:<端口>`
-  - 若已按 `.env.example` 复制并保留 `WEB_PORT=8080`，则一般为 **`http://<host>:8080`**。
-  - 若未提供 `.env` 或未设置 `WEB_PORT`，Compose 默认将容器 80 映射到宿主机 **`80`**（即 `http://<host>/`）。
-- **HTTP API**：通过前端的 **`/api`** 路径由 Nginx 反代到后端，**不单独对外暴露** backend 端口。
+- 用户产品：`http://<host>:8080`（默认 `WEB_PORT=8080`；未设置时可能映射宿主机 80）
+- 运营后台：`http://<host>:8081`（`ADMIN_WEB_PORT`），使用 `ADMIN_EMAIL` / `ADMIN_PASSWORD` 登录
+- HTTP API：经前端 Nginx 的 `/api` 反代，不单独对外暴露 backend 端口
 
-### 网络与安全说明
+完整环境变量见 **[`.env.example`](.env.example)**。
 
-- `backend`、`crawler` 在默认 Compose 下**不对外映射端口**，仅在容器网络内互通。
-- MongoDB 会映射到宿主机 **`MONGO_BIND_PORT`（默认 27017）**。若主机暴露在公网，请在防火墙 / 安全组中限制来源 IP；**不建议将数据库端口无防护对外开放**。
+## 本地开发
 
-### 爬虫服务
-
-默认随 `docker compose up` **一并构建并启动**，按主站配置拉取 Web 信源并上报。手动运行、API 与定时逻辑详见 **[crawler/README.md](crawler/README.md)**。
-
-若仅需主站与数据库、暂时不要爬虫，可在 Compose 中按需调整服务（例如移除或停用 `crawler` 服务），具体以你的运维策略为准。
-
-## 环境变量说明（摘要）
-
-完整键名与注释见 **`/.env.example`**；后端、爬虫另有 **`backend/.env.example`**、**`crawler/.env.example`** 供本地开发参考。
-
-| 类别 | 说明 |
-|------|------|
-| 必改（生产） | Mongo root 密码、`JWT_SECRET`、`ADMIN_PASSWORD`、爬虫相关 `CRAWLER_INGEST_SECRET` / `CRAWLER_SECRET` 等 |
-| 可选 | DeepSeek、Embedding、RSS/热点等开关与密钥（见各 `.env.example`） |
-| 话题监控与研判 | `MONITOR_*`、`MONITOR_BRIEF_*`（见 `backend/.env.example` 注释） |
-
-## 本地开发（简要）
-
-各子项目独立安装依赖与启动，需自备 MongoDB 并配置连接信息。
+需 Node.js 20+，自备 MongoDB、Redis、Qdrant，并在 `backend/.env` 中配置连接信息与 API 密钥。
 
 ```bash
-# 后端（示例）
-cd backend
-cp .env.example .env   # 按本地修改
-npm install
-npm run start:dev
-
-# 前端（示例）
-cd frontend
-npm install
-npm run dev
-
-# 爬虫（示例）
-cd crawler
-cp .env.example .env
-npm install
-npm run start:dev
+cd backend && cp .env.example .env && npm install && npm run dev
+cd frontend && npm install && npm run dev
+cd admin-web && npm install && npm run dev   # 默认 :5174
+cd crawler && cp .env.example .env && npm install && npm run start:dev
 ```
 
-本地联调时 API 地址、代理等请与各自 `vite` / Nest 配置及环境变量保持一致。
+架构约定、模块说明与联调细节见 **[AGENTS.md](AGENTS.md)**；后端与爬虫环境变量见 `backend/.env.example`、`crawler/.env.example`。
 
 ## 合规与安全
 
-使用本软件抓取或访问第三方网站时，请遵守当地法律法规及目标站点的服务条款、robots 协议与合理使用范围。禁止用于未授权的批量爬取或侵犯他人权益的行为；**使用者自行承担合规责任**。
-
-若在部署中发现安全问题（例如默认密钥、暴露面配置），建议优先通过私有渠道联系维护者；也欢迎在修复后通过 Issue / PR 协助改进文档与默认配置。
+使用本软件访问第三方网站时，请遵守法律法规及目标站点条款与 robots 协议。**使用者自行承担合规责任**。
 
 ## 开源协议
 
@@ -176,4 +102,4 @@ npm run start:dev
 
 ## 贡献
 
-欢迎通过 Issue 讨论与 Pull Request 提交改进。提交信息建议简洁说明改动意图；内部协作可使用项目约定的 commit 类型（如 `fix`、`feature` 等）。
+欢迎 Issue 与 Pull Request。架构与协作约定见 [AGENTS.md](AGENTS.md)。

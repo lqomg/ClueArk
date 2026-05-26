@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, LayoutList, Sparkles, Trash2 } from 'lucide-react';
 import { createMonitor, deleteMonitor, listMonitors } from '@/api/monitors';
@@ -56,6 +56,14 @@ export function MonitorManagePage() {
   const [topicDraft, setTopicDraft] = useState('');
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const createPollAlive = useRef(true);
+
+  useEffect(() => {
+    createPollAlive.current = true;
+    return () => {
+      createPollAlive.current = false;
+    };
+  }, []);
 
   const loadRows = useCallback(async () => {
     setLoading(true);
@@ -92,7 +100,18 @@ export function MonitorManagePage() {
     try {
       const m = await createMonitor({ topic: t });
       setTopicDraft('');
+      const deadline = Date.now() + 30_000;
+      while (Date.now() < deadline) {
+        if (!createPollAlive.current) return;
+        const monitors = await listMonitors('?recentHours=720');
+        const row = monitors.find((x) => x.id === m.id);
+        const st = row?.snapshotStatus;
+        if (st === 'ready' || st === 'failed') break;
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+      if (!createPollAlive.current) return;
       await loadRows();
+      if (!createPollAlive.current) return;
       navigate(`/app/monitors?monitor=${encodeURIComponent(m.id)}`, { replace: false });
     } catch (err) {
       setError(err instanceof Error ? err.message : '创建失败');
@@ -159,10 +178,11 @@ export function MonitorManagePage() {
         ) : (
           <ul className="m-0 list-none space-y-2 p-0" aria-label="监控列表">
             {sorted.map((m) => {
-              const counts = (m.metrics.trend ?? []).map((p) => p.count);
-              const heat = m.metrics.heatIndex;
-              const n24 = m.metrics.newLast24h ?? 0;
-              const lastAt = m.metrics.lastActivityAt ?? m.updatedAt;
+              const metrics = m.metrics;
+              const counts = (metrics?.trend ?? []).map((p) => p.count);
+              const heat = metrics?.heatIndex ?? null;
+              const n24 = metrics?.newLast24h ?? 0;
+              const lastAt = metrics?.lastActivityAt ?? m.updatedAt;
               const busy = deletingId === m.id;
               return (
                 <li

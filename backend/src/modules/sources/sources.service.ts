@@ -35,9 +35,9 @@ function isAdminRole(role: UserRole): boolean {
   return role === USER_ROLE.Admin;
 }
 
-/** 管理员与演示账号均可查看已禁用信源（演示为只读） */
+/** 管理员可查看已禁用信源 */
 function canViewDisabledPoolSource(role: UserRole): boolean {
-  return role === USER_ROLE.Admin || role === USER_ROLE.Demo;
+  return role === USER_ROLE.Admin;
 }
 
 function escapeRegex(s: string): string {
@@ -82,13 +82,14 @@ function serializeSource(doc: Record<string, unknown>) {
     sortOrder: typeof doc.sortOrder === 'number' ? doc.sortOrder : 0,
     createdBy: createdBy ? String(createdBy) : null,
     isOfficial: persistedOfficial(doc),
+    pollIntervalSec: typeof doc.pollIntervalSec === 'number' ? doc.pollIntervalSec : null,
     openUrl: openUrlForSource(kind, web, rss, hot),
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
 }
 
-/** 信源池仅管理员可写（路由层已拦 demo；此处兜底） */
+/** 信源池仅管理员可写（路由层 AdminGuard；此处兜底） */
 function canWritePool(role: UserRole): boolean {
   return isAdminRole(role);
 }
@@ -133,15 +134,18 @@ export class SourcesService {
 
   async adminCreateOfficial(
     adminUserId: string,
-    dto: CreateSourceDto & { enabled?: boolean; sortOrder?: number },
+    dto: CreateSourceDto & { enabled?: boolean; sortOrder?: number; pollIntervalSec?: number | null },
   ) {
     const row = await this.buildPayloadFromCreateDto(adminUserId, dto);
     const sortOrder = dto.sortOrder ?? 0;
+    const pollIntervalSec =
+      dto.pollIntervalSec != null && Number.isFinite(dto.pollIntervalSec) ? dto.pollIntervalSec : null;
     try {
       const doc = await this.sourceModel.create({
         ...row,
         enabled: dto.enabled ?? true,
         sortOrder,
+        pollIntervalSec,
         isOfficial: false,
         createdBy: null,
         deletedAt: null,
@@ -509,6 +513,10 @@ export class SourcesService {
 
     if (dto.enabled != null) $set.enabled = dto.enabled;
     if (dto.sortOrder != null) $set.sortOrder = dto.sortOrder;
+    if (dto.pollIntervalSec !== undefined) {
+      $set.pollIntervalSec =
+        dto.pollIntervalSec != null && Number.isFinite(dto.pollIntervalSec) ? dto.pollIntervalSec : null;
+    }
 
     const kind = existing.kind as SourceKind;
 

@@ -1,13 +1,11 @@
 export type SourceKind = 'web' | 'rss' | 'hot_api';
 
-/** RSS 拉取后的单条内容 */
+/** 采集条目（监控时间线、研判证据等） */
 export interface FeedItem {
   id: string;
   sourceId: string;
   sourceDisplayName: string;
   title: string;
-  /** 列表代表条原标题（合并簇时与 title 一致或用于副标题） */
-  itemTitle?: string;
   link: string;
   summary: string;
   publishedAt: string;
@@ -15,15 +13,21 @@ export interface FeedItem {
   updatedAt: string;
   tags: string[];
   recommendReason: string;
-  llmStatus: 'done';
-  /** 相似簇 ID（合并行）；单条为 null */
+  llmStatus: 'pending' | 'processing' | 'done' | 'failed' | 'skipped';
+  /** 相似报道簇；无合并时为 null */
   clusterId?: string | null;
   clusterItemCount?: number;
   clusterSourceCount?: number;
-  clusterEarliestAt?: string | null;
-  clusterLatestAt?: string | null;
-  /** 监控时间线等场景下由服务端附加的语义相关度（余弦相似度，0～1） */
+  /** 监控时间线：语义相关度（0～1） */
   relevanceScore?: number;
+}
+
+export interface MonitorClusterFeedItem {
+  id: string;
+  sourceDisplayName: string;
+  title: string;
+  link: string;
+  publishedAt: string;
 }
 
 /** 用户监控话题（可 PATCH 信源与最低余弦相似度） */
@@ -50,9 +54,26 @@ export interface MonitorListMetrics {
   trend: { date: string; count: number }[];
 }
 
-/** GET /monitors 返回项：监控实体 + metrics */
+/** GET /monitors 返回项：监控实体 + 快照指标（未就绪时为 null） */
 export interface MonitorWithListMetrics extends Monitor {
-  metrics: MonitorListMetrics;
+  snapshotStatus?: 'pending' | 'computing' | 'ready' | 'stale' | 'failed';
+  metrics: MonitorListMetrics | null;
+}
+
+export interface NotificationItem {
+  id: string;
+  monitorId: string;
+  monitorTitle: string;
+  feedItemId: string;
+  score: number;
+  title: string;
+  link: string;
+  readAt: string | null;
+  createdAt: string | null;
+  sourceDisplayName: string;
+  recommendReason: string;
+  summaryPreview: string;
+  llmStatus: string;
 }
 
 export interface MonitorIntelligence {
@@ -76,15 +97,6 @@ export interface MonitorIntelligence {
   };
 }
 
-/** GET /monitors/overview 中各监控侧栏卡片用 */
-export interface MonitorOverviewCard {
-  monitorId: string;
-  heatIndex: number | null;
-  newLast24h: number;
-  lastActivityAt: string | null;
-  trend: { date: string; count: number }[];
-}
-
 /** 全站统一信源；isOfficial 为启动内置 catalog 注入的种子，后台可由管理员/演示账号维护；createdBy 非空为用户自建 */
 export interface Source {
   id: string;
@@ -106,6 +118,10 @@ export interface Source {
   note: string;
   enabled: boolean;
   sortOrder: number;
+  /** 采集轮询间隔（秒），默认 600 */
+  pollIntervalSec: number;
+  lastPolledAt: string | null;
+  nextPollAt: string | null;
   createdBy: string | null;
   isOfficial: boolean;
   openUrl: string;

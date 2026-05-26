@@ -1,22 +1,36 @@
-import { useEffect, useState } from 'react';
-import { changePassword as changePasswordApi, getMe, patchProfile } from '@/api/users';
+import { useEffect, useMemo, useState } from 'react';
+import { User } from 'lucide-react';
+import { changePassword as changePasswordApi, getMe, saveProfile } from '@/api/users';
+import { useAppTopBar } from '@/components/layout/AppTopBar';
+import { ProfilePanel } from '@/pages/app/me/components/ProfilePanel';
 import { useAuthStore } from '@/stores/authStore';
-import { COMMON_IANA_TIME_ZONES, normalizeUserTimeZone } from '@/lib/datetime';
+import { normalizeUserTimeZone } from '@/lib/datetime';
 import type { MeResponse } from './types';
+
+const profileSubtitle = '账号信息与安全设置';
+
+function savedUsername(me: MeResponse | null, user: { username?: string } | null): string {
+  return (me?.username ?? user?.username ?? '').trim();
+}
+
+function savedTimeZone(me: MeResponse | null, user: { timeZone?: string } | null): string {
+  return normalizeUserTimeZone(me?.timeZone ?? user?.timeZone);
+}
 
 export function ProfilePage() {
   const user = useAuthStore((s) => s.user);
   const patchUser = useAuthStore((s) => s.patchUser);
   const [me, setMe] = useState<MeResponse | null>(null);
+  const [usernameDraft, setUsernameDraft] = useState('');
+  const [tzDraft, setTzDraft] = useState('');
+  const [profileMsg, setProfileMsg] = useState<string | null>(null);
+  const [profileErr, setProfileErr] = useState<string | null>(null);
+  const [profileSaving, setProfileSaving] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [msg, setMsg] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [tzDraft, setTzDraft] = useState('');
-  const [tzMsg, setTzMsg] = useState<string | null>(null);
-  const [tzErr, setTzErr] = useState<string | null>(null);
-  const [tzSaving, setTzSaving] = useState(false);
+  const [pwdMsg, setPwdMsg] = useState<string | null>(null);
+  const [pwdErr, setPwdErr] = useState<string | null>(null);
+  const [pwdLoading, setPwdLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -25,6 +39,7 @@ export function ProfilePage() {
         const data = await getMe();
         if (!cancelled) {
           setMe(data);
+          setUsernameDraft(data.username ?? '');
           setTzDraft(normalizeUserTimeZone(data.timeZone));
           useAuthStore.getState().patchUser({
             username: data.username,
@@ -41,128 +56,110 @@ export function ProfilePage() {
     };
   }, []);
 
+  useAppTopBar(
+    () => (
+      <div className="flex min-w-0 w-full items-center gap-4">
+        <div className="flex min-w-0 flex-1 flex-col gap-1 md:flex-row md:items-center md:gap-4">
+          <h1 className="flex shrink-0 items-center gap-2 text-lg font-semibold tracking-tight text-ark-text">
+            <User className="size-5 shrink-0 text-ark-accent" strokeWidth={2} aria-hidden />
+            个人中心
+          </h1>
+          <p className="min-w-0 text-xs leading-snug text-slate-500 md:max-w-2xl md:border-l md:border-ark-border md:pl-4 md:text-sm">
+            {profileSubtitle}
+          </p>
+        </div>
+      </div>
+    ),
+    [],
+  );
+
+  const profileDirty = useMemo(() => {
+    const username = usernameDraft.trim();
+    if (!username) return false;
+    return username !== savedUsername(me, user) || tzDraft !== savedTimeZone(me, user);
+  }, [usernameDraft, tzDraft, me, user]);
+
+  async function handleSaveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    setProfileErr(null);
+    setProfileMsg(null);
+    const username = usernameDraft.trim();
+    if (!username) {
+      setProfileErr('用户名不能为空');
+      return;
+    }
+    const timeZone = tzDraft.trim();
+    const normalized = normalizeUserTimeZone(timeZone);
+    if (normalized !== timeZone) {
+      setProfileErr('时区名称无效，请从列表中选择');
+      return;
+    }
+    if (!profileDirty) return;
+
+    setProfileSaving(true);
+    try {
+      const updated = await saveProfile({ username, timeZone });
+      setMe(updated);
+      setUsernameDraft(updated.username);
+      setTzDraft(normalizeUserTimeZone(updated.timeZone));
+      patchUser({ username: updated.username, timeZone: updated.timeZone });
+      setProfileMsg('资料已保存');
+    } catch (e) {
+      setProfileErr(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
   async function changePassword(e: React.FormEvent) {
     e.preventDefault();
-    setErr(null);
-    setMsg(null);
-    setLoading(true);
+    setPwdErr(null);
+    setPwdMsg(null);
+    setPwdLoading(true);
     try {
       await changePasswordApi({ oldPassword, newPassword });
-      setMsg('密码已更新');
+      setPwdMsg('密码已更新');
       setOldPassword('');
       setNewPassword('');
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '修改失败');
+      setPwdErr(e instanceof Error ? e.message : '修改失败');
     } finally {
-      setLoading(false);
+      setPwdLoading(false);
     }
   }
 
-  async function saveTimeZone(e: React.FormEvent) {
-    e.preventDefault();
-    setTzErr(null);
-    setTzMsg(null);
-    const trimmed = tzDraft.trim();
-    const normalized = normalizeUserTimeZone(trimmed);
-    if (normalized !== trimmed) {
-      setTzErr('时区名称无效，请从下方列表选择，或按示例格式填写（如 Asia/Shanghai）');
-      return;
-    }
-    setTzSaving(true);
-    try {
-      const updated = await patchProfile({ timeZone: trimmed });
-      setMe(updated);
-      patchUser({ timeZone: updated.timeZone });
-      setTzDraft(normalizeUserTimeZone(updated.timeZone));
-      setTzMsg('显示时区已保存');
-    } catch (e) {
-      setTzErr(e instanceof Error ? e.message : '保存失败');
-    } finally {
-      setTzSaving(false);
-    }
-  }
+  const email = me?.email ?? user?.email ?? '';
 
   return (
-    <div className="scrollbar-hide mx-auto max-w-xl min-h-0 flex-1 space-y-8 overflow-y-auto overscroll-y-contain pb-8">
-      <div>
-        <h1 className="text-xl font-semibold text-ark-text">个人中心</h1>
-        <p className="mt-1 text-sm text-ark-muted">账号信息与安全设置</p>
-      </div>
-      <section className="rounded-lg border border-ark-border bg-ark-surface p-5">
-        <h2 className="text-sm font-semibold text-ark-text">账号信息</h2>
-        <dl className="mt-4 space-y-2 text-sm">
-          <div className="flex justify-between gap-4">
-            <dt className="text-ark-muted">邮箱</dt>
-            <dd className="text-ark-text">{me?.email ?? user?.email}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-ark-muted">用户名</dt>
-            <dd className="text-ark-text">{me?.username ?? user?.username}</dd>
-          </div>
-        </dl>
-      </section>
-      <section className="rounded-lg border border-ark-border bg-ark-surface p-5">
-        <h2 className="text-sm font-semibold text-ark-text">显示时区</h2>
-        <p className="mt-2 text-xs leading-relaxed text-ark-muted">
-          情报列表、话题监控中的时间与近 7 日趋势，会按您在此选择的时区展示与统计。
-        </p>
-        <form className="mt-4 space-y-3" onSubmit={saveTimeZone}>
-          {tzErr ? <div className="text-sm text-red-300">{tzErr}</div> : null}
-          {tzMsg ? <div className="text-sm text-emerald-300">{tzMsg}</div> : null}
-          <label className="block text-xs font-medium text-ark-muted" htmlFor="profile-timezone">
-            时区
-          </label>
-          <input
-            id="profile-timezone"
-            className="w-full rounded-md border border-ark-border bg-ark-bg px-3 py-2 font-mono text-sm"
-            value={tzDraft}
-            onChange={(e) => setTzDraft(e.target.value)}
-            placeholder="Asia/Shanghai"
-            list="clueark-iana-tz"
-            autoComplete="off"
-          />
-          <datalist id="clueark-iana-tz">
-            {COMMON_IANA_TIME_ZONES.map((z) => (
-              <option key={z} value={z} />
-            ))}
-          </datalist>
-          <button
-            type="submit"
-            disabled={tzSaving}
-            className="rounded-lg bg-ark-accent px-4 py-2 text-sm font-semibold text-black shadow-lg shadow-ark-accent/15 transition hover:opacity-95 active:scale-[0.98] disabled:opacity-50"
-          >
-            {tzSaving ? '保存中…' : '保存时区'}
-          </button>
-        </form>
-      </section>
-      <section className="rounded-lg border border-ark-border bg-ark-surface p-5">
-        <h2 className="text-sm font-semibold text-ark-text">修改密码</h2>
-        <form className="mt-4 space-y-3" onSubmit={changePassword}>
-          {err ? <div className="text-sm text-red-300">{err}</div> : null}
-          {msg ? <div className="text-sm text-emerald-300">{msg}</div> : null}
-          <input
-            type="password"
-            placeholder="原密码"
-            className="w-full rounded-md border border-ark-border bg-ark-bg px-3 py-2 text-sm"
-            value={oldPassword}
-            onChange={(e) => setOldPassword(e.target.value)}
-          />
-          <input
-            type="password"
-            placeholder="新密码（至少 6 位）"
-            className="w-full rounded-md border border-ark-border bg-ark-bg px-3 py-2 text-sm"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-lg bg-ark-accent px-4 py-2 text-sm font-semibold text-black shadow-lg shadow-ark-accent/15 transition hover:opacity-95 active:scale-[0.98] disabled:opacity-50"
-          >
-            {loading ? '保存中…' : '保存新密码'}
-          </button>
-        </form>
-      </section>
+    <div className="scrollbar-hide mx-auto flex min-h-0 w-full max-w-2xl flex-1 flex-col overflow-y-auto overscroll-y-contain pb-8 pt-1">
+      <ProfilePanel
+        email={email}
+        usernameDraft={usernameDraft}
+        onUsernameChange={(value) => {
+          setUsernameDraft(value);
+          setProfileMsg(null);
+          setProfileErr(null);
+        }}
+        tzDraft={tzDraft}
+        onTzChange={(value) => {
+          setTzDraft(value);
+          setProfileMsg(null);
+          setProfileErr(null);
+        }}
+        onSaveProfile={handleSaveProfile}
+        profileDirty={profileDirty}
+        profileErr={profileErr}
+        profileMsg={profileMsg}
+        profileSaving={profileSaving}
+        oldPassword={oldPassword}
+        newPassword={newPassword}
+        onOldPasswordChange={setOldPassword}
+        onNewPasswordChange={setNewPassword}
+        onChangePassword={changePassword}
+        pwdErr={pwdErr}
+        pwdMsg={pwdMsg}
+        pwdLoading={pwdLoading}
+      />
     </div>
   );
 }

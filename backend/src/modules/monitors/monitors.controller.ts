@@ -6,7 +6,6 @@ import { CreateMonitorDto } from './dto/create-monitor.dto';
 import { ListMonitorFeedQueryDto } from './dto/list-monitor-feed.query.dto';
 import { ListMonitorIntelligenceQueryDto } from './dto/list-monitor-intelligence.query.dto';
 import { ListMonitorsQueryDto } from './dto/list-monitors.query.dto';
-import { ListMonitorBriefRunsQueryDto } from './dto/list-monitor-brief-runs.query.dto';
 import { PatchMonitorSourcesDto } from './dto/patch-monitor-sources.dto';
 
 @Controller('monitors')
@@ -20,13 +19,6 @@ export class MonitorsController {
   list(@CurrentUser('userId') userId: string, @Query() query: ListMonitorsQueryDto) {
     this.logger.log(`GET /monitors list userId=${userId} recentHours=${query.recentHours ?? 'default'}`);
     return this.monitorsService.listForUser(userId, query.recentHours);
-  }
-
-  /** 总览页：监控列表 + 各监控侧栏卡片指标（单次请求） */
-  @Get('overview')
-  overview(@CurrentUser('userId') userId: string, @Query() query: ListMonitorIntelligenceQueryDto) {
-    this.logger.log(`GET /monitors/overview userId=${userId} recentHours=${query.recentHours ?? 'default'}`);
-    return this.monitorsService.listOverviewForUser(userId, query.recentHours);
   }
 
   @Post()
@@ -47,6 +39,18 @@ export class MonitorsController {
     return this.monitorsService.listFeedItems(id, userId, query);
   }
 
+  @Get(':id/clusters/:clusterId/items')
+  listClusterItems(
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+    @Param('clusterId') clusterId: string,
+  ) {
+    this.logger.log(
+      `GET /monitors/:id/clusters/:clusterId/items monitorId=${id} userId=${userId} clusterId=${clusterId}`,
+    );
+    return this.monitorsService.listClusterFeedItems(id, clusterId, userId);
+  }
+
   @Get(':id/intelligence')
   intelligence(
     @CurrentUser('userId') userId: string,
@@ -57,28 +61,6 @@ export class MonitorsController {
       `GET /monitors/:id/intelligence monitorId=${id} userId=${userId} recentHours=${query.recentHours ?? 'default'} briefProfile=${query.briefProfile ?? 'default'}`,
     );
     return this.monitorsService.getIntelligence(id, userId, query);
-  }
-
-  @Get(':id/brief-runs/:runId')
-  getBriefRun(
-    @CurrentUser('userId') userId: string,
-    @Param('id') id: string,
-    @Param('runId') runId: string,
-  ) {
-    this.logger.log(`GET /monitors/:id/brief-runs/:runId monitorId=${id} runId=${runId} userId=${userId}`);
-    return this.monitorsService.getBriefRunById(id, runId, userId);
-  }
-
-  @Get(':id/brief-runs')
-  listBriefRuns(
-    @CurrentUser('userId') userId: string,
-    @Param('id') id: string,
-    @Query() query: ListMonitorBriefRunsQueryDto,
-  ) {
-    this.logger.log(
-      `GET /monitors/:id/brief-runs monitorId=${id} userId=${userId} profileId=${query.profileId ?? 'all'} limit=${query.limit ?? 20}`,
-    );
-    return this.monitorsService.listBriefRuns(id, userId, query);
   }
 
   @Get(':id')

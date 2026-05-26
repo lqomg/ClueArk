@@ -14,7 +14,7 @@ export interface SegmentedProps<T extends string> {
   options: SegmentedOption<T>[];
   /** 小号：动态页「全部/精选」；大号：信源视图切换 */
   size?: 'sm' | 'md';
-  /** `tabs`：默认分割线组；`panel`：demo 浅底槽 + 圆角块选中 */
+  /** `tabs`: default divider group; `panel`: inset track + rounded selected block */
   visual?: SegmentedVisual;
   className?: string;
 }

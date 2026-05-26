@@ -8,15 +8,25 @@ import { LoggerService } from './modules/logger/logger.service';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
+import {
+  assertRequiredEnv,
+  assertRedisReachable,
+  waitForWorkerReady,
+} from './bootstrap/platform-bootstrap';
+
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
+
+
 function getAccessibleHosts(): string[] {
+
   const interfaces = os.networkInterfaces();
   const hosts = new Set<string>();
 
   for (const networkInterface of Object.values(interfaces)) {
+
     if (!networkInterface?.length) continue;
 
     for (const addressInfo of networkInterface) {
@@ -24,36 +34,54 @@ function getAccessibleHosts(): string[] {
       hosts.add(addressInfo.address);
     }
   }
-
   return [...hosts].sort();
 }
 
+
+
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    bufferLogs: true,
-  });
+
+  let app: NestExpressApplication;
+  try {
+    app = await NestFactory.create<NestExpressApplication>(AppModule, {
+      bufferLogs: true,
+    });
+    assertRequiredEnv();
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : String(e));
+    process.exit(1);
+  }
+
 
   const uploadsDir = path.join(process.cwd(), 'uploads');
   if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
   }
+
   app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
   app.useStaticAssets(uploadsDir, { prefix: '/api/uploads' });
-
   app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
 
   const loggerService = app.get(LoggerService);
   const logger = loggerService.createLogger('Bootstrap');
-
   try {
     const exceptionLogger = loggerService.createLogger('ExceptionFilter');
     app.useGlobalFilters(new AllExceptionsFilter(exceptionLogger));
     app.useGlobalInterceptors(new TransformInterceptor());
-
     const connection = app.get<Connection>(getConnectionToken());
     await connection.asPromise();
+
     logger.log('✅ MongoDB连接成功');
     logger.log(`📊 数据库: ${connection.name}`);
+    const redisUrl = process.env.REDIS_URL!.trim();
+
+    const probe = await assertRedisReachable(redisUrl);
+    await probe.quit();
+    logger.log('✅ Redis 连接成功');
+    logger.log('⏳ 等待 BullMQ worker 就绪…')
+    await waitForWorkerReady(redisUrl);
+
+    logger.log('✅ Worker 已就绪');
 
     app.useGlobalPipes(
       new ValidationPipe({
@@ -62,7 +90,6 @@ async function bootstrap() {
         forbidNonWhitelisted: true,
       }),
     );
-
     app.enableCors({
       origin: true,
       credentials: true,
@@ -76,20 +103,26 @@ async function bootstrap() {
     const protocol = process.env.USE_HTTPS === 'true' ? 'https' : 'http';
     const hosts = getAccessibleHosts();
     const publicHost = hosts[0] || '127.0.0.1';
-
     logger.log(`🚀 API 服务已启动: ${protocol}://${publicHost}:${port}`);
+
     if (hosts.length > 1) {
       logger.log(`🌐 可访问地址: ${hosts.map((host) => `${protocol}://${host}:${port}`).join(', ')}`);
     }
+
     logger.log(`📋 日志目录: logs/`);
-  } catch (error: any) {
-    logger.error(`❗ 应用启动失败: ${error.message}`);
-    logger.error(error.stack);
-    if (error.message?.includes('connect') || error.message?.includes('ECONNREFUSED')) {
-      logger.error('💡 请确认 MongoDB 已启动，并检查 MONGODB_HOST / MONGODB_PORT / MONGODB_DATABASE');
+  } catch (error: unknown) {
+
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error(`❗ 应用启动失败: ${err.message}`);
+    logger.error(err.stack);
+    if (err.message?.includes('connect') || err.message?.includes('ECONNREFUSED')) {
+      logger.error('💡 请确认 MongoDB / Redis / Worker 已启动');
     }
     process.exit(1);
   }
 }
 
+
+
 bootstrap();
+

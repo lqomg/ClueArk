@@ -1,5 +1,7 @@
 import { createHash } from 'crypto';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { formatJobError } from '../job-center/job-log.util';
+import { JobSchedulerService } from '../job-center/job-scheduler.service';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 /** rss-parser 为 CJS `export =`，default import 在未开 esModuleInterop 时会错解为 `.default` */
@@ -10,7 +12,10 @@ import { FeedItem, FeedItemDocument } from './schemas/feed-item.schema';
 import { fingerprintUrlKey } from '../sources/fingerprint.util';
 import type { CrawlerIngestBodyDto } from './dto/crawler-ingest.dto';
 import { applyRssPublishedAtFeedCorrection } from './rss-published-at-corrections';
-import { FEED_MIN_SUMMARY_LEN_FOR_LLM } from './feed-llm.constants';
+import {
+  FEED_MIN_SUMMARY_LEN_FOR_LLM,
+  normalizeSummaryForStore,
+} from './feed-llm.constants';
 import {
   capFuturePublishedAt,
   coalescePublishedAtOrFallback,
@@ -19,7 +24,6 @@ import {
 } from './published-at.util';
 
 const FETCH_TIMEOUT_MS = 10_000;
-const MAX_SUMMARY_CHARS = 8000;
 const MAX_ITEMS_PER_FEED = 200;
 
 /** 部分站点对非浏览器 UA 返回 HTML，导致 rss-parser 解析失败 */
@@ -90,27 +94,12 @@ async function fetchRssXml(url: string): Promise<string> {
   }
 }
 
-export type PollSummary = {
-  sources: number;
-  upserted: number;
-  errors: number;
-  durationMs: number;
-};
-
 export type CrawlIngestSummary = {
   sourceId: string;
   crawlRunId: string;
   upserted: number;
   itemsProcessed: number;
   itemsSkipped: number;
-  durationMs: number;
-};
-
-export type HotApiPollSummary = {
-  sources: number;
-  upserted: number;
-  errors: number;
-  skipped: number;
   durationMs: number;
 };
 
@@ -228,6 +217,7 @@ export class FeedIngestService {
   constructor(
     @InjectModel(Source.name) private readonly sourceModel: Model<SourceDocument>,
     @InjectModel(FeedItem.name) private readonly feedItemModel: Model<FeedItemDocument>,
+    private readonly scheduler: JobSchedulerService,
   ) {
     this.parser = new Parser({
       timeout: FETCH_TIMEOUT_MS,
@@ -235,47 +225,36 @@ export class FeedIngestService {
     });
   }
 
-  async pollAllRssSources(): Promise<PollSummary> {
-    const started = Date.now();
-    const sources = await this.sourceModel
-      .find({
-        kind: SOURCE_KIND.RSS,
-        enabled: true,
-        $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
-        'rss.feedUrl': { $exists: true, $ne: '' },
-      })
-      .select({ _id: 1, rss: 1, displayName: 1 })
-      .lean()
-      .exec();
+  private async sourceDisplayName(sourceId: Types.ObjectId): Promise<string> {
+    const row = await this.sourceModel.findById(sourceId).select({ displayName: 1 }).lean().exec();
+    return row?.displayName?.trim() || String(sourceId);
+  }
 
-    let upserted = 0;
-    let errors = 0;
-    for (let i = 0; i < sources.length; i++) {
-      const s = sources[i] as unknown as {
-        _id: Types.ObjectId;
-        rss?: { feedUrl?: string };
-        displayName?: string;
-      };
-      const feedUrl = s.rss?.feedUrl?.trim();
-      if (!feedUrl) continue;
-      try {
-        upserted += await this.ingestOneSource(s._id, feedUrl);
-      } catch (e) {
-        errors += 1;
-        const msg = e instanceof Error ? e.message : String(e);
-        this.logger.warn(`RSS 拉取失败 [${s.displayName ?? s._id.toString()}] ${feedUrl}: ${msg}`);
-      }
-    }
-
-    const durationMs = Date.now() - started;
-    this.logger.log(
-      `RSS 轮询完成：信源 ${sources.length}，新建/跳过 upsert ${upserted} 条操作，失败 ${errors}，耗时 ${durationMs}ms（LLM 由定时任务处理）`,
+  private logIngestFailure(
+    channel: 'RSS' | 'HotAPI' | 'Web',
+    sourceId: Types.ObjectId,
+    label: string,
+    targetUrl: string,
+    err: unknown,
+  ): void {
+    const detail = formatJobError(err, FETCH_TIMEOUT_MS);
+    this.logger.warn(
+      `${channel} 拉取失败 [${label}] ${targetUrl}: ${detail} sourceId=${String(sourceId)}`,
     );
-    return { sources: sources.length, upserted, errors, durationMs };
   }
 
   /** 返回本次 bulkWrite 中 upsert 的新文档数近似（matched+upsert）；此处统计 modified + upserted */
   async ingestOneSource(sourceId: Types.ObjectId, feedUrl: string): Promise<number> {
+    const label = await this.sourceDisplayName(sourceId);
+    try {
+      return await this.ingestOneSourceInner(sourceId, feedUrl);
+    } catch (e) {
+      this.logIngestFailure('RSS', sourceId, label, feedUrl, e);
+      throw e;
+    }
+  }
+
+  private async ingestOneSourceInner(sourceId: Types.ObjectId, feedUrl: string): Promise<number> {
     const xml = await fetchRssXml(feedUrl);
     const feed = await this.parser.parseString(xml);
     const feedBase = feed.link?.trim() || feed.feedUrl?.trim() || feedUrl;
@@ -300,8 +279,8 @@ export class FeedIngestService {
       const titleRaw = stripTags((it.title ?? '').trim()) || '（无标题）';
       const title = truncate(titleRaw, 500);
       const snippet = stripTags((it.contentSnippet ?? it.summary ?? it.content ?? '').trim());
-      const summary = truncate(snippet, MAX_SUMMARY_CHARS);
-      const llmStatus = summary.trim().length >= FEED_MIN_SUMMARY_LEN_FOR_LLM ? 'pending' : 'skipped';
+      const summary = normalizeSummaryForStore(snippet);
+      const llmStatus = summary.length >= FEED_MIN_SUMMARY_LEN_FOR_LLM ? 'pending' : 'skipped';
 
       const publishedAtRaw = it.isoDate ?? it.pubDate ?? null;
       const publishedAt = coalescePublishedAtOrFallback(
@@ -324,7 +303,6 @@ export class FeedIngestService {
               llmStatus,
               llmTags: [],
               llmRecommendReason: '',
-              llmPriority: null,
               llmModel: '',
               llmError: '',
             },
@@ -337,7 +315,28 @@ export class FeedIngestService {
     if (!ops.length) return 0;
     const res = await this.feedItemModel.bulkWrite(ops, { ordered: false });
     await this.repairFuturePublishedAtForSource(sourceId, now);
+    await this.enqueueUpsertedItems(sourceId, res);
     return res.upsertedCount ?? 0;
+  }
+
+  private async enqueueUpsertedItems(
+    sourceId: Types.ObjectId,
+    res: { upsertedIds?: Record<number, Types.ObjectId> },
+  ): Promise<void> {
+    const src = await this.sourceModel.findById(sourceId).select({ monitoredByCount: 1 }).lean().exec();
+    if (!src?.monitoredByCount) return;
+    const upserted = res.upsertedIds;
+    if (!upserted) return;
+    const sid = String(sourceId);
+    const ids = Object.keys(upserted).map((key) => String(upserted[key as unknown as number]));
+    for (const id of ids) {
+      await this.scheduler.enqueueProcessNewItem(id, sid, { trigger: 'pipeline' });
+    }
+    if (ids.length) {
+      this.logger.debug(
+        `event=ingest_pipeline_enqueued sourceId=${sid} count=${ids.length} monitoredByCount=${src.monitoredByCount}`,
+      );
+    }
   }
 
   /**
@@ -348,6 +347,7 @@ export class FeedIngestService {
     {
       sourceId: string;
       listUrl: string;
+      nextPollAt?: string | null;
       selectors?: { item: string; link: string; title: string; summary?: string; date?: string };
     }[]
   > {
@@ -358,18 +358,20 @@ export class FeedIngestService {
         $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
         'web.url': { $exists: true, $ne: '' },
       })
-      .select({ _id: 1, web: 1 })
+      .select({ _id: 1, web: 1, nextPollAt: 1 })
       .lean()
       .exec();
 
     const out: {
       sourceId: string;
       listUrl: string;
+      nextPollAt?: string | null;
       selectors?: { item: string; link: string; title: string; summary?: string; date?: string };
     }[] = [];
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i] as unknown as {
         _id: Types.ObjectId;
+        nextPollAt?: Date | null;
         web?: { url?: string; crawlListUrl?: string; crawlSelectors?: { item?: string; link?: string; title?: string; summary?: string; date?: string } };
       };
       const w = r.web;
@@ -378,7 +380,11 @@ export class FeedIngestService {
       const listUrl = (w?.crawlListUrl?.trim() || baseUrl).trim();
       if (!listUrl) continue;
       const cs = w?.crawlSelectors;
-      const entry: (typeof out)[0] = { sourceId: r._id.toHexString(), listUrl };
+      const entry: (typeof out)[0] = {
+        sourceId: r._id.toHexString(),
+        listUrl,
+        nextPollAt: r.nextPollAt ? new Date(r.nextPollAt).toISOString() : null,
+      };
       if (cs?.item?.trim() && cs?.link?.trim() && cs?.title?.trim()) {
         entry.selectors = {
           item: cs.item.trim(),
@@ -449,7 +455,7 @@ export class FeedIngestService {
       const titleRaw = stripTags(it.title.trim()) || '（无标题）';
       const title = truncate(titleRaw, 500);
       const snippet = stripTags((it.summary ?? '').trim());
-      const summary = truncate(snippet, MAX_SUMMARY_CHARS);
+      const summary = normalizeSummaryForStore(snippet);
       const llmStatus = summary.trim().length >= FEED_MIN_SUMMARY_LEN_FOR_LLM ? 'pending' : 'skipped';
 
       const publishedAt = coalescePublishedAtOrFallback(
@@ -472,7 +478,6 @@ export class FeedIngestService {
               llmStatus,
               llmTags: [],
               llmRecommendReason: '',
-              llmPriority: null,
               llmModel: '',
               llmError: '',
             },
@@ -487,11 +492,12 @@ export class FeedIngestService {
       const res = await this.feedItemModel.bulkWrite(ops, { ordered: false });
       upserted = res.upsertedCount ?? 0;
       await this.repairFuturePublishedAtForSource(sourceId, now);
+      await this.enqueueUpsertedItems(sourceId, res);
     }
 
     const durationMs = Date.now() - started;
-    this.logger.log(
-      `爬虫 ingest：source=${dto.sourceId} run=${dto.crawlRunId} upsert 新建≈${upserted} 条操作，处理 ${ops.length} 条，跳过 ${itemsSkipped}，${durationMs}ms（LLM 由定时任务处理）`,
+    this.logger.debug(
+      `爬虫 ingest：source=${dto.sourceId} run=${dto.crawlRunId} upsert 新建≈${upserted} 条操作，处理 ${ops.length} 条，跳过 ${itemsSkipped}，${durationMs}ms`,
     );
 
     return {
@@ -504,12 +510,12 @@ export class FeedIngestService {
     };
   }
 
-  /** 热点 API：按 source.hot.url 拉取并写入 feed_items（mapper 可选） */
-  async pollAllHotApiSources(): Promise<HotApiPollSummary> {
-    const started = Date.now();
-    const now = new Date();
-    const rows = await this.sourceModel
-      .find({
+  /** 单信源热点 API 轮询（source_poll 任务调用） */
+  async pollHotApiSourceById(sourceId: string): Promise<number> {
+    const oid = new Types.ObjectId(sourceId);
+    const row = await this.sourceModel
+      .findOne({
+        _id: oid,
         kind: SOURCE_KIND.HOT_API,
         enabled: true,
         $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
@@ -518,62 +524,59 @@ export class FeedIngestService {
       .select({ _id: 1, hot: 1, displayName: 1 })
       .lean()
       .exec();
-
-    let upserted = 0;
-    let errors = 0;
-    let skipped = 0;
-
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i] as unknown as {
-        _id: Types.ObjectId;
-        displayName?: string;
-        hot?: {
-          url?: string;
-          mapper?: HotApiMapperConfig | null;
-          lastPollAt?: Date | null;
-        };
-      };
-      const hot = row.hot;
-      const url = hot?.url?.trim();
-      if (!url) continue;
-      const mapper = hot?.mapper && typeof hot.mapper === 'object' && !Array.isArray(hot.mapper) ? hot.mapper : null;
-
-      const intervalSec =
-        600;
-      const last = hot?.lastPollAt ? new Date(hot.lastPollAt).getTime() : 0;
-      if (last > 0 && Date.now() - last < intervalSec * 1000) {
-        skipped += 1;
-        continue;
-      }
-
-      let sourceUpserted = 0;
-      try {
-        const feedBase = this.hotFeedBase(url);
-        const items = await this.fetchHotApi(url, mapper);
-        sourceUpserted += await this.ingestHotApiItems(row._id, feedBase, items);
-      } catch (e) {
-        errors += 1;
-        const msg = e instanceof Error ? e.message : String(e);
-        this.logger.warn(`热点拉取失败 [${row.displayName ?? row._id}] ${url}: ${msg}`);
-      }
-
+    if (!row?.hot?.url?.trim()) return 0;
+    const url = row.hot.url.trim();
+    const label = row.displayName?.trim() || sourceId;
+    try {
+      const mapper =
+        row.hot.mapper && typeof row.hot.mapper === 'object' && !Array.isArray(row.hot.mapper)
+          ? row.hot.mapper
+          : null;
+      const feedBase = this.hotFeedBase(url);
+      const items = await this.fetchHotApi(url, mapper);
+      const upserted = await this.ingestHotApiItems(oid, feedBase, items);
       await this.sourceModel.updateOne({ _id: row._id }, { $set: { 'hot.lastPollAt': new Date() } }).exec();
-
-      upserted += sourceUpserted;
+      return upserted;
+    } catch (e) {
+      this.logIngestFailure('HotAPI', oid, label, url, e);
+      throw e;
     }
-
-    const durationMs = Date.now() - started;
-    this.logger.log(
-      `热点轮询完成：信源 ${rows.length}，新建 upsert≈${upserted}，跳过 ${skipped}，平台失败次数 ${errors}，${durationMs}ms`,
-    );
-    return { sources: rows.length, upserted, errors, skipped, durationMs };
   }
 
-  /** RSS + Hot API（管理员手动同步） */
-  async pollAllFeedSources(): Promise<{ rss: PollSummary; hot: HotApiPollSummary }> {
-    const rss = await this.pollAllRssSources();
-    const hot = await this.pollAllHotApiSources();
-    return { rss, hot };
+  /** 管理员手动同步：为全部已启用 RSS / Hot API 信源入队 source_poll */
+  async enqueueManualSourcePolls(): Promise<{ enqueued: number; skipped: number }> {
+    const rows = await this.sourceModel
+      .find({
+        enabled: true,
+        kind: { $in: [SOURCE_KIND.RSS, SOURCE_KIND.HOT_API] },
+        $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+      })
+      .select({ _id: 1, kind: 1, rss: 1 })
+      .lean()
+      .exec();
+    let enqueued = 0;
+    let skipped = 0;
+    for (const row of rows) {
+      const sourceId = String(row._id);
+      if (row.kind === SOURCE_KIND.RSS && row.rss?.feedUrl) {
+        const res = await this.scheduler.enqueue({
+          type: 'source_poll',
+          payload: { sourceId, kind: 'rss', feedUrl: row.rss.feedUrl },
+          trigger: 'manual',
+        });
+        if (res.skipped) skipped++;
+        else enqueued++;
+      } else if (row.kind === SOURCE_KIND.HOT_API) {
+        const res = await this.scheduler.enqueue({
+          type: 'source_poll',
+          payload: { sourceId, kind: 'hot_api' },
+          trigger: 'manual',
+        });
+        if (res.skipped) skipped++;
+        else enqueued++;
+      }
+    }
+    return { enqueued, skipped };
   }
 
   private hotFeedBase(hotUrl: string): string {
@@ -702,7 +705,7 @@ export class FeedIngestService {
       const titleRaw = stripTags((it.title ?? '').trim()) || '（无标题）';
       const title = truncate(titleRaw, 500);
       const summaryRaw = stripTags((it.summary ?? '').trim());
-      const summary = summaryRaw ? truncate(summaryRaw, MAX_SUMMARY_CHARS) : '';
+      const summary = summaryRaw ? normalizeSummaryForStore(summaryRaw) : '';
       const publishedAt = coalescePublishedAtOrFallback(
         capFuturePublishedAt(normalizePublishedAt(it.pubDate, { now }), now),
         now,
@@ -723,7 +726,6 @@ export class FeedIngestService {
               llmStatus: 'skipped',
               llmTags: [],
               llmRecommendReason: '',
-              llmPriority: null,
               llmModel: '',
               llmError: '',
             },
@@ -736,6 +738,7 @@ export class FeedIngestService {
     if (!ops.length) return 0;
     const res = await this.feedItemModel.bulkWrite(ops, { ordered: false });
     await this.repairFuturePublishedAtForSource(sourceId, now);
+    await this.enqueueUpsertedItems(sourceId, res);
     return res.upsertedCount ?? 0;
   }
 
