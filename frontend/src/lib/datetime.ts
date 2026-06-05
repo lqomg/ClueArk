@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
+import { tr, intlLocaleTag } from '@/i18n/tr';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -38,7 +39,6 @@ export function normalizeUserTimeZone(tz: string | null | undefined): string {
   }
 }
 
-const WEEKDAY_CN = ['日', '一', '二', '三', '四', '五', '六'] as const;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** 相对「现在」的简短文案（基于 UTC 瞬时差，与时区无关） */
@@ -48,12 +48,12 @@ export function relTimeIso(iso: string | null): string {
   if (Number.isNaN(t)) return '—';
   const diff = Date.now() - t;
   const m = Math.floor(diff / 60000);
-  if (m < 1) return '刚刚';
-  if (m < 60) return `${m} 分钟前`;
+  if (m < 1) return tr('datetime.justNow');
+  if (m < 60) return tr('datetime.minutesAgo', { count: m });
   const h = Math.floor(m / 60);
-  if (h < 48) return `${h} 小时前`;
+  if (h < 48) return tr('datetime.hoursAgo', { count: h });
   const d = Math.floor(h / 24);
-  return `${d} 天前`;
+  return tr('datetime.daysAgo', { count: d });
 }
 
 /**
@@ -71,12 +71,13 @@ export function formatClueMetaTime(iso: string, timeZone: string): string {
   if (event.valueOf() > now.valueOf() + 60_000) {
     return `${event.year()}/${event.month() + 1}/${event.date()} ${hm}`;
   }
-  if (eventDay === todayDay) return `今天 ${hm}`;
-  if (eventDay === yestDay) return `昨天 ${hm}`;
+  if (eventDay === todayDay) return tr('datetime.today', { time: hm });
+  if (eventDay === yestDay) return tr('datetime.yesterday', { time: hm });
 
   const msAgo = now.valueOf() - event.valueOf();
   if (msAgo >= 0 && msAgo < SEVEN_DAYS_MS) {
-    return `周${WEEKDAY_CN[event.day()]} ${hm}`;
+    const weekday = new Intl.DateTimeFormat(intlLocaleTag(), { weekday: 'short' }).format(event.toDate());
+    return `${weekday} ${hm}`;
   }
 
   const y = event.year();
@@ -96,30 +97,30 @@ export function formatFeedCardHeaderRelative(
   timeZone: string,
 ): { display: string; absolute: string } {
   const raw = iso;
-  if (!raw) return { display: '时间未知', absolute: '' };
+  if (!raw) return { display: tr('datetime.unknown'), absolute: '' };
   const d = dayjs(raw);
   const t = d.valueOf();
-  if (Number.isNaN(t)) return { display: '时间未知', absolute: '' };
+  if (Number.isNaN(t)) return { display: tr('datetime.unknown'), absolute: '' };
 
   const absolute = feedCardAbsoluteShort(raw, timeZone);
   const diff = Date.now() - t;
   if (diff < 0) return { display: absolute, absolute };
 
-  if (diff < 60_000) return { display: '刚刚', absolute };
+  if (diff < 60_000) return { display: tr('datetime.justNow'), absolute };
 
   if (diff < 3600_000) {
     const min = Math.floor(diff / 60_000);
-    if (min >= 45) return { display: '最近1小时内', absolute };
-    return { display: `${min}分钟前`, absolute };
+    if (min >= 45) return { display: tr('datetime.hoursAgo', { count: 1 }), absolute };
+    return { display: tr('datetime.minutesAgo', { count: min }), absolute };
   }
 
   if (diff < 86_400_000) {
     const hr = Math.floor(diff / 3600_000);
-    return { display: `${hr}小时前`, absolute };
+    return { display: tr('datetime.hoursAgo', { count: hr }), absolute };
   }
 
   const day = Math.floor(diff / 86_400_000);
-  if (day < 7) return { display: `${day}天前`, absolute };
+  if (day < 7) return { display: tr('datetime.daysAgo', { count: day }), absolute };
 
   return { display: absolute, absolute };
 }
@@ -129,10 +130,10 @@ export function formatClusterTimeHint(earliestIso: string | null | undefined): s
   const t = dayjs(earliestIso).valueOf();
   if (Number.isNaN(t)) return '';
   const diffH = Math.floor((Date.now() - t) / 3600000);
-  if (diffH < 1) return '最早 1 小时内';
-  if (diffH < 48) return `最早 ${diffH} 小时前`;
+  if (diffH < 1) return tr('datetime.hoursAgo', { count: 1 });
+  if (diffH < 48) return tr('datetime.hoursAgo', { count: diffH });
   const d = Math.floor(diffH / 24);
-  return `最早 ${d} 天前`;
+  return tr('datetime.daysAgo', { count: d });
 }
 
 export function formatTimelineStampParts(

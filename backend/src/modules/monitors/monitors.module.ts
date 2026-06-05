@@ -1,12 +1,12 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { AuthCoreModule } from '../auth/auth-core.module';
-import { UsersModule } from '../users/users.module';
+import { AuthGuardsModule } from '../auth/auth-guards.module';
 import { LlmModule } from '../llm/llm.module';
 import { FeedItemsModule } from '../feed-items/feed-items.module';
 import { FeedItem, FeedItemSchema } from '../feed-items/schemas/feed-item.schema';
 import { VectorStoreModule } from '../vector-store/vector-store.module';
 import { MonitorPipelineModule } from '../monitor-pipeline/monitor-pipeline.module';
+import { JobCenterCoreModule } from '../job-center/job-center-core.module';
 import { Source, SourceSchema } from '../sources/schemas/source.schema';
 import { Monitor, MonitorSchema } from './schemas/monitor.schema';
 import { MonitorBriefRun, MonitorBriefRunSchema } from './schemas/monitor-brief-run.schema';
@@ -25,12 +25,12 @@ import { MonitoredSourcesService } from './monitored-sources.service';
       { name: Source.name, schema: SourceSchema },
       { name: FeedItem.name, schema: FeedItemSchema },
     ]),
-    forwardRef(() => AuthCoreModule),
-    UsersModule,
+    AuthGuardsModule,
     LlmModule,
     FeedItemsModule,
     VectorStoreModule,
     MonitorPipelineModule,
+    JobCenterCoreModule,
   ],
   controllers: [MonitorsController],
   providers: [MonitorsService, MonitorSnapshotService, MonitoredSourcesService],

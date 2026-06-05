@@ -1,8 +1,8 @@
-import { IsString, MinLength, MaxLength } from 'class-validator';
+import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class LoginDto {
-  @IsString()
-  @MinLength(1)
+  // 仅支持邮箱登录
+  @IsEmail()
   @MaxLength(320)
   account: string;
 

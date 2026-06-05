@@ -1,6 +1,7 @@
 import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Cron } from '@nestjs/schedule';
+import { SchedulerRegistry } from '@nestjs/schedule';
+import { CronJob } from 'cron';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { FeedIngestService } from '../feed-items/feed-ingest.service';
@@ -10,7 +11,18 @@ import { Source, SourceDocument } from '../sources/schemas/source.schema';
 import { SOURCE_KIND } from '../sources/source-kind';
 import { clampPollIntervalSec, pollIntervalBoundsFromConfig } from '../sources/source-poll-interval.util';
 import { LoggerService } from '../logger';
+import {
+  resolveCrawlWebCron,
+  resolveMonitorBriefCron,
+  resolveMonitorSnapshotCron,
+  resolveSourcePollCron,
+} from './job-cron-config.util';
 import { JobSchedulerService } from './job-scheduler.service';
+
+const CRON_SOURCE_POLL = 'clueark-source-poll';
+const CRON_CRAWL_WEB = 'clueark-crawl-web';
+const CRON_SNAPSHOT = 'clueark-snapshot';
+const CRON_BRIEF = 'clueark-brief';
 
 @Injectable()
 export class JobTickScheduler implements OnApplicationBootstrap {
@@ -24,28 +36,73 @@ export class JobTickScheduler implements OnApplicationBootstrap {
     private readonly scheduler: JobSchedulerService,
     private readonly ingest: FeedIngestService,
     private readonly config: ConfigService,
+    private readonly schedulerRegistry: SchedulerRegistry,
     loggerService: LoggerService,
   ) {
     this.logger = loggerService.createLogger(JobTickScheduler.name);
   }
 
   onApplicationBootstrap(): void {
+    this.registerCronJobs();
     void this.sourcePollTick('startup');
     void this.crawlWebTick('startup');
   }
 
-  @Cron('*/15 * * * * *')
-  async sourcePollCron(): Promise<void> {
+  private registerCronJobs(): void {
+    const get = (key: string) => this.config.get(key);
+    const crons: Array<{ name: string; expression: string; run: () => void | Promise<void> }> = [
+      {
+        name: CRON_SOURCE_POLL,
+        expression: resolveSourcePollCron(get),
+        run: () => this.runSourcePollCron(),
+      },
+      {
+        name: CRON_CRAWL_WEB,
+        expression: resolveCrawlWebCron(get),
+        run: () => this.runCrawlWebCron(),
+      },
+      {
+        name: CRON_SNAPSHOT,
+        expression: resolveMonitorSnapshotCron(get),
+        run: () => this.runSnapshotCron(),
+      },
+      {
+        name: CRON_BRIEF,
+        expression: resolveMonitorBriefCron(get),
+        run: () => this.runBriefCron(),
+      },
+    ];
+
+    for (const { name, expression, run } of crons) {
+      this.registerCronJob(name, expression, run);
+    }
+  }
+
+  private registerCronJob(
+    name: string,
+    expression: string,
+    handler: () => void | Promise<void>,
+  ): void {
+    if (this.schedulerRegistry.doesExist('cron', name)) {
+      this.schedulerRegistry.deleteCronJob(name);
+    }
+    const job = new CronJob(expression, () => {
+      void handler();
+    });
+    this.schedulerRegistry.addCronJob(name, job);
+    job.start();
+    this.logger.log(`event=cron_registered name=${name} expression="${expression}"`);
+  }
+
+  async runSourcePollCron(): Promise<void> {
     await this.sourcePollTick('cron');
   }
 
-  @Cron('*/30 * * * * *')
-  async crawlWebCron(): Promise<void> {
+  async runCrawlWebCron(): Promise<void> {
     await this.crawlWebTick('cron');
   }
 
-  @Cron('*/5 * * * *')
-  async snapshotCron(): Promise<void> {
+  async runSnapshotCron(): Promise<void> {
     const rows = await this.monitorModel
       .find({
         deletedAt: null,
@@ -64,8 +121,7 @@ export class JobTickScheduler implements OnApplicationBootstrap {
     }
   }
 
-  @Cron('0 0 * * * *')
-  async briefCron(): Promise<void> {
+  async runBriefCron(): Promise<void> {
     const profiles = resolveBriefProfiles(this.config).filter((p) => p.enabled);
     const rows = await this.monitorModel.find({ deletedAt: null }).select({ _id: 1 }).lean().exec();
     let enqueued = 0;

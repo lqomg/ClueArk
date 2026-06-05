@@ -6,6 +6,7 @@ import type {
   EnqueueInput,
   ProcessNewItemPayload,
   ReindexMonitorPayload,
+  CreateMonitorPayload,
   RunBriefPayload,
   SourcePollPayload,
 } from './job.types';
@@ -32,6 +33,10 @@ export function buildDedupeKey(input: EnqueueInput, config: ConfigService): stri
       const { monitorId } = p as ReindexMonitorPayload;
       return monitorId ? `reindex:${monitorId}` : null;
     }
+    case 'create_monitor': {
+      const { monitorId } = p as CreateMonitorPayload;
+      return monitorId ? `create_monitor:${monitorId}` : null;
+    }
     case 'enrich_item': {
       const { feedItemId } = p as EnrichItemPayload;
       return feedItemId ? `enrich:${feedItemId}` : null;
@@ -43,9 +48,10 @@ export function buildDedupeKey(input: EnqueueInput, config: ConfigService): stri
       return monitorId ? `snapshot:${monitorId}:${rh}` : null;
     }
     case 'run_brief': {
-      const { monitorId, profileId } = p as RunBriefPayload;
+      const { monitorId, profileId, locale } = p as RunBriefPayload;
       const hourBucket = Math.floor(Date.now() / 3_600_000);
-      return monitorId && profileId ? `brief:${monitorId}:${profileId}:h${hourBucket}` : null;
+      const loc = locale?.trim() || 'zh-CN';
+      return monitorId && profileId ? `brief:${monitorId}:${profileId}:${loc}:h${hourBucket}` : null;
     }
     default:
       return null;

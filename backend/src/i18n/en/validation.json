@@ -1,0 +1,18 @@
+{
+  "NOT_EMPTY": "{property} must not be empty",
+  "IS_EMAIL": "{property} must be a valid email",
+  "IS_STRING": "{property} must be a string",
+  "IS_INT": "{property} must be an integer",
+  "IS_NUMBER": "{property} must be a number",
+  "MIN_LENGTH": "{property} must be at least {constraints.0} characters",
+  "MAX_LENGTH": "{property} must be at most {constraints.0} characters",
+  "MIN": "{property} must not be less than {constraints.0}",
+  "MAX": "{property} must not be greater than {constraints.0}",
+  "IS_ENUM": "{property} must be a valid value",
+  "IS_UUID": "{property} must be a valid UUID",
+  "IS_URL": "{property} must be a valid URL",
+  "IS_BOOLEAN": "{property} must be a boolean",
+  "ARRAY_MIN_SIZE": "{property} must contain at least {constraints.0} items",
+  "ARRAY_MAX_SIZE": "{property} must contain at most {constraints.0} items",
+  "WHITELIST": "property {property} should not exist"
+}

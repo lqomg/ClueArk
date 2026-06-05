@@ -27,7 +27,7 @@
 - `monitors/` — 话题监控、`monitor_snapshots` 物化读模型
 - `vector-store/` — Qdrant 向量 upsert/search（禁止 HTTP 读路径做余弦）
 - `queue/` — BullMQ 流水线；**`worker` 容器**（`node dist/worker`）消费
-- `notifications/` — 匹配推送与应用内通知
+- `notifications/` — 匹配通知（站内）
 - `monitor-pipeline/` — ingest 后 embed → match → notify
 - `llm/` — 条目富化（`enrich_llm` 队列；仅监控信源经 pipeline 入队，无 Cron 扫全库）
 - `aggregation-policy/` — 聚合策略
@@ -39,7 +39,7 @@
 
 1. **Mongo** 仅存业务字段，不存 `simEmbed*` / `descriptionEmbedding` 等向量数组。
 2. **相似检索** 仅经 `VectorStoreService` → Qdrant；HTTP 读 API 禁止 `cosineSimilarity`。
-3. **推送路径**：新条目（仅 `monitoredByCount > 0` 信源）→ `pipeline:process_new_item` → 通知；**不等待** LLM 富化。
+3. **通知路径**：新条目（仅 `monitoredByCount > 0` 信源）→ `pipeline:process_new_item` → 站内通知；**不等待** LLM 富化。
 4. **列表/研判**：`GET /monitors` 读 `monitor_snapshots`；`GET /monitors/:id/intelligence` 禁止同步全量打分。
 5. **Compose 栈**：`mongodb` + `redis` + `qdrant` + `worker`（必须先就绪；**Cron + BullMQ 消费**）+ `backend`（HTTP + 入队，无 `@Cron`）+ `web`（用户产品）+ `admin-web`（运营后台）+ `crawler`。
 6. **启动校验**：`REDIS_URL`、`QDRANT_URL`、`FEED_EMBEDDING_API_KEY`、`DEEPSEEK_API_KEY` 必填；Mongo/Redis/Qdrant 连不上则进程退出；API 启动前等待 worker Redis 心跳。本地 `npm run dev` 同时起 API 与 worker。

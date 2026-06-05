@@ -13,17 +13,21 @@ import {
   FeedItemDocument,
 } from "../feed-items/schemas/feed-item.schema";
 import { VectorStoreService } from "../vector-store/vector-store.service";
-import { UsersService } from "../users/users.service";
+import { UserPreferencesService } from '../users/user-preferences.service';
 import {
   dateKeyInTimeZone,
   sevenDayTrendDateKeys,
 } from "../../common/utils/timezone.utils";
 import { serializeFeedItem } from "../feed-items/feed-item.serialize";
+import { FeedItemLlmService } from "../feed-items/feed-item-llm.service";
+import { aggregateChartKeywordsFromViews } from "../feed-items/feed-llm-chart.util";
+import { resolveAppDefaultLocale, type SupportedLocale } from "../../common/utils/locale.utils";
 import {
   buildClusterStatsMap,
   dedupeScoredByCluster,
   feedClusterGroupKey,
 } from "../feed-items/feed-cluster-timeline.util";
+import { normalizeMinCosine } from "./monitor-match.util";
 
 export type MonitorFeedTimelineItem = ReturnType<typeof serializeFeedItem> & {
   relevanceScore: number;
@@ -42,7 +46,8 @@ export class MonitorSnapshotService {
     @InjectModel(FeedItem.name)
     private readonly feedItemModel: Model<FeedItemDocument>,
     private readonly vectorStore: VectorStoreService,
-    private readonly usersService: UsersService,
+    private readonly userPreferences: UserPreferencesService,
+    private readonly feedItemLlmService: FeedItemLlmService,
     private readonly config: ConfigService,
     loggerService: LoggerService,
   ) {
@@ -80,11 +85,7 @@ export class MonitorSnapshotService {
     scored: { doc: Record<string, unknown>; score: number }[];
     minSim: number;
   }> {
-    const minSim =
-      typeof monitor.minCosine === "number" &&
-      Number.isFinite(monitor.minCosine)
-        ? Math.min(1, Math.max(0, monitor.minCosine))
-        : 0.43;
+    const minSim = normalizeMinCosine(monitor.minCosine);
     const sourceIds = (monitor.sourceIds ?? []).map((x) => String(x));
     const queryVec = await this.vectorStore.getMonitorVector(
       String(monitor._id),
@@ -137,6 +138,10 @@ export class MonitorSnapshotService {
       .exec();
   }
 
+  private defaultLocale(): SupportedLocale {
+    return resolveAppDefaultLocale(this.config.get<string>("APP_DEFAULT_LOCALE"));
+  }
+
   async listFeedPage(
     monitor: MonitorDocument,
     recentHours: number,
@@ -150,6 +155,10 @@ export class MonitorSnapshotService {
     const nowMs = Date.now();
     const periodStartMs = nowMs - recentHours * 3600000;
     const { scored, minSim } = await this.fetchScoredForMonitor(monitor, periodStartMs, nowMs);
+    const ownerLocale = await this.userPreferences.getLocaleOrDefault(String(monitor.userId));
+    const fallback = this.defaultLocale();
+    const feedIds = scored.map((s) => String(s.doc._id));
+    const llmViews = await this.feedItemLlmService.resolveViews(feedIds, ownerLocale, fallback);
     const statsMap = buildClusterStatsMap(scored);
     const deduped = dedupeScoredByCluster(scored);
     const total = deduped.length;
@@ -158,8 +167,10 @@ export class MonitorSnapshotService {
       const key = feedClusterGroupKey(s.doc);
       const stats = statsMap.get(key) ?? { clusterItemCount: 1, clusterSourceCount: 1 };
       const cid = s.doc.clusterId as Types.ObjectId | null | undefined;
+      const itemId = String(s.doc._id);
+      const llmView = llmViews.get(itemId) ?? null;
       return {
-        ...serializeFeedItem(s.doc),
+        ...serializeFeedItem(s.doc, llmView),
         relevanceScore: Math.round(s.score * 1000) / 1000,
         clusterId: cid ? String(cid) : null,
         clusterItemCount: stats.clusterItemCount,
@@ -247,14 +258,12 @@ export class MonitorSnapshotService {
       )
       .exec();
     try {
-      const viewerTz = await this.usersService.getTimeZoneOrDefault(
+      const viewerTz = await this.userPreferences.getTimeZoneOrDefault(
         String(userId),
       );
-      const minSim =
-        typeof monitor.minCosine === "number" &&
-        Number.isFinite(monitor.minCosine)
-          ? Math.min(1, Math.max(0, monitor.minCosine))
-          : 0.43;
+      const ownerLocale = await this.userPreferences.getLocaleOrDefault(String(userId));
+      const fallback = this.defaultLocale();
+      const minSim = normalizeMinCosine(monitor.minCosine);
       const sourceIds = (monitor.sourceIds ?? []).map((x) => String(x));
       const nowMs = Date.now();
       const periodStartMs = nowMs - recentHours * 3600000;
@@ -268,21 +277,17 @@ export class MonitorSnapshotService {
       let newLast24h = 0;
       let count7d = 0;
       let sumScore = 0;
-      const tagCount = new Map<string, number>();
+      const feedIds = scored.map((s) => String(s.doc._id));
+      const llmViews = await this.feedItemLlmService.resolveViews(feedIds, ownerLocale, fallback);
       for (const s of scored) {
         const t = new Date(s.doc.publishedAt as Date).getTime();
         sumScore += s.score;
         if (t >= h24) newLast24h += 1;
         if (t >= h168) count7d += 1;
-        const rawTags = s.doc.llmTags;
-        if (Array.isArray(rawTags)) {
-          for (const tag of rawTags) {
-            const name = String(tag ?? "").trim();
-            if (!name) continue;
-            tagCount.set(name, (tagCount.get(name) ?? 0) + 1);
-          }
-        }
       }
+      const chartKeywords = aggregateChartKeywordsFromViews(
+        scored.map((s) => llmViews.get(String(s.doc._id))),
+      );
       const totalInWindow = scored.length;
       const avgRelevance = totalInWindow > 0 ? sumScore / totalInWindow : 0;
       const heatIndex = this.heatIndexFromSignals(
@@ -310,12 +315,8 @@ export class MonitorSnapshotService {
         date,
         count: trendMap.get(date) ?? 0,
       }));
-      const chartKeywords = [...tagCount.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 16)
-        .map(([name, count]) => ({ name, count }));
       const latestItems = scored.slice(0, 5).map((s) => ({
-        ...serializeFeedItem(s.doc),
+        ...serializeFeedItem(s.doc, llmViews.get(String(s.doc._id))),
         relevanceScore: Math.round(s.score * 1000) / 1000,
       }));
       const computedAt = new Date();

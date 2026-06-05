@@ -14,8 +14,10 @@
     "antd": "^5.24.2",
     "axios": "^1.15.1",
     "dayjs": "^1.11.20",
+    "i18next": "^26.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-i18next": "^17.0.8",
     "react-router-dom": "^6.22.0",
     "zustand": "^4.5.0"
   },

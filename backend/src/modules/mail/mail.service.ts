@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { I18nService } from 'nestjs-i18n';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import { LoggerService } from '../logger/logger.service';
@@ -20,31 +21,34 @@ export function formatMailFromHeader(raw: string, fallbackAddress: string): stri
 /** 验证码邮件场景（用于模板与日志） */
 export type OtpMailScene = 'register' | 'login_otp' | 'password_reset';
 
-const SCENE_HEADLINE: Record<OtpMailScene, string> = {
-  register: '注册验证',
-  login_otp: '验证码登录',
-  password_reset: '重置密码',
-};
+function escHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
-function buildOtpEmailBody(code: string, scene: OtpMailScene): { text: string; html: string } {
-  const headline = SCENE_HEADLINE[scene];
+function buildOtpEmailBody(
+  code: string,
+  scene: OtpMailScene,
+  lang: string,
+  i18n: I18nService,
+): { text: string; html: string; subject: string } {
+  const headline = i18n.t(`mail.otpHeadline.${scene}`, { lang });
+  const subject = i18n.t(`mail.otpSubject.${scene}`, { lang });
   const text = [
-    `【ClueArk · 线索方舟】${headline}`,
+    i18n.t('mail.otpTextHeader', { lang, args: { headline } }),
     '',
-    `您的验证码：${code}（15 分钟内有效）`,
+    i18n.t('mail.otpCodeLine', { lang, args: { code } }),
     '',
-    '线索方舟用于聚合 RSS、网页与热点等公开信源，支持话题监控与情报浏览。如非本人操作，请忽略本邮件。',
+    i18n.t('mail.otpTextFooter', { lang }),
     '',
-    '此为系统自动发送，请勿直接回复。',
+    i18n.t('mail.otpTextAuto', { lang }),
   ].join('\n');
 
-  const esc = (s: string) =>
-    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  const safeCode = esc(code);
-  const safeHeadline = esc(headline);
+  const safeCode = escHtml(code);
+  const safeHeadline = escHtml(headline);
+  const htmlIntro = i18n.t('mail.otpHtmlIntro', { lang });
 
   const html = `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="${lang}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
 <body style="margin:0;padding:0;background:#e8ecf1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#e8ecf1;">
@@ -56,16 +60,16 @@ function buildOtpEmailBody(code: string, scene: OtpMailScene): { text: string; h
               <p style="margin:0 0 6px;font-size:12px;letter-spacing:0.06em;color:#64748b;text-transform:uppercase;">ClueArk</p>
               <h1 style="margin:0 0 14px;font-size:19px;font-weight:600;color:#0f172a;line-height:1.35;">${safeHeadline}</h1>
               <p style="margin:0 0 18px;font-size:14px;line-height:1.65;color:#334155;">
-                您正在完成身份验证。请在 <strong style="color:#0f172a;">15 分钟</strong> 内输入下方验证码。如非本人操作，请忽略本邮件。
+                ${htmlIntro}
               </p>
               <div style="text-align:center;margin:22px 0;padding:18px 12px;background:linear-gradient(180deg,#f8fafc 0%,#f1f5f9 100%);border-radius:12px;border:1px solid #e2e8f0;">
                 <span style="display:inline-block;font-size:26px;font-weight:700;letter-spacing:0.42em;padding-left:0.42em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#0f172a;">${safeCode}</span>
               </div>
               <p style="margin:18px 0 0;font-size:12px;line-height:1.6;color:#94a3b8;border-top:1px solid #f1f5f9;padding-top:16px;">
-                <strong style="color:#64748b;">关于线索方舟</strong><br/>
-                面向个人与团队的公开信源聚合与话题监控工具，便于在同一信源池上浏览、筛选与跟进线索。
+                <strong style="color:#64748b;">${escHtml(i18n.t('mail.otpHtmlAboutTitle', { lang }))}</strong><br/>
+                ${escHtml(i18n.t('mail.otpHtmlAboutBody', { lang }))}
               </p>
-              <p style="margin:12px 0 0;font-size:11px;color:#cbd5e1;">系统自动发送 · 请勿回复</p>
+              <p style="margin:12px 0 0;font-size:11px;color:#cbd5e1;">${escHtml(i18n.t('mail.otpHtmlAuto', { lang }))}</p>
             </td>
           </tr>
         </table>
@@ -75,7 +79,7 @@ function buildOtpEmailBody(code: string, scene: OtpMailScene): { text: string; h
 </body>
 </html>`;
 
-  return { text, html };
+  return { text, html, subject };
 }
 
 @Injectable()
@@ -91,6 +95,7 @@ export class MailService implements OnModuleInit {
 
   constructor(
     private readonly config: ConfigService,
+    private readonly i18n: I18nService,
     loggerService: LoggerService,
   ) {
     this.logger = loggerService.createLogger(MailService.name);
@@ -170,28 +175,28 @@ export class MailService implements OnModuleInit {
    */
   async sendOtpEmail(params: {
     to: string;
-    subject: string;
     code: string;
     scene: OtpMailScene;
+    lang: string;
   }): Promise<void> {
     const t = this.getTransport();
     if (!t) {
       return;
     }
     const toNorm = params.to.trim().toLowerCase();
-    const { text, html } = buildOtpEmailBody(params.code, params.scene);
+    const { text, html, subject } = buildOtpEmailBody(params.code, params.scene, params.lang, this.i18n);
     this.logger.log(
-      `[mail] 准备发送验证码邮件 to=${toNorm} scene=${params.scene} subject=${params.subject} code=${params.code}`,
+      `[mail] 准备发送验证码邮件 to=${toNorm} scene=${params.scene} subject=${subject} code=${params.code}`,
     );
     await t.sendMail({
       from: this.fromHeader || this.user,
       to: toNorm,
-      subject: params.subject,
+      subject,
       text,
       html,
     });
     this.logger.log(
-      `[mail] 验证码邮件已发送 to=${toNorm} scene=${params.scene} subject=${params.subject} code=${params.code}`,
+      `[mail] 验证码邮件已发送 to=${toNorm} scene=${params.scene} subject=${subject} code=${params.code}`,
     );
   }
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Radar, Settings2 } from 'lucide-react';
 import { getMonitor, listMonitorFeed } from '@/api/monitors';
 import type { FeedItem, Monitor } from '@/types/models';
@@ -19,6 +20,7 @@ interface ListResponse {
 }
 
 export function MonitorDetailPage() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const [monitor, setMonitor] = useState<Monitor | null>(null);
   const [metaError, setMetaError] = useState<string | null>(null);
@@ -29,6 +31,17 @@ export function MonitorDetailPage() {
   const [loading, setLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const listReqSeq = useRef(0);
+
+  const windowOptions = useMemo(
+    () =>
+      [
+        { value: '24' as const, label: t('monitors.window24h') },
+        { value: '72' as const, label: t('monitors.window3d') },
+        { value: '168' as const, label: t('monitors.window7d') },
+        { value: '720' as const, label: t('monitors.window30d') },
+      ],
+    [t],
+  );
 
   useEffect(() => {
     if (!id) return;
@@ -42,11 +55,11 @@ export function MonitorDetailPage() {
         const m = await getMonitor(id);
         setMonitor(m);
       } catch (e) {
-        setMetaError(e instanceof Error ? e.message : '加载失败');
+        setMetaError(e instanceof Error ? e.message : t('common.loadFailed'));
         setMonitor(null);
       }
     })();
-  }, [id]);
+  }, [id, t]);
 
   const feedQuery = useMemo(() => {
     const p = new URLSearchParams();
@@ -73,45 +86,46 @@ export function MonitorDetailPage() {
       });
     } catch (e) {
       if (seq !== listReqSeq.current) return;
-      setListError(e instanceof Error ? e.message : '加载失败');
+      setListError(e instanceof Error ? e.message : t('common.loadFailed'));
       setList(null);
     } finally {
       if (seq === listReqSeq.current) setLoading(false);
     }
-  }, [id, feedQuery]);
+  }, [id, feedQuery, t]);
 
   useEffect(() => {
     if (!id) return;
-    const t = window.setTimeout(() => void loadList(), 200);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => void loadList(), 200);
+    return () => window.clearTimeout(timer);
   }, [id, loadList]);
 
   const isEmpty = !loading && list && list.items.length === 0;
+  const totalPages = list ? Math.max(1, Math.ceil(list.total / list.pageSize)) : 1;
 
   useAppTopBar(
     () =>
       !id ? (
-        <span className="text-sm text-slate-500">无效的监控 ID</span>
+        <span className="text-sm text-slate-500">{t('monitors.invalidId')}</span>
       ) : (
         <div className="flex min-w-0 w-full items-center justify-between gap-3">
           <div className="min-w-0 flex-1 pr-2">
             <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-slate-500">
               <Link to="/app/monitors/manage" className="shrink-0 hover:text-ark-accent">
-                监控管理
+                {t('monitors.manage')}
               </Link>
               <span aria-hidden>/</span>
               <Link
                 to={`/app/monitors?monitor=${encodeURIComponent(id!)}`}
                 className="min-w-0 max-w-[10rem] truncate hover:text-ark-accent sm:max-w-[14rem]"
               >
-                研判概览
+                {t('monitors.intel')}
               </Link>
               <span aria-hidden>/</span>
-              <span className="shrink-0 text-slate-600">时间线</span>
+              <span className="shrink-0 text-slate-600">{t('monitors.timeline')}</span>
               <TopBarCountPill value={list?.total ?? '—'} className="shrink-0" />
             </div>
             <h1 className="mt-0.5 truncate text-sm font-black tracking-tight text-white md:text-base">
-              {monitor?.title ?? (metaError ? '—' : '加载中…')}
+              {monitor?.title ?? (metaError ? '—' : t('common.loading'))}
             </h1>
           </div>
           <div className="flex shrink-0 flex-nowrap items-center gap-2">
@@ -120,10 +134,12 @@ export function MonitorDetailPage() {
               className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-ark-border px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition hover:border-ark-accent/50 hover:text-ark-accent"
             >
               <Settings2 size={13} />
-              监控配置
+              {t('monitors.settings')}
             </Link>
             <div className="flex items-center gap-1.5">
-              <span className="hidden shrink-0 text-[10px] font-medium text-slate-500 sm:inline">时间窗</span>
+              <span className="hidden shrink-0 text-[10px] font-medium text-slate-500 sm:inline">
+                {t('monitors.timeWindow')}
+              </span>
               <Segmented<RecentHoursPreset>
                 visual="panel"
                 value={recentHours}
@@ -131,22 +147,17 @@ export function MonitorDetailPage() {
                   setRecentHours(h);
                   setPage(1);
                 }}
-                options={[
-                  { value: '24', label: '24小时' },
-                  { value: '72', label: '3天' },
-                  { value: '168', label: '7天' },
-                  { value: '720', label: '30天' },
-                ]}
+                options={windowOptions}
               />
             </div>
           </div>
         </div>
       ),
-    [id, monitor?.title, metaError, list?.total, recentHours],
+    [id, monitor?.title, metaError, list?.total, recentHours, t, windowOptions],
   );
 
   if (!id) {
-    return <p className="text-sm text-slate-500">无效的监控 ID</p>;
+    return <p className="text-sm text-slate-500">{t('monitors.invalidId')}</p>;
   }
 
   return (
@@ -161,11 +172,11 @@ export function MonitorDetailPage() {
           </p>
         ) : null}
         {loading && !list ? (
-          <div className="p-8 text-center text-sm text-slate-500">加载中…</div>
+          <div className="p-8 text-center text-sm text-slate-500">{t('common.loading')}</div>
         ) : isEmpty ? (
           <div className="flex flex-col items-center justify-center gap-3 px-6 py-20 text-center text-slate-500">
             <Radar className="size-10 opacity-40" strokeWidth={1.25} />
-            <p className="text-sm">当前时间窗内暂无达到相似度阈值的条目。</p>
+            <p className="text-sm">{t('monitors.noItems')}</p>
           </div>
         ) : (
           <Timeline className="py-3">
@@ -190,19 +201,17 @@ export function MonitorDetailPage() {
             disabled={page <= 1 || loading}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
           >
-            上一页
+            {t('common.prevPage')}
           </Button>
-          <span>
-            第 {page} / {Math.max(1, Math.ceil(list.total / list.pageSize))} 页
-          </span>
+          <span>{t('common.pageOf', { page, total: totalPages })}</span>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            disabled={loading || page >= Math.ceil(list.total / list.pageSize)}
+            disabled={loading || page >= totalPages}
             onClick={() => setPage((p) => p + 1)}
           >
-            下一页
+            {t('common.nextPage')}
           </Button>
         </div>
       ) : null}

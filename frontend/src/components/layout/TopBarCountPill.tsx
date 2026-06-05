@@ -13,7 +13,7 @@ export type TopBarCountPillProps = {
   suffix?: ReactNode;
   /** 末尾说明（如「· 精选」），建议用 normal-case */
   trailing?: ReactNode;
-  /** 窄屏限制最大宽度（信源顶栏移动端） */
+  /** 窄屏限制最大宽度（信源顶栏） */
   compact?: boolean;
   className?: string;
 };

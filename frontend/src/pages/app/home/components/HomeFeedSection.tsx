@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { ExternalLink, Radio, Sparkles } from 'lucide-react';
 import type { HomeFeedItem } from '../types';
@@ -6,6 +7,7 @@ import { relTimeIso } from '@/lib/datetime';
 import { cn } from '@/lib/cn';
 
 export function HomeFeedCard({ item }: { item: HomeFeedItem }) {
+  const { t } = useTranslation();
   const score = importanceScore(item.relevanceScore);
   const tag = feedItemTag(item);
   const summary = item.summary?.trim();
@@ -20,7 +22,7 @@ export function HomeFeedCard({ item }: { item: HomeFeedItem }) {
         <span className="text-slate-500">{relTimeIso(item.publishedAt)}</span>
         {score != null ? (
           <span className="ml-auto rounded-md border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 font-mono text-[10px] font-semibold tabular-nums text-slate-300">
-            重要度 {score}
+            {t('home.importanceScore', { score })}
           </span>
         ) : null}
       </div>
@@ -61,7 +63,7 @@ export function HomeFeedCard({ item }: { item: HomeFeedItem }) {
           )}
         >
           <Sparkles className="size-3 shrink-0" aria-hidden />
-          点击 AI 研判报告
+          {t('home.viewAiReport')}
           <ExternalLink className="size-3 shrink-0 opacity-70" aria-hidden />
         </Link>
       </div>
@@ -76,6 +78,8 @@ export function HomeFeedSection({
   items: HomeFeedItem[];
   loading: boolean;
 }) {
+  const { t } = useTranslation();
+
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-white/[0.06] bg-ark-surface/25">
       <header className="flex shrink-0 items-center justify-between gap-2 border-b border-white/[0.06] px-4 py-3">
@@ -85,17 +89,17 @@ export function HomeFeedSection({
             <span className="relative inline-flex size-2 rounded-full bg-ark-accent/80" />
           </span>
           <Radio className="size-4 shrink-0 text-slate-400" strokeWidth={2} aria-hidden />
-          <h2 className="text-sm font-semibold text-white">实时动态</h2>
-          <span className="hidden text-[11px] text-slate-500 sm:inline">AI 过滤情报流</span>
+          <h2 className="text-sm font-semibold text-white">{t('home.feed')}</h2>
+          <span className="hidden text-[11px] text-slate-500 sm:inline">{t('home.feedAiHint')}</span>
         </div>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 [scrollbar-width:thin]">
         {loading ? (
-          <p className="py-12 text-center text-sm text-slate-500">加载情报流…</p>
+          <p className="py-12 text-center text-sm text-slate-500">{t('home.loadingFeed')}</p>
         ) : items.length === 0 ? (
           <p className="py-12 text-center text-sm text-slate-500">
-            暂无匹配条目，请稍候采集或前往监控管理创建话题。
+            {t('home.feedEmpty')}
           </p>
         ) : (
           <ul className="flex flex-col gap-3">

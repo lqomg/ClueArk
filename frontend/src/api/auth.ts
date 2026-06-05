@@ -16,6 +16,11 @@ export async function loginWithOtp(body: { email: string; code: string }): Promi
   return data;
 }
 
+export async function loginWithGoogle(body: { idToken: string }): Promise<AuthTokenResponse> {
+  const { data } = await http.post<AuthTokenResponse>('/auth/google', body);
+  return data;
+}
+
 export async function sendRegisterCode(body: { email: string }): Promise<{ ok: true }> {
   const { data } = await http.post<{ ok: true }>('/auth/register/send-code', body);
   return data;

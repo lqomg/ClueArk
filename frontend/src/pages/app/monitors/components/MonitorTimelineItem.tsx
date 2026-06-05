@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { FeedItem } from '@/types/models';
 import { TimelineItem } from '@/components/ui';
 import { formatFeedCardHeaderRelative, normalizeUserTimeZone } from '@/lib/datetime';
@@ -11,20 +12,10 @@ export type MonitorTimelineFeedItem = FeedItem & { relevanceScore?: number };
 const SUMMARY_COLLAPSED_LINES = 3;
 
 function summaryLikelyOverflow(summary: string): boolean {
-  const t = summary.trim();
-  if (t.length > 280) return true;
-  const lines = t.split(/\n/).length;
+  const text = summary.trim();
+  if (text.length > 280) return true;
+  const lines = text.split(/\n/).length;
   return lines > SUMMARY_COLLAPSED_LINES;
-}
-
-function clusterHint(item: MonitorTimelineFeedItem): { text: string; show: boolean } {
-  const nSrc = item.clusterSourceCount ?? 1;
-  const nItem = item.clusterItemCount ?? 1;
-  if (!item.clusterId || nItem <= 1) return { text: '', show: false };
-  if (nSrc > 1) {
-    return { text: `另外 ${nSrc - 1} 个信源也报道了相同事件`, show: true };
-  }
-  return { text: `另有 ${nItem - 1} 条相似报道`, show: true };
 }
 
 export function MonitorTimelineItem({
@@ -36,11 +27,21 @@ export function MonitorTimelineItem({
   item: MonitorTimelineFeedItem;
   isLast: boolean;
 }) {
+  const { t } = useTranslation();
   const tz = useAuthStore((s) => normalizeUserTimeZone(s.user?.timeZone));
   const header = formatFeedCardHeaderRelative(it.publishedAt, tz);
   const [clusterOpen, setClusterOpen] = useState(false);
   const [summaryExpanded, setSummaryExpanded] = useState(false);
-  const cluster = clusterHint(it);
+
+  const nSrc = it.clusterSourceCount ?? 1;
+  const nItem = it.clusterItemCount ?? 1;
+  const cluster = useMemo(() => {
+    if (!it.clusterId || nItem <= 1) return { text: '', show: false };
+    if (nSrc > 1) {
+      return { text: t('monitors.clusterMoreSources', { count: nSrc - 1 }), show: true };
+    }
+    return { text: t('monitors.clusterMoreItems', { count: nItem - 1 }), show: true };
+  }, [it.clusterId, nItem, nSrc, t]);
 
   const reasonPending = it.llmStatus === 'pending' || it.llmStatus === 'processing';
   const reasonText = it.recommendReason?.trim() ?? '';
@@ -66,7 +67,9 @@ export function MonitorTimelineItem({
               </span>
             ) : null}
             {typeof it.relevanceScore === 'number' ? (
-              <span className="font-mono text-slate-600">相关 {it.relevanceScore.toFixed(2)}</span>
+              <span className="font-mono text-slate-600">
+                {t('monitors.relevanceLabel', { score: it.relevanceScore.toFixed(2) })}
+              </span>
             ) : null}
           </div>
           <h3 className="text-[15px] font-semibold leading-snug text-slate-100 sm:text-base">
@@ -101,27 +104,29 @@ export function MonitorTimelineItem({
                   className="mt-1 text-[12px] text-ark-accent underline decoration-ark-accent/40 underline-offset-2 hover:text-white"
                   onClick={() => setSummaryExpanded((v) => !v)}
                 >
-                  {summaryExpanded ? '收起' : '展开全文'}
+                  {summaryExpanded ? t('common.collapse') : t('common.expandFull')}
                 </button>
               ) : null}
             </div>
           ) : null}
           {reasonText ? (
             <div className="rounded-lg border border-emerald-500/25 bg-emerald-950/20 px-3 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600/90">推荐理由</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600/90">
+                {t('notifications.recommendReason')}
+              </p>
               <p className="mt-1 text-[13px] leading-relaxed text-emerald-100/90 sm:text-sm">{reasonText}</p>
             </div>
           ) : reasonPending ? (
-            <p className="text-[11px] text-slate-600">推荐理由生成中…</p>
+            <p className="text-[11px] text-slate-600">{t('notifications.reasonPending')}</p>
           ) : null}
           {it.tags?.length ? (
             <div className="flex flex-wrap gap-1.5">
-              {it.tags.map((t) => (
+              {it.tags.map((tag) => (
                 <span
-                  key={t}
+                  key={tag}
                   className="rounded-md border border-white/10 bg-white/[0.03] px-1.5 py-0.5 text-[10px] text-slate-500"
                 >
-                  {t}
+                  {tag}
                 </span>
               ))}
             </div>
@@ -134,7 +139,7 @@ export function MonitorTimelineItem({
                 className="ml-1.5 text-ark-accent underline decoration-ark-accent/40 underline-offset-2 hover:text-white"
                 onClick={() => setClusterOpen(true)}
               >
-                查看
+                {t('common.view')}
               </button>
             </p>
           ) : null}

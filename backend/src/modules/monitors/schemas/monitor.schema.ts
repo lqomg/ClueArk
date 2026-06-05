@@ -40,6 +40,25 @@ export class Monitor {
   @Prop({ type: Date, default: null })
   snapshotComputedAt: Date | null;
 
+  /** 异步创建：processing → ready | failed；历史数据默认 ready */
+  @Prop({
+    type: String,
+    enum: ['processing', 'ready', 'failed'],
+    default: 'ready',
+    index: true,
+  })
+  createStatus: string;
+
+  @Prop({
+    type: String,
+    enum: ['understand', 'describe', 'sources', 'embedding', 'saving', 'snapshot', 'done'],
+    default: 'done',
+  })
+  createStep: string;
+
+  @Prop({ default: '', trim: true, maxlength: 500 })
+  createError: string;
+
   @Prop({ type: Date, default: null })
   deletedAt: Date | null;
 }

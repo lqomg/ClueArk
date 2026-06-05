@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   Activity,
@@ -25,12 +26,11 @@ import {
 import { getMonitorIntelligence, listMonitors } from '@/api/monitors';
 import type { MonitorIntelligence, MonitorWithListMetrics } from '@/types/models';
 import { useAppTopBar } from '@/components/layout/AppTopBar';
+import { MonitorSnapshotLoadingBanner } from '@/components/monitors/MonitorCreateProgress';
 import { cn } from '@/lib/cn';
 import { formatClueMetaTime, normalizeUserTimeZone, relTimeIso } from '@/lib/datetime';
+import { isSnapshotPending, sleep } from '@/lib/monitorCreateFlow';
 import { useAuthStore } from '@/stores/authStore';
-
-const overviewSubtitle =
-  '全局话题更新摘要与趋势分析。由 AI 提取关键线索与脉络。';
 
 /** 仅支持 `**加粗**`，其它内容原样输出，避免 HTML 注入 */
 function renderBriefParagraph(text: string, key: number): ReactNode {
@@ -104,6 +104,7 @@ function TrendSpark({ counts, className }: { counts: number[]; className?: strin
 }
 
 export function MonitorOverviewPage() {
+  const { t } = useTranslation();
   const viewerTz = useAuthStore((s) => normalizeUserTimeZone(s.user?.timeZone));
   const [searchParams, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState<MonitorWithListMetrics[] | null>(null);
@@ -119,12 +120,12 @@ export function MonitorOverviewPage() {
       const monitors = await listMonitors('?recentHours=720');
       setRows(monitors);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '加载失败');
+      setError(e instanceof Error ? e.message : t('common.loadFailed'));
       setRows(null);
     } finally {
       setLoadingList(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadRows();
@@ -164,15 +165,37 @@ export function MonitorOverviewPage() {
     setLoadingDetail(true);
     void (async () => {
       const requestedId = currentId;
+      const deadline = Date.now() + 90_000;
       try {
-        const i = await getMonitorIntelligence(requestedId, '?recentHours=720&briefProfile=weekly_rolling');
-        if (!cancelled && i.monitorId === requestedId) {
-          setIntel(i);
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : '加载监控详情失败');
-          setIntel(null);
+        while (!cancelled && Date.now() < deadline) {
+          const monitors = await listMonitors('?recentHours=720');
+          if (cancelled) return;
+          setRows(monitors);
+          const row = monitors.find((m) => m.id === requestedId);
+          const creating = row?.createStatus === 'processing';
+          if (creating) {
+            await sleep(1200);
+            continue;
+          }
+          if (row?.createStatus === 'failed') {
+            setError(t('monitors.createFailed'));
+            break;
+          }
+          try {
+            const i = await getMonitorIntelligence(requestedId, '?recentHours=720&briefProfile=weekly_rolling');
+            if (!cancelled && i.monitorId === requestedId) {
+              setIntel(i);
+              const snapPending = isSnapshotPending(row?.snapshotStatus);
+              if (!snapPending) break;
+            }
+          } catch (e) {
+            if (!cancelled && row?.createStatus === 'ready' && !isSnapshotPending(row?.snapshotStatus)) {
+              setError(e instanceof Error ? e.message : t('monitors.loadDetailFailed'));
+              setIntel(null);
+              break;
+            }
+          }
+          await sleep(2000);
         }
       } finally {
         if (!cancelled) setLoadingDetail(false);
@@ -181,7 +204,7 @@ export function MonitorOverviewPage() {
     return () => {
       cancelled = true;
     };
-  }, [currentId]);
+  }, [currentId, t]);
 
   function selectMonitor(id: string) {
     setSearchParams({ monitor: id }, { replace: true });
@@ -193,15 +216,15 @@ export function MonitorOverviewPage() {
         <div className="flex min-w-0 flex-1 flex-col gap-1 md:flex-row md:items-center md:gap-4">
           <h1 className="flex shrink-0 items-center gap-2 text-lg font-semibold tracking-tight text-ark-text">
             <Sparkles className="size-5 shrink-0 text-ark-accent" strokeWidth={2} aria-hidden />
-            话题监控
+            {t('nav.monitors')}
           </h1>
           <p className="min-w-0 text-xs leading-snug text-slate-500 md:max-w-2xl md:border-l md:border-ark-border md:pl-4 md:text-sm">
-            {overviewSubtitle}
+            {t('monitors.overviewDesc')}
           </p>
         </div>
       </div>
     ),
-    [],
+    [t],
   );
 
   const chartData = useMemo(
@@ -212,7 +235,7 @@ export function MonitorOverviewPage() {
   if (loadingList) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
-        加载中…
+        {t('common.loading')}
       </div>
     );
   }
@@ -222,9 +245,9 @@ export function MonitorOverviewPage() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {error ? <p className="shrink-0 text-sm text-red-400">{error}</p> : null}
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-y-auto overscroll-contain px-4 py-8 text-center">
-          <p className="text-slate-400">暂无监控话题</p>
+          <p className="text-slate-400">{t('home.noMonitors')}</p>
           <p className="max-w-md text-sm text-slate-500">
-            前往监控管理填写你想持续监控的方向，创建后将在此查看 AI 研判摘要与趋势。
+            {t('monitors.emptyOverviewDesc')}
           </p>
           <Link
             to="/app/monitors/manage"
@@ -233,7 +256,7 @@ export function MonitorOverviewPage() {
               'bg-ark-accent',
             )}
           >
-            打开监控管理
+            {t('monitors.openManage')}
           </Link>
         </div>
       </div>
@@ -245,25 +268,26 @@ export function MonitorOverviewPage() {
       <div className="shrink-0">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">监控列表</h2>
-            <p className="mt-0.5 text-[10px] text-slate-600">共 {sorted.length} 个</p>
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('monitors.listTitle')}</h2>
+            <p className="mt-0.5 text-[10px] text-slate-600">{t('monitors.listCount', { count: sorted.length })}</p>
           </div>
           <Link
             to="/app/monitors/manage"
             className="shrink-0 text-[10px] font-medium text-ark-accent hover:underline"
           >
-            管理
+            {t('common.manage')}
           </Link>
         </div>
       </div>
       <ul
         className="mt-3 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain lg:mt-4 lg:pr-1"
-        aria-label="监控列表"
+        aria-label={t('monitors.listTitle')}
       >
         {sorted.map((m) => {
           const active = m.id === currentId;
           const metrics = m.metrics;
           const computing =
+            m.createStatus === 'processing' ||
             m.snapshotStatus === 'pending' ||
             m.snapshotStatus === 'computing' ||
             (!m.snapshotStatus && !metrics);
@@ -285,7 +309,7 @@ export function MonitorOverviewPage() {
                 )}
               >
                 <div className="pointer-events-none absolute right-2.5 top-2.5 flex flex-col items-end gap-0.5">
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-slate-600">Heat</span>
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-slate-600">{t('monitors.heat')}</span>
                   <span className="text-base font-bold tabular-nums leading-none text-ark-accent">
                     {computing ? '…' : heat != null ? heat.toFixed(1) : '—'}
                   </span>
@@ -299,12 +323,12 @@ export function MonitorOverviewPage() {
                   {m.title}
                 </span>
                 <div className="flex items-center justify-between gap-2 border-t border-white/[0.06] pt-2">
-                  <span className="min-w-0 truncate text-[10px] text-slate-500">{relTimeIso(lastAt)}更新</span>
+                  <span className="min-w-0 truncate text-[10px] text-slate-500">{t('monitors.updatedAt', { time: relTimeIso(lastAt) })}</span>
                   <div className="flex shrink-0 items-center gap-1.5">
                     <TrendSpark counts={counts} />
                     <span className="whitespace-nowrap text-[10px] font-mono font-semibold tabular-nums text-ark-accent/90">
                       +{n24}
-                      <span className="font-sans font-normal text-slate-600"> (24h)</span>
+                      <span className="font-sans font-normal text-slate-600"> {t('monitors.hours24')}</span>
                     </span>
                   </div>
                 </div>
@@ -321,9 +345,35 @@ export function MonitorOverviewPage() {
       {error ? <p className="shrink-0 text-sm text-red-400">{error}</p> : null}
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain lg:flex-row lg:items-stretch lg:gap-6 lg:overflow-hidden">
         <div className="flex min-h-0 min-w-0 shrink-0 flex-col gap-4 lg:flex-1 lg:shrink lg:overflow-y-auto">
-          {loadingDetail || !currentMonitor || !intel ? (
-            <div className="flex flex-1 items-center justify-center rounded-xl mb-2 bg-ark-surface/30 py-24 text-sm text-slate-500">
-              加载中…
+          {loadingDetail || !currentMonitor ? (
+            <div className="flex flex-1 flex-col gap-4 rounded-xl mb-2 bg-ark-surface/30 p-4 py-12">
+              {currentMonitor ? (
+                <>
+                  <h2 className="text-lg font-semibold text-white">{currentMonitor.title}</h2>
+                  <MonitorSnapshotLoadingBanner
+                    snapshotStatus={currentMonitor.snapshotStatus}
+                    createStep={currentMonitor.createStep}
+                  />
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    {[1, 2, 3].map((k) => (
+                      <div key={k} className="h-16 animate-pulse rounded-lg bg-white/[0.04]" />
+                    ))}
+                  </div>
+                  <div className="h-32 animate-pulse rounded-lg bg-white/[0.04]" />
+                </>
+              ) : (
+                <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
+                  {t('common.loading')}
+                </div>
+              )}
+            </div>
+          ) : !intel ? (
+            <div className="flex flex-1 flex-col gap-4 rounded-xl mb-2 bg-ark-surface/30 p-4 py-12">
+              <h2 className="text-lg font-semibold text-white">{currentMonitor.title}</h2>
+              <MonitorSnapshotLoadingBanner
+                snapshotStatus={currentMonitor.snapshotStatus}
+                createStep={currentMonitor.createStep}
+              />
             </div>
           ) : (
             <section className="overflow-y-auto  bg-ark-surface/40 rounded-xl flex-1 mb-2">
@@ -333,11 +383,11 @@ export function MonitorOverviewPage() {
                     <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
                       <span className="inline-flex items-center gap-1 rounded-md border border-ark-accent/35 bg-ark-accent/10 px-2 py-0.5 font-semibold uppercase tracking-wide text-ark-accent">
                         <Sparkles className="size-3 shrink-0" strokeWidth={2} aria-hidden />
-                        AI 监控中
+                        {t('monitors.aiActive')}
                       </span>
                       <span className="inline-flex items-center gap-1">
                         <Clock className="size-3.5 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
-                        最新更新于 {relTimeIso(intel.lastActivityAt)}
+                        {t('monitors.lastUpdated', { time: relTimeIso(intel.lastActivityAt) })}
                       </span>
                     </div>
                     <h2 className="text-xl font-semibold tracking-tight text-white md:text-2xl">{currentMonitor.title}</h2>
@@ -360,7 +410,7 @@ export function MonitorOverviewPage() {
                     ) : null}
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-600">Heat Index</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-600">{t('monitors.heatIndex')}</span>
                     <div className="flex h-16 w-16 flex-col items-center justify-center rounded-xl border border-ark-border bg-ark-bg/80 shadow-inner">
                       <span className="text-2xl font-bold tabular-nums text-ark-accent">
                         {intel.heatIndex != null ? intel.heatIndex.toFixed(1) : '—'}
@@ -375,7 +425,7 @@ export function MonitorOverviewPage() {
                   <h3 className="mb-4 flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
                     <span className="inline-flex items-center gap-2">
                       <Target className="size-4 shrink-0 text-ark-accent" strokeWidth={2} aria-hidden />
-                      本周研判摘要
+                      {t('monitors.weeklyBrief')}
                     </span>
                     {intel.briefMeta?.windowLabel ? (
                       <span className="max-w-full font-normal normal-case tracking-normal text-[10px] text-slate-600">
@@ -389,15 +439,15 @@ export function MonitorOverviewPage() {
                   <div className="shrink-0  pt-3">
                     <div className="grid grid-cols-3 gap-2">
                       <div className="rounded-lg border border-ark-border bg-ark-bg/50 p-2 text-center">
-                        <div className="text-[10px] font-semibold uppercase text-slate-600">24H 新增</div>
+                        <div className="text-[10px] font-semibold uppercase text-slate-600">{t('monitors.statNew24h')}</div>
                         <div className="text-lg font-mono font-semibold tabular-nums text-white">+{intel.metrics.newLast24h}</div>
                       </div>
                       <div className="rounded-lg border border-ark-border bg-ark-bg/50 p-2 text-center">
-                        <div className="text-[10px] font-semibold uppercase text-slate-600">窗内累计</div>
+                        <div className="text-[10px] font-semibold uppercase text-slate-600">{t('monitors.statWindowTotal')}</div>
                         <div className="text-lg font-mono font-semibold tabular-nums text-white">{intel.metrics.totalInWindow}</div>
                       </div>
                       <div className="rounded-lg border border-ark-border bg-ark-bg/50 p-2 text-center">
-                        <div className="text-[10px] font-semibold uppercase text-slate-600">活跃信源</div>
+                        <div className="text-[10px] font-semibold uppercase text-slate-600">{t('monitors.statActiveSources')}</div>
                         <div className="text-lg font-mono font-semibold tabular-nums text-white">{intel.metrics.boundSourceCount}</div>
                       </div>
                     </div>
@@ -408,11 +458,11 @@ export function MonitorOverviewPage() {
                   <div className="mb-4 flex shrink-0 items-center justify-between gap-2">
                     <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                       <TrendingUp className="size-4 shrink-0 text-ark-accent" strokeWidth={2} aria-hidden />
-                      趋势与热度分析
+                      {t('monitors.trendTitle')}
                     </h3>
                     <span className="inline-flex items-center gap-1 rounded border border-ark-border bg-ark-bg/60 px-2 py-0.5 text-[10px] text-slate-500">
                       <CalendarDays className="size-3 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
-                      近 7 日
+                      {t('monitors.last7Days')}
                     </span>
                   </div>
                   <div className="h-44 w-full shrink-0">
@@ -438,7 +488,7 @@ export function MonitorOverviewPage() {
                   <div className="flex shrink-0 flex-col gap-2  pt-3">
                     <h4 className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
                       <Hash className="size-3 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
-                      高频实体 / 关键词
+                      {t('monitors.topKeywords')}
                     </h4>
                     <div className="max-h-28 min-h-0 overflow-y-auto overscroll-contain [scrollbar-width:thin]">
                       <div className="flex flex-wrap gap-1.5">
@@ -457,7 +507,7 @@ export function MonitorOverviewPage() {
                             </span>
                           );
                         })}
-                        {intel.chartKeywords.length === 0 ? <span className="text-[10px] text-slate-600">暂无标签数据</span> : null}
+                        {intel.chartKeywords.length === 0 ? <span className="text-[10px] text-slate-600">{t('monitors.noTags')}</span> : null}
                       </div>
                     </div>
                   </div>
@@ -467,18 +517,18 @@ export function MonitorOverviewPage() {
                   <div className="mb-3 flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                       <Activity className="size-4 shrink-0 text-ark-accent" strokeWidth={2} aria-hidden />
-                      最新关键线索
+                      {t('monitors.latestClues')}
                     </h3>
                     <Link
                       to={`/app/monitors/${currentMonitor.id}/timeline`}
                       className="flex shrink-0 items-center gap-0.5 self-start text-[11px] text-slate-500 transition hover:text-ark-accent sm:self-auto"
                     >
-                      查看时间线
+                      {t('monitors.viewTimeline')}
                       <ArrowRight className="size-3" aria-hidden />
                     </Link>
                   </div>
                   {intel.latestItems.length === 0 ? (
-                    <p className="text-xs text-slate-600">暂无匹配条目，请稍候采集或调整信源与相似度阈值。</p>
+                    <p className="text-xs text-slate-600">{t('monitors.noItems')}</p>
                   ) : (
                     <ul
                       className="m-0 flex min-h-0 list-none flex-col p-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain [scrollbar-width:thin]"

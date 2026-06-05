@@ -28,22 +28,6 @@ export class FeedItem {
   @Prop({ default: '', trim: true, maxlength: 512 })
   guid: string;
 
-  /** LLM 富化：pending → processing → done | failed */
-  @Prop({ type: String, enum: ['pending', 'processing', 'done', 'failed', 'skipped'], default: 'pending', index: true })
-  llmStatus: 'pending' | 'processing' | 'done' | 'failed' | 'skipped';
-
-  @Prop({ type: [String], default: [] })
-  llmTags: string[];
-
-  @Prop({ default: '', trim: true, maxlength: 2000 })
-  llmRecommendReason: string;
-
-  @Prop({ default: '', trim: true, maxlength: 128 })
-  llmModel: string;
-
-  @Prop({ default: '', trim: true, maxlength: 2000 })
-  llmError: string;
-
   /** 相似报道聚类：同簇共享最小 _id；未合并为 null */
   @Prop({ type: Types.ObjectId, default: null, index: true })
   clusterId: Types.ObjectId | null;
@@ -72,5 +56,4 @@ FeedItemSchema.index(
 );
 
 FeedItemSchema.index({ publishedAt: -1, createdAt: -1 });
-FeedItemSchema.index({ llmStatus: 1, createdAt: 1 });
 FeedItemSchema.index({ clusterId: 1, sourceId: 1, publishedAt: -1 });

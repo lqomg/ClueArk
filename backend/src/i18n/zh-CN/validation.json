@@ -1,0 +1,18 @@
+{
+  "NOT_EMPTY": "{property} 不能为空",
+  "IS_EMAIL": "{property} 必须是有效邮箱",
+  "IS_STRING": "{property} 必须是字符串",
+  "IS_INT": "{property} 必须是整数",
+  "IS_NUMBER": "{property} 必须是数字",
+  "MIN_LENGTH": "{property} 长度不能少于 {constraints.0} 个字符",
+  "MAX_LENGTH": "{property} 长度不能超过 {constraints.0} 个字符",
+  "MIN": "{property} 不能小于 {constraints.0}",
+  "MAX": "{property} 不能大于 {constraints.0}",
+  "IS_ENUM": "{property} 必须是有效值",
+  "IS_UUID": "{property} 必须是有效 UUID",
+  "IS_URL": "{property} 必须是有效 URL",
+  "IS_BOOLEAN": "{property} 必须是布尔值",
+  "ARRAY_MIN_SIZE": "{property} 至少需要 {constraints.0} 项",
+  "ARRAY_MAX_SIZE": "{property} 最多 {constraints.0} 项",
+  "WHITELIST": "不允许的属性 {property}"
+}

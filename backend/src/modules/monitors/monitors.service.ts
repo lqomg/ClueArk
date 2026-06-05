@@ -9,9 +9,11 @@ import { Monitor, MonitorDocument } from './schemas/monitor.schema';
 import { Source, SourceDocument } from '../sources/schemas/source.schema';
 import { FeedSimEmbeddingService } from '../feed-items/feed-sim-embedding.service';
 import { serializeFeedItem } from '../feed-items/feed-item.serialize';
+import { FeedItemLlmService, type FeedLlmView } from '../feed-items/feed-item-llm.service';
+import { aggregateChartKeywordsFromViews } from '../feed-items/feed-llm-chart.util';
 import { dedupeScoredByCluster } from '../feed-items/feed-cluster-timeline.util';
 import { MonitorPipelineService } from '../monitor-pipeline/monitor-pipeline.service';
-import { UsersService } from '../users/users.service';
+import { UserPreferencesService } from '../users/user-preferences.service';
 import { MonitorSnapshotService } from './monitor-snapshot.service';
 import { MonitoredSourcesService } from './monitored-sources.service';
 import { JobSchedulerService } from '../job-center/job-scheduler.service';
@@ -29,7 +31,6 @@ import type { PatchMonitorSourcesDto } from './dto/patch-monitor-sources.dto';
 import { LoggerService } from '../logger';
 import { MonitorBriefRun, MonitorBriefRunDocument } from './schemas/monitor-brief-run.schema';
 import {
-  BRIEF_LLM_SYSTEM_VERSION,
   DEFAULT_BRIEF_PROFILE_ID,
   getBriefProfileById,
   resolveBriefProfiles,
@@ -37,6 +38,15 @@ import {
   type BriefProfile,
   type ResolvedWindow,
 } from './brief-profiles';
+import {
+  BRIEF_LLM_SYSTEM_VERSION,
+  buildBriefEmptyWindowParagraphs,
+  buildBriefNoVectorMessage,
+  buildBriefPendingMessage,
+  buildBriefSystemPrompt,
+} from './brief-prompts';
+import type { SupportedLocale } from '../../common/utils/locale.utils';
+import { normalizeLocale, resolveAppDefaultLocale } from '../../common/utils/locale.utils';
 
 function notDeletedFilter(): Record<string, unknown> {
   return { $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }] };
@@ -123,7 +133,32 @@ export type MonitorListMetricsPublic = Omit<MonitorOverviewCardPublic, 'monitorI
 
 export type MonitorListItemPublic = MonitorPublic & {
   snapshotStatus: string;
+  createStatus: string;
+  createStep: string;
   metrics: MonitorListMetricsPublic;
+};
+
+export type MonitorCreateStep =
+  | 'understand'
+  | 'describe'
+  | 'sources'
+  | 'embedding'
+  | 'saving'
+  | 'snapshot'
+  | 'done';
+
+export type MonitorCreateStatusPublic = {
+  monitorId: string;
+  createStatus: 'processing' | 'ready' | 'failed';
+  createStep: MonitorCreateStep;
+  createError: string | null;
+  snapshotStatus: string;
+};
+
+export type CreateMonitorStartPublic = MonitorPublic & {
+  createStatus: 'processing';
+  createStep: MonitorCreateStep;
+  snapshotStatus: string;
 };
 
 const MONITOR_MIN_SOURCES=10;
@@ -147,7 +182,8 @@ export class MonitorsService {
     private readonly pipeline: MonitorPipelineService,
     loggerService: LoggerService,
     @Inject(LLM_CHAT) private readonly llm: LlmChatPort,
-    private readonly usersService: UsersService,
+    private readonly userPreferences: UserPreferencesService,
+    private readonly feedItemLlmService: FeedItemLlmService,
   ) {
     this.logger = loggerService.createLogger(MonitorsService.name);
   }
@@ -224,7 +260,7 @@ export class MonitorsService {
       .find({ userId: uid, deletedAt: null })
       .sort({ createdAt: -1 })
       .exec();
-    const viewerTz = await this.usersService.getTimeZoneOrDefault(userId);
+    const viewerTz = await this.userPreferences.getTimeZoneOrDefault(userId);
     const cards = await Promise.all(docs.map((doc) => this.buildOverviewCard(doc, rh, viewerTz)));
     this.logger.debug(`monitor_list_for_user userId=${userId} recentHours=${rh} count=${docs.length}`);
     return docs.map((d, i) => {
@@ -233,6 +269,8 @@ export class MonitorsService {
       return {
         ...m,
         snapshotStatus: String(d.snapshotStatus ?? 'pending'),
+        createStatus: String(d.createStatus ?? 'ready'),
+        createStep: String(d.createStep ?? 'done'),
         metrics: {
           heatIndex: c.heatIndex,
           newLast24h: c.newLast24h,
@@ -241,6 +279,249 @@ export class MonitorsService {
         },
       };
     });
+  }
+
+  async getCreateStatus(monitorId: string, userId: string): Promise<MonitorCreateStatusPublic> {
+    const doc = await this.loadOwnedMonitor(monitorId, userId);
+    const cs = String(doc.createStatus ?? 'ready');
+    const createStatus =
+      cs === 'processing' || cs === 'ready' || cs === 'failed' ? cs : 'ready';
+    const stepRaw = String(doc.createStep ?? 'done');
+    const createStep = (
+      ['understand', 'describe', 'sources', 'embedding', 'saving', 'snapshot', 'done'] as const
+    ).includes(stepRaw as MonitorCreateStep)
+      ? (stepRaw as MonitorCreateStep)
+      : 'done';
+    const err = String(doc.createError ?? '').trim();
+    return {
+      monitorId: String(doc._id),
+      createStatus,
+      createStep,
+      createError: err || null,
+      snapshotStatus: String(doc.snapshotStatus ?? 'pending'),
+    };
+  }
+
+  private async setCreateStep(monitorId: string, step: MonitorCreateStep): Promise<void> {
+    if (!Types.ObjectId.isValid(monitorId)) return;
+    await this.monitorModel
+      .updateOne({ _id: new Types.ObjectId(monitorId) }, { $set: { createStep: step } })
+      .exec();
+  }
+
+  private async markCreateFailed(monitorId: string, message: string): Promise<void> {
+    if (!Types.ObjectId.isValid(monitorId)) return;
+    await this.monitorModel
+      .updateOne(
+        { _id: new Types.ObjectId(monitorId) },
+        { $set: { createStatus: 'failed', createError: message.slice(0, 500) } },
+      )
+      .exec();
+  }
+
+  /** POST /monitors：快速落库占位并异步入队，由 worker 执行 LLM / embedding 等重活 */
+  async create(userId: string, dto: CreateMonitorDto): Promise<CreateMonitorStartPublic> {
+    if (!this.embeddings.isEnabled()) {
+      throw new ServiceUnavailableException('monitor_embedding_required');
+    }
+    const topicPrompt = dto.topic.trim();
+    if (!topicPrompt) throw new BadRequestException('topic_required');
+
+    const catalogCap = this.llmCatalogCap();
+    const catalogCount = await this.sourceModel
+      .countDocuments({ enabled: true, ...notDeletedFilter() })
+      .exec();
+    if (catalogCount < MONITOR_MIN_SOURCES) {
+      throw new BadRequestException('monitor_catalog_too_small_for_min_sources');
+    }
+
+    const uid = new Types.ObjectId(userId);
+    const doc = await this.monitorModel.create({
+      userId: uid,
+      title: topicPrompt.slice(0, 40),
+      description: topicPrompt,
+      topicPrompt,
+      keywords: [],
+      entities: [],
+      sourceIds: [],
+      deletedAt: null,
+      createStatus: 'processing',
+      createStep: 'understand',
+      createError: '',
+      snapshotStatus: 'pending',
+    });
+
+    const monitorId = String(doc._id);
+    await this.scheduler.enqueueCreateMonitor(monitorId, userId, topicPrompt, { trigger: 'api' });
+
+    this.logger.log(`monitor_create_enqueued id=${monitorId} userId=${userId} catalogCap=${catalogCap}`);
+    return {
+      ...this.serializeMonitor(doc),
+      createStatus: 'processing',
+      createStep: 'understand',
+      snapshotStatus: 'pending',
+    };
+  }
+
+  /** BullMQ worker：执行监控创建流水线并更新 createStep */
+  async processCreateMonitorJob(monitorId: string, userId: string, topicPrompt: string): Promise<void> {
+    const topic = topicPrompt.trim();
+    if (!topic) {
+      await this.markCreateFailed(monitorId, 'topic_required');
+      throw new BadRequestException('topic_required');
+    }
+
+    try {
+      await this.setCreateStep(monitorId, 'understand');
+
+      const catalogCap = this.llmCatalogCap();
+      const sources = await this.sourceModel
+        .find({ enabled: true, ...notDeletedFilter() })
+        .sort({ sortOrder: 1, displayName: 1 })
+        .limit(catalogCap)
+        .select({ _id: 1, displayName: 1, kind: 1, note: 1 })
+        .lean()
+        .exec();
+
+      const catalog = sources.map((s) => ({
+        id: String(s._id),
+        displayName: String(s.displayName ?? ''),
+        kind: String((s as { kind?: string }).kind ?? ''),
+        note: truncateNote(String((s as { note?: string }).note ?? ''), 120),
+      }));
+      const allowedIds = new Set(catalog.map((c) => c.id));
+      const catalogOrderedIds = catalog.map((c) => c.id);
+      const minN = MONITOR_MIN_SOURCES;
+      const maxN = MONITOR_MAX_SOURCES;
+
+      if (catalog.length < minN) {
+        throw new BadRequestException('monitor_catalog_too_small_for_min_sources');
+      }
+
+      const planSystem = `你是情报监控规划助手。只输出合法 JSON，不要 markdown。
+用户会给出「监控意图（可能很短）」。
+请输出：{"title":"10～40字标题，与意图同语言","description":"正式监控说明，不少于80个字符，用于检索与展示；客观概括范围与边界","keywords":["若干关键词，2～5项"],"entities":["若干实体名，2～5项"]}
+要求：
+1. description 必须介于 80 - 120 个字符（中文按字符计）。
+2. keywords / entities 简洁、可去重，勿空数组。
+3. 不要输出信源 id。`;
+
+      let title = topic.slice(0, 40);
+      let expandedDescription = '';
+      let keywords: string[] = [];
+      let entities: string[] = [];
+
+      await this.setCreateStep(monitorId, 'describe');
+      try {
+        const plan = (await this.llm.completeJson<LlmMonitorPlan>(
+          planSystem,
+          JSON.stringify({ topic }),
+        )) as LlmMonitorPlan;
+        const t = typeof plan.title === 'string' ? plan.title.trim().slice(0, 200) : '';
+        if (t) title = t;
+        const d = typeof plan.description === 'string' ? plan.description.trim() : '';
+        expandedDescription = d;
+        keywords = this.parseStringList(plan.keywords, 20);
+        entities = this.parseStringList(plan.entities, 20);
+      } catch {
+        throw new ServiceUnavailableException('monitor_llm_plan_failed');
+      }
+
+      const srcSystem = `你是信源选择助手。只输出合法 JSON，不要 markdown。
+输入包含「监控说明」与「候选信源列表」（id、displayName、kind、note）。
+输出格式：{"sourceIds":["24位hex的Mongo id",...]}
+要求：
+1. sourceIds 只能从候选 id 中选，禁止编造；去重；数量在 ${minN}～${maxN} 之间。
+2. 优先多样性与话题覆盖。`;
+
+      const srcPayload = JSON.stringify(
+        { description: expandedDescription, keywords, entities, sources: catalog },
+        null,
+        0,
+      );
+
+      await this.setCreateStep(monitorId, 'sources');
+      let sourceIdStrs: string[] = [];
+      try {
+        const out = (await this.llm.completeJson<LlmMonitorSourcesPick>(
+          srcSystem,
+          srcPayload,
+        )) as LlmMonitorSourcesPick;
+        const arr = Array.isArray(out.sourceIds) ? out.sourceIds : [];
+        const seen = new Set<string>();
+        for (let i = 0; i < arr.length && sourceIdStrs.length < maxN; i++) {
+          const id = String(arr[i] ?? '').trim();
+          if (!Types.ObjectId.isValid(id)) continue;
+          if (!allowedIds.has(id)) continue;
+          if (seen.has(id)) continue;
+          seen.add(id);
+          sourceIdStrs.push(id);
+        }
+      } catch {
+        throw new ServiceUnavailableException('monitor_llm_sources_failed');
+      }
+
+      sourceIdStrs = this.padSourceIdsFromCatalog(sourceIdStrs, catalogOrderedIds, allowedIds, minN, maxN);
+      if (sourceIdStrs.length < minN) {
+        throw new BadRequestException('monitor_not_enough_sources');
+      }
+
+      await this.setCreateStep(monitorId, 'embedding');
+      const emb = await this.embeddings.embedBatch([expandedDescription]);
+      const vec = emb[0];
+      if (!vec?.length) {
+        throw new ServiceUnavailableException('monitor_embedding_failed');
+      }
+
+      await this.setCreateStep(monitorId, 'saving');
+      const uid = new Types.ObjectId(userId);
+      const doc = await this.monitorModel
+        .findOneAndUpdate(
+          { _id: new Types.ObjectId(monitorId), userId: uid, deletedAt: null, createStatus: 'processing' },
+          {
+            $set: {
+              title,
+              description: expandedDescription,
+              topicPrompt: topic,
+              keywords,
+              entities,
+              sourceIds: sourceIdStrs.map((id) => new Types.ObjectId(id)),
+            },
+          },
+          { new: true },
+        )
+        .exec();
+      if (!doc) {
+        throw new NotFoundException('monitor_not_found');
+      }
+
+      await this.pipeline.upsertMonitorPoint(doc, vec);
+      await this.monitoredSources.applyMonitorSourceDiff([], sourceIdStrs);
+
+      await this.setCreateStep(monitorId, 'snapshot');
+      await this.scheduler.enqueueReindexMonitor(monitorId, true, { trigger: 'api' });
+      await this.scheduler.enqueueComputeSnapshot(monitorId, this.defaultRecentHours(), 2, {
+        trigger: 'api',
+      });
+
+      await this.monitorModel
+        .updateOne(
+          { _id: doc._id },
+          { $set: { createStatus: 'ready', createStep: 'done', createError: '' } },
+        )
+        .exec();
+
+      this.logger.log(
+        `monitor_created id=${monitorId} userId=${userId} sources=${sourceIdStrs.length}`,
+      );
+    } catch (e) {
+      const msg =
+        e instanceof BadRequestException || e instanceof ServiceUnavailableException
+          ? String((e as { message?: string }).message ?? 'monitor_create_failed')
+          : 'monitor_create_failed';
+      await this.markCreateFailed(monitorId, msg);
+      throw e;
+    }
   }
 
   async getOne(monitorId: string, userId: string): Promise<MonitorPublic> {
@@ -292,129 +573,6 @@ export class MonitorsService {
   private minSimFromMonitor(monitor: MonitorDocument): number {
     const rawMin = monitor.minCosine;
     return typeof rawMin === 'number' && Number.isFinite(rawMin) ? Math.min(1, Math.max(0, rawMin)) : 0.43;
-  }
-
-  async create(userId: string, dto: CreateMonitorDto): Promise<MonitorPublic> {
-    if (!this.embeddings.isEnabled()) {
-      throw new ServiceUnavailableException('monitor_embedding_required');
-    }
-    const topicPrompt = dto.topic.trim();
-    if (!topicPrompt) throw new BadRequestException('topic_required');
-
-    const catalogCap = this.llmCatalogCap();
-    const sources = await this.sourceModel
-      .find({ enabled: true, ...notDeletedFilter() })
-      .sort({ sortOrder: 1, displayName: 1 })
-      .limit(catalogCap)
-      .select({ _id: 1, displayName: 1, kind: 1, note: 1 })
-      .lean()
-      .exec();
-
-    const catalog = sources.map((s) => ({
-      id: String(s._id),
-      displayName: String(s.displayName ?? ''),
-      kind: String((s as { kind?: string }).kind ?? ''),
-      note: truncateNote(String((s as { note?: string }).note ?? ''), 120),
-    }));
-    const allowedIds = new Set(catalog.map((c) => c.id));
-    const catalogOrderedIds = catalog.map((c) => c.id);
-    const minN = MONITOR_MIN_SOURCES;
-    const maxN = MONITOR_MAX_SOURCES;
-
-    if (catalog.length < minN) {
-      throw new BadRequestException('monitor_catalog_too_small_for_min_sources');
-    }
-
-    const planSystem = `你是情报监控规划助手。只输出合法 JSON，不要 markdown。
-用户会给出「监控意图（可能很短）」。
-请输出：{"title":"10～40字标题，与意图同语言","description":"正式监控说明，不少于80个字符，用于检索与展示；客观概括范围与边界","keywords":["若干关键词，2～5项"],"entities":["若干实体名，2～5项"]}
-要求：
-1. description 必须介于 80 - 120 个字符（中文按字符计）。
-2. keywords / entities 简洁、可去重，勿空数组。
-3. 不要输出信源 id。`;
-
-    let title = topicPrompt.slice(0, 40);
-    let expandedDescription = '';
-    let keywords: string[] = [];
-    let entities: string[] = [];
-
-    try {
-      const plan = (await this.llm.completeJson<LlmMonitorPlan>(planSystem, JSON.stringify({ topic: topicPrompt }))) as LlmMonitorPlan;
-      const t = typeof plan.title === 'string' ? plan.title.trim().slice(0, 200) : '';
-      if (t) title = t;
-      const d = typeof plan.description === 'string' ? plan.description.trim() : '';
-      expandedDescription = d;
-      keywords = this.parseStringList(plan.keywords, 20);
-      entities = this.parseStringList(plan.entities, 20);
-    } catch {
-      throw new ServiceUnavailableException('monitor_llm_plan_failed');
-    }
-
-    const srcSystem = `你是信源选择助手。只输出合法 JSON，不要 markdown。
-输入包含「监控说明」与「候选信源列表」（id、displayName、kind、note）。
-输出格式：{"sourceIds":["24位hex的Mongo id",...]}
-要求：
-1. sourceIds 只能从候选 id 中选，禁止编造；去重；数量在 ${minN}～${maxN} 之间。
-2. 优先多样性与话题覆盖。`;
-
-    const srcPayload = JSON.stringify(
-      { description: expandedDescription, keywords, entities, sources: catalog },
-      null,
-      0,
-    );
-
-    let sourceIdStrs: string[] = [];
-    try {
-      const out = (await this.llm.completeJson<LlmMonitorSourcesPick>(srcSystem, srcPayload)) as LlmMonitorSourcesPick;
-      const arr = Array.isArray(out.sourceIds) ? out.sourceIds : [];
-      const seen = new Set<string>();
-      for (let i = 0; i < arr.length && sourceIdStrs.length < maxN; i++) {
-        const id = String(arr[i] ?? '').trim();
-        if (!Types.ObjectId.isValid(id)) continue;
-        if (!allowedIds.has(id)) continue;
-        if (seen.has(id)) continue;
-        seen.add(id);
-        sourceIdStrs.push(id);
-      }
-    } catch {
-      throw new ServiceUnavailableException('monitor_llm_sources_failed');
-    }
-
-    sourceIdStrs = this.padSourceIdsFromCatalog(sourceIdStrs, catalogOrderedIds, allowedIds, minN, maxN);
-    if (sourceIdStrs.length < minN) {
-      throw new BadRequestException('monitor_not_enough_sources');
-    }
-
-    const emb = await this.embeddings.embedBatch([expandedDescription]);
-    const vec = emb[0];
-    if (!vec?.length) {
-      throw new ServiceUnavailableException('monitor_embedding_failed');
-    }
-
-    const uid = new Types.ObjectId(userId);
-    const doc = await this.monitorModel.create({
-      userId: uid,
-      title,
-      description: expandedDescription,
-      topicPrompt,
-      keywords,
-      entities,
-      sourceIds: sourceIdStrs.map((id) => new Types.ObjectId(id)),
-      deletedAt: null,
-    });
-
-    const monitorId = String(doc._id);
-    await this.pipeline.upsertMonitorPoint(doc, vec);
-    await this.monitoredSources.applyMonitorSourceDiff([], sourceIdStrs);
-    await this.scheduler.enqueueReindexMonitor(monitorId, true, { trigger: 'api' });
-    await this.scheduler.enqueueComputeSnapshot(monitorId, this.defaultRecentHours(), 2, {
-      trigger: 'api',
-    });
-
-    this.logger.log(
-      `monitor_created id=${monitorId} userId=${userId} sources=${sourceIdStrs.length}`,
-    );
-    return this.serializeMonitor(doc);
   }
 
   async listClusterFeedItems(monitorId: string, clusterId: string, userId: string) {
@@ -470,6 +628,18 @@ export class MonitorsService {
     return Math.round(raw * 100) / 10;
   }
 
+  private defaultLocale(): SupportedLocale {
+    return resolveAppDefaultLocale(this.config.get<string>('APP_DEFAULT_LOCALE'));
+  }
+
+  private async resolveLlmViewsForScored(
+    scored: { doc: Record<string, unknown>; score: number }[],
+    viewerLocale: SupportedLocale,
+  ): Promise<Map<string, FeedLlmView>> {
+    const ids = scored.map((s) => String(s.doc._id));
+    return this.feedItemLlmService.resolveViews(ids, viewerLocale, this.defaultLocale());
+  }
+
   private emptySevenDayTrend(viewerTimeZone: string): { date: string; count: number }[] {
     return sevenDayTrendDateKeys(new Date(), viewerTimeZone).map((date) => ({ date, count: 0 }));
   }
@@ -484,6 +654,7 @@ export class MonitorsService {
     scored: { doc: Record<string, unknown>; score: number }[],
     minSim: number,
     viewerTimeZone: string,
+    llmViews: Map<string, FeedLlmView>,
   ): MonitorIntelligenceAggregate {
     const nowMs = Date.now();
     const h24 = nowMs - 24 * 3600000;
@@ -492,7 +663,6 @@ export class MonitorsService {
     let newLast24h = 0;
     let count7d = 0;
     let sumScore = 0;
-    const tagCount = new Map<string, number>();
 
     for (let i = 0; i < scored.length; i++) {
       const row = scored[i].doc;
@@ -501,14 +671,6 @@ export class MonitorsService {
       sumScore += sc;
       if (t >= h24) newLast24h += 1;
       if (t >= h168) count7d += 1;
-      const rawTags = row.llmTags;
-      if (Array.isArray(rawTags)) {
-        for (let j = 0; j < rawTags.length; j++) {
-          const tag = String(rawTags[j] ?? '').trim();
-          if (!tag) continue;
-          tagCount.set(tag, (tagCount.get(tag) ?? 0) + 1);
-        }
-      }
     }
 
     const totalInWindow = scored.length;
@@ -531,13 +693,12 @@ export class MonitorsService {
     }
     const trend = trendKeys.map((date) => ({ date, count: trendMap.get(date) ?? 0 }));
 
-    const chartKeywords = [...tagCount.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 16)
-      .map(([name, count]) => ({ name, count }));
+    const chartKeywords = aggregateChartKeywordsFromViews(
+      scored.map((s) => llmViews.get(String(s.doc._id))),
+    );
 
     const latestItems = scored.slice(0, 5).map((s) => ({
-      ...serializeFeedItem(s.doc),
+      ...serializeFeedItem(s.doc, llmViews.get(String(s.doc._id))),
       relevanceScore: Math.round(s.score * 1000) / 1000,
     }));
 
@@ -576,6 +737,7 @@ export class MonitorsService {
     windowMode: string;
     periodKey: string;
     minSim: number;
+    locale: SupportedLocale;
     agg: MonitorIntelligenceAggregate;
     evidenceRows: { doc: Record<string, unknown>; score: number }[];
   }): string {
@@ -593,6 +755,7 @@ export class MonitorsService {
       windowMode: params.windowMode,
       periodKey: params.periodKey,
       minSim: params.minSim,
+      locale: params.locale,
       sys: BRIEF_LLM_SYSTEM_VERSION,
       m: params.agg.metrics,
       c7: params.agg.count7d,
@@ -655,6 +818,7 @@ export class MonitorsService {
 
   private buildEvidenceItemsForLlm(
     evidenceRows: { doc: Record<string, unknown>; score: number }[],
+    llmViews: Map<string, FeedLlmView>,
   ): {
     evidenceItems: Record<string, unknown>[];
     allowedIds: Set<string>;
@@ -663,7 +827,7 @@ export class MonitorsService {
     const recMax = this.briefRecommendMaxChars();
     const evidenceItems = evidenceRows.map((s) => {
       const row = s.doc;
-      const ser = serializeFeedItem(row);
+      const ser = serializeFeedItem(row, llmViews.get(String(row._id)));
       let summary = ser.summary;
       if (summary.length > summaryMax) summary = `${summary.slice(0, summaryMax)}…`;
       let recommendReason = ser.recommendReason ?? '';
@@ -693,8 +857,10 @@ export class MonitorsService {
     briefContext: Record<string, unknown>;
     ownerTimeZone: string;
     referenceNow: Date;
+    locale: SupportedLocale;
+    llmViews: Map<string, FeedLlmView>;
   }): Promise<{ paragraphs: string[]; citedItemIds: string[] } | null> {
-    const { monitor, agg, evidenceRows, briefContext, ownerTimeZone, referenceNow } = params;
+    const { monitor, evidenceRows, briefContext, ownerTimeZone, referenceNow, locale } = params;
     const pub = this.serializeMonitor(monitor);
     const monitorPayload = {
       title: pub.title,
@@ -703,18 +869,10 @@ export class MonitorsService {
       keywords: pub.keywords,
       entities: pub.entities,
     };
-    const { evidenceItems, allowedIds } = this.buildEvidenceItemsForLlm(evidenceRows);
+    const { evidenceItems, allowedIds } = this.buildEvidenceItemsForLlm(evidenceRows, params.llmViews);
     const referenceNowIso = formatReferenceNowIsoForLlm(referenceNow, ownerTimeZone);
     const referenceNowReadableZh = formatReferenceNowReadableZh(referenceNow, ownerTimeZone);
-    const system = `你是情报监控「研判摘要」写作助手。只输出合法 JSON，不要 markdown 代码块。
-输出格式：{"paragraphs":["段落1","段落2",...],"citedItemIds":["条目id",...]}
-要求：
-1. paragraphs 共 2～3 段中文（情报综述语气），每段 30～120 字，全文总字数不超过 300。
-2. 第 1 段必须直接切入 evidenceItems 中的实质线索：主体、事件、分歧或趋势判断；禁止复述仪表盘已有信息——不得写时间窗口径、窗内总条数、24h 新增、热度指数、关键词榜排名、按日条数峰值或「共监测到 X 条」类套话。禁止以「本分析窗/近 X 小时/某日至某日 + 条数或峰值」这类统计总起句。凡叙述具体事件、发布或关键节点时，须写出可核对的时间：优先用相对表述（刚刚、N 分钟前、N 小时前、今天、昨天、本周等），必须以 user 中的 referenceNowIso / referenceNowReadableZh 与 userTimeZone 为「现在」参照，结合各条 publishedAt（ISO UTC）换算，与证据一致，不得编造。
-3. 第 2、3 段同样遵守第 2 条时间规则；涉及 briefContext 汇总指标数字时全文至多 1～2 个且须与 briefContext 一致；证据中的事件日期/时点不受该条数限制，忌堆砌。
-4. 叙事须基于 evidenceItems 的标题/摘要/标签/推荐语及 publishedAt；不得捏造证据中未出现的公司、产品、金额、日期。
-5. citedItemIds 为本次写作实际依据的条目 id 列表，须全部为 evidenceItems 中的 id，可为空数组。
-6. 段落中若需强调术语，可使用 Markdown 加粗：**术语**（仅此一种内联格式）。`;
+    const system = buildBriefSystemPrompt(locale);
 
     const user = JSON.stringify({
       monitor: monitorPayload,
@@ -733,13 +891,19 @@ export class MonitorsService {
     monitorOid: Types.ObjectId,
     profileId: string,
     minCosine: number,
+    locale: SupportedLocale,
   ): Promise<MonitorBriefRunDocument | null> {
+    const localeFilter =
+      locale === 'zh-CN'
+        ? { $or: [{ locale }, { locale: { $exists: false } }, { locale: null }] }
+        : { locale };
     return this.briefRunModel
       .findOne({
         monitorId: monitorOid,
         profileId,
         status: 'succeeded',
         minCosine,
+        ...localeFilter,
       })
       .sort({ completedAt: -1 })
       .exec();
@@ -750,13 +914,14 @@ export class MonitorsService {
     monitorId: string,
     profileId: string,
     jobId?: string,
+    localeHint?: string,
   ): Promise<void> {
     const monitor = await this.monitorModel.findById(monitorId).exec();
     if (!monitor || monitor.deletedAt) return;
     const profiles = resolveBriefProfiles(this.config);
     const profile = getBriefProfileById(profiles, profileId);
     if (!profile) return;
-    await this.runBriefPipelineForMonitor(monitor, profile, new Date(), jobId);
+    await this.runBriefPipelineForMonitor(monitor, profile, new Date(), jobId, localeHint);
   }
 
   async runBriefPipelineForMonitor(
@@ -764,10 +929,15 @@ export class MonitorsService {
     profile: BriefProfile,
     now: Date,
     jobId?: string,
+    localeHint?: string,
   ): Promise<void> {
     const monitorId = monitor._id as Types.ObjectId;
     const userId = monitor.userId as Types.ObjectId;
     const monitorIdStr = String(monitorId);
+    const ownerLocale = localeHint
+      ? normalizeLocale(localeHint)
+      : await this.userPreferences.getLocaleOrDefault(String(userId));
+    const locale = ownerLocale;
     const jobRef =
       jobId && Types.ObjectId.isValid(jobId) ? { jobId: new Types.ObjectId(jobId) } : {};
     const qdrantVec = await this.vectorStore.getMonitorVector(monitorIdStr);
@@ -790,13 +960,15 @@ export class MonitorsService {
       window.periodStart.getTime(),
       window.periodEnd.getTime(),
     );
-    const ownerTz = await this.usersService.getTimeZoneOrDefault(String(userId));
+    const ownerTz = await this.userPreferences.getTimeZoneOrDefault(String(userId));
+    const llmViews = await this.resolveLlmViewsForScored(scored, locale);
     const agg = this.aggregateIntelligenceFromScored(
       monitor,
       window.rollingRecentHoursEffective,
       scored,
       minSim,
       ownerTz,
+      llmViews,
     );
     const cap = this.briefEvidenceCap();
     const evidenceRows = this.selectBriefEvidenceRows(scored, cap);
@@ -807,11 +979,12 @@ export class MonitorsService {
       windowMode: profile.windowMode,
       periodKey: window.periodKey,
       minSim,
+      locale,
       agg,
       evidenceRows,
     });
 
-    const lastOk = await this.findLatestSucceededBriefRun(monitorId, profile.profileId, minSim);
+    const lastOk = await this.findLatestSucceededBriefRun(monitorId, profile.profileId, minSim, locale);
     if (lastOk && lastOk.inputFingerprint === fp) {
       if (this.briefLogSkippedEnabled()) {
         const t0 = Date.now();
@@ -827,6 +1000,7 @@ export class MonitorsService {
           minCosine: minSim,
           inputFingerprint: fp,
           status: 'skipped_unchanged',
+          locale,
           evidenceSnapshot: [],
           briefContextSnapshot: null,
           monitorSnapshot: null,
@@ -883,10 +1057,7 @@ export class MonitorsService {
 
     const startedAt = new Date();
     if (scored.length === 0) {
-      const paragraphs = [
-        '当前时间窗内无达到相似度阈值的条目。',
-        '以上为系统自动结论；有新线索进入时间窗后，定时任务将重新生成研判摘要。',
-      ];
+      const paragraphs = buildBriefEmptyWindowParagraphs(locale);
       await this.briefRunModel.create({
         ...jobRef,
         monitorId,
@@ -898,6 +1069,7 @@ export class MonitorsService {
         periodEnd: window.periodEnd,
         minCosine: minSim,
         inputFingerprint: fp,
+        locale,
         status: 'succeeded',
         evidenceSnapshot: [],
         briefContextSnapshot: { ...briefContext, totalInWindow: 0 },
@@ -924,6 +1096,8 @@ export class MonitorsService {
         briefContext,
         ownerTimeZone: ownerTz,
         referenceNow: now,
+        locale,
+        llmViews,
       });
       const completedAt = new Date();
       if (!llmOut) {
@@ -938,6 +1112,7 @@ export class MonitorsService {
           periodEnd: window.periodEnd,
           minCosine: minSim,
           inputFingerprint: fp,
+          locale,
           status: 'failed',
           evidenceSnapshot,
           briefContextSnapshot: briefContext,
@@ -966,6 +1141,7 @@ export class MonitorsService {
         periodEnd: window.periodEnd,
         minCosine: minSim,
         inputFingerprint: fp,
+        locale,
         status: 'succeeded',
         evidenceSnapshot,
         briefContextSnapshot: briefContext,
@@ -995,6 +1171,7 @@ export class MonitorsService {
         periodEnd: window.periodEnd,
         minCosine: minSim,
         inputFingerprint: fp,
+        locale,
         status: 'failed',
         evidenceSnapshot,
         briefContextSnapshot: briefContext,
@@ -1052,7 +1229,16 @@ export class MonitorsService {
       nowMs - recentHours * 3600000,
       nowMs,
     );
-    const agg = this.aggregateIntelligenceFromScored(monitor, recentHours, scored, minSim, viewerTimeZone);
+    const viewerLocale = await this.userPreferences.getLocaleOrDefault(String(monitor.userId));
+    const llmViews = await this.resolveLlmViewsForScored(scored, viewerLocale);
+    const agg = this.aggregateIntelligenceFromScored(
+      monitor,
+      recentHours,
+      scored,
+      minSim,
+      viewerTimeZone,
+      llmViews,
+    );
     return {
       monitorId,
       heatIndex: agg.heatIndex,
@@ -1068,7 +1254,8 @@ export class MonitorsService {
     q: ListMonitorIntelligenceQueryDto,
   ): Promise<MonitorIntelligencePublic> {
     const monitor = await this.loadOwnedMonitor(monitorId, userId);
-    const viewerTz = await this.usersService.getTimeZoneOrDefault(userId);
+    const viewerTz = await this.userPreferences.getTimeZoneOrDefault(userId);
+    const viewerLocale = await this.userPreferences.getLocaleOrDefault(userId);
     const recentHours = q.recentHours ?? this.defaultRecentHours();
     const profileId = (q.briefProfile ?? DEFAULT_BRIEF_PROFILE_ID).trim().slice(0, 64) || DEFAULT_BRIEF_PROFILE_ID;
     const profiles = resolveBriefProfiles(this.config);
@@ -1089,7 +1276,7 @@ export class MonitorsService {
         lastActivityAt: null,
         metrics: { newLast24h: 0, totalInWindow: 0, boundSourceCount },
         heatIndex: null,
-        weeklyBrief: ['无法生成 AI 研判摘要：该监控缺少描述向量。请重新创建监控或联系管理员。'],
+        weeklyBrief: [buildBriefNoVectorMessage(viewerLocale)],
         trend: this.emptySevenDayTrend(viewerTz),
         chartKeywords: [],
         latestItems: [],
@@ -1135,13 +1322,21 @@ export class MonitorsService {
         nowMs,
       );
       minSim = ms;
-      const agg = this.aggregateIntelligenceFromScored(monitor, recentHours, scored, minSim, viewerTz);
+      const llmViews = await this.resolveLlmViewsForScored(scored, viewerLocale);
+      const agg = this.aggregateIntelligenceFromScored(
+        monitor,
+        recentHours,
+        scored,
+        minSim,
+        viewerTz,
+        llmViews,
+      );
       const { count7d: _c7, ...rest } = agg;
       intelWithoutBrief = rest;
     }
 
     const oid = new Types.ObjectId(monitorId);
-    const latestRun = await this.findLatestSucceededBriefRun(oid, profile.profileId, minSim);
+    const latestRun = await this.findLatestSucceededBriefRun(oid, profile.profileId, minSim, viewerLocale);
     let weeklyBrief: string[];
     let briefMeta: MonitorIntelligencePublic['briefMeta'];
     if (latestRun && latestRun.paragraphs?.length) {
@@ -1157,7 +1352,7 @@ export class MonitorsService {
         runId: String(latestRun._id),
       };
     } else {
-      weeklyBrief = ['研判摘要尚未生成，请等待定时任务（默认每小时）执行后再查看。'];
+      weeklyBrief = [buildBriefPendingMessage(viewerLocale)];
       briefMeta = {
         profileId: profile.profileId,
         periodKey: '',

@@ -1,8 +1,10 @@
 import { http } from './http';
 import type {
+  CreateMonitorResponse,
   FeedItem,
   Monitor,
   MonitorClusterFeedItem,
+  MonitorCreateStatus,
   MonitorIntelligence,
   MonitorWithListMetrics,
 } from '@/types/models';
@@ -24,8 +26,15 @@ export async function listMonitors(query = ''): Promise<MonitorWithListMetrics[]
   return data;
 }
 
-export async function createMonitor(body: { topic: string }): Promise<Monitor> {
-  const { data } = await http.post<Monitor>('/monitors', body);
+export async function createMonitor(body: { topic: string }): Promise<CreateMonitorResponse> {
+  const { data } = await http.post<CreateMonitorResponse>('/monitors', body);
+  return data;
+}
+
+export async function getMonitorCreateStatus(monitorId: string): Promise<MonitorCreateStatus> {
+  const { data } = await http.get<MonitorCreateStatus>(
+    `/monitors/${encodeURIComponent(monitorId)}/create-status`,
+  );
   return data;
 }
 

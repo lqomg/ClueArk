@@ -1,4 +1,5 @@
 import { Types } from 'mongoose';
+import type { FeedLlmView } from './feed-item-llm.service';
 
 function publishedAtToIso(doc: Record<string, unknown>): string {
   const pa = doc.publishedAt;
@@ -6,7 +7,7 @@ function publishedAtToIso(doc: Record<string, unknown>): string {
   throw new Error('feed_item_published_at_required');
 }
 
-export function serializeFeedItem(doc: Record<string, unknown>) {
+export function serializeFeedItem(doc: Record<string, unknown>, llmView?: FeedLlmView | null) {
   const sid = doc.sourceId;
   let sourceDisplayName = '';
   let sourceIdStr = '';
@@ -20,10 +21,9 @@ export function serializeFeedItem(doc: Record<string, unknown>) {
     sourceIdStr = sid;
   }
 
-  const rawTags = doc.llmTags;
-  const tags = Array.isArray(rawTags) && rawTags.length ? rawTags.map(String) : [];
-  const recommendReason = String(doc.llmRecommendReason ?? '');
-  const llmStatus = doc.llmStatus as string | undefined;
+  const tags = llmView?.tags?.length ? llmView.tags : [];
+  const recommendReason = llmView?.recommendReason ?? '';
+  const llmStatus = llmView?.status ?? 'pending';
 
   return {
     id: String(doc._id),
@@ -37,6 +37,6 @@ export function serializeFeedItem(doc: Record<string, unknown>) {
     updatedAt: doc.updatedAt,
     tags,
     recommendReason,
-    llmStatus: llmStatus ?? 'pending',
+    llmStatus,
   };
 }

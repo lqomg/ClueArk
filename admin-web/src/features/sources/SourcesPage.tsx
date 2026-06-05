@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { Button, Drawer, Form, Modal, Tag, message } from 'antd';
+import { useTranslation } from 'react-i18next';
 import {
   createSource,
   deleteSource,
@@ -17,6 +18,7 @@ import type { AdminSource } from '@/shared/types';
 import { ApiError } from '@/shared/api/http';
 
 export function SourcesPage() {
+  const { t } = useTranslation();
   const actionRef = useRef<ActionType>();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -39,39 +41,41 @@ export function SourcesPage() {
       form.setFieldsValue(sourceToFormValues(source));
       setDrawerOpen(true);
     } catch (e) {
-      message.error(e instanceof ApiError ? e.message : '加载失败');
+      message.error(e instanceof ApiError ? e.message : t('common.loadFailed'));
     }
   }
 
   const columns: ProColumns<AdminSource>[] = [
-    { title: '名称', dataIndex: 'displayName', ellipsis: true },
-    { title: '类型', dataIndex: 'kind', width: 100 },
+    { title: t('sources.name'), dataIndex: 'displayName', ellipsis: true },
+    { title: t('sources.kind'), dataIndex: 'kind', width: 100 },
     {
-      title: '官方',
+      title: t('sources.official'),
       dataIndex: 'isOfficial',
       width: 80,
-      render: (_, row) => (row.isOfficial ? <Tag color="blue">是</Tag> : <Tag>否</Tag>),
+      render: (_, row) =>
+        row.isOfficial ? <Tag color="blue">{t('common.yes')}</Tag> : <Tag>{t('common.no')}</Tag>,
     },
     {
-      title: '状态',
+      title: t('sources.status'),
       dataIndex: 'enabled',
       width: 80,
-      render: (_, row) => (row.enabled ? <Tag color="success">启用</Tag> : <Tag>禁用</Tag>),
+      render: (_, row) =>
+        row.enabled ? <Tag color="success">{t('common.enabled')}</Tag> : <Tag>{t('common.disabled')}</Tag>,
     },
     {
-      title: '更新时间',
+      title: t('sources.updatedAt'),
       dataIndex: 'updatedAt',
       width: 180,
       search: false,
       render: (_, row) => formatDateTime(row.updatedAt),
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       valueType: 'option',
       width: 200,
       render: (_, row) => [
         <Button key="edit" type="link" size="small" onClick={() => openEdit(row.id)}>
-          编辑
+          {t('common.edit')}
         </Button>,
         <Button
           key="toggle"
@@ -80,14 +84,14 @@ export function SourcesPage() {
           onClick={async () => {
             try {
               await updateSource(row.id, { enabled: !row.enabled });
-              message.success('已更新');
+              message.success(t('common.updated'));
               actionRef.current?.reload();
             } catch (e) {
-              message.error(e instanceof ApiError ? e.message : '更新失败');
+              message.error(e instanceof ApiError ? e.message : t('common.updateFailed'));
             }
           }}
         >
-          {row.enabled ? '禁用' : '启用'}
+          {row.enabled ? t('sources.disable') : t('sources.enable')}
         </Button>,
         <Button
           key="delete"
@@ -96,16 +100,16 @@ export function SourcesPage() {
           size="small"
           onClick={() => {
             Modal.confirm({
-              title: '确认删除该信源？',
+              title: t('sources.confirmDelete'),
               onOk: async () => {
                 await deleteSource(row.id);
-                message.success('已删除');
+                message.success(t('common.deleted'));
                 actionRef.current?.reload();
               },
             });
           }}
         >
-          删除
+          {t('common.delete')}
         </Button>,
       ],
     },
@@ -114,33 +118,36 @@ export function SourcesPage() {
   return (
     <>
       <ProTable<AdminSource>
-        headerTitle="信源管理"
+        headerTitle={t('sources.title')}
         actionRef={actionRef}
         rowKey="id"
         search={false}
         columns={columns}
         toolBarRender={() => [
-          <Button key="export" onClick={async () => {
-            try {
-              const data = await exportSourcesJson();
-              const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = 'sources-export.json';
-              a.click();
-              URL.revokeObjectURL(url);
-            } catch (e) {
-              message.error(e instanceof ApiError ? e.message : '导出失败');
-            }
-          }}>
-            导出 JSON
+          <Button
+            key="export"
+            onClick={async () => {
+              try {
+                const data = await exportSourcesJson();
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'sources-export.json';
+                a.click();
+                URL.revokeObjectURL(url);
+              } catch (e) {
+                message.error(e instanceof ApiError ? e.message : t('common.exportFailed'));
+              }
+            }}
+          >
+            {t('sources.exportJson')}
           </Button>,
           <Button key="import" onClick={() => setImportOpen(true)}>
-            导入 JSON
+            {t('sources.importJson')}
           </Button>,
           <Button key="create" type="primary" onClick={openCreate}>
-            新建信源
+            {t('sources.create')}
           </Button>,
         ]}
         request={async () => {
@@ -151,14 +158,14 @@ export function SourcesPage() {
       />
 
       <Drawer
-        title={editingId ? '编辑信源' : '新建信源'}
+        title={editingId ? t('sources.editTitle') : t('sources.createTitle')}
         width={640}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         destroyOnClose
         extra={
           <Button type="primary" loading={saving} onClick={() => form.submit()}>
-            保存
+            {t('common.save')}
           </Button>
         }
       >
@@ -174,11 +181,11 @@ export function SourcesPage() {
               } else {
                 await createSource(payload);
               }
-              message.success('已保存');
+              message.success(t('common.saved'));
               setDrawerOpen(false);
               actionRef.current?.reload();
             } catch (e) {
-              message.error(e instanceof ApiError ? e.message : '保存失败');
+              message.error(e instanceof ApiError ? e.message : t('common.saveFailed'));
             } finally {
               setSaving(false);
             }
@@ -189,19 +196,19 @@ export function SourcesPage() {
       </Drawer>
 
       <Modal
-        title="导入信源 JSON"
+        title={t('sources.importTitle')}
         open={importOpen}
         onCancel={() => setImportOpen(false)}
         onOk={async () => {
           try {
             const body = JSON.parse(importText);
             await importSourcesJson(body);
-            message.success('导入完成');
+            message.success(t('common.imported'));
             setImportOpen(false);
             setImportText('');
             actionRef.current?.reload();
           } catch (e) {
-            message.error(e instanceof ApiError ? e.message : '导入失败');
+            message.error(e instanceof ApiError ? e.message : t('common.importFailed'));
           }
         }}
       >
@@ -210,7 +217,7 @@ export function SourcesPage() {
           onChange={(e) => setImportText(e.target.value)}
           rows={12}
           style={{ width: '100%', fontFamily: 'monospace' }}
-          placeholder='粘贴 sources-export.json 内容'
+          placeholder={t('sources.importPlaceholder')}
         />
       </Modal>
     </>

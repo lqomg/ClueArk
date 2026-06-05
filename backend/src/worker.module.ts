@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { AcceptLanguageResolver, HeaderResolver, I18nModule, QueryResolver } from 'nestjs-i18n';
+import { join } from 'path';
 import { VectorStoreModule } from './modules/vector-store/vector-store.module';
 import { JobCenterCoreModule } from './modules/job-center/job-center-core.module';
 import { JobCenterWorkerModule } from './modules/job-center/job-center-worker.module';
@@ -10,6 +12,7 @@ import { FeedItemsModule } from './modules/feed-items/feed-items.module';
 import { MonitorsModule } from './modules/monitors/monitors.module';
 import { LlmModule } from './modules/llm/llm.module';
 import { UsersModule } from './modules/users/users.module';
+import { UserPreferencesModule } from './modules/users/user-preferences.module';
 import { LoggerModule } from './modules/logger/logger.module';
 
 function buildMongoConnectionString(): string {
@@ -26,6 +29,27 @@ function buildMongoConnectionString(): string {
 
 @Module({
   imports: [
+    I18nModule.forRoot({
+      fallbackLanguage: 'en',
+      fallbacks: {
+        'en-*': 'en',
+        'zh': 'zh-CN',
+        'zh-*': 'zh-CN',
+        'ja': 'ja',
+        'ja-*': 'ja',
+        'ko': 'ko',
+        'ko-*': 'ko',
+      },
+      loaderOptions: {
+        path: join(__dirname, '/i18n/'),
+        watch: process.env.NODE_ENV !== 'production',
+      },
+      resolvers: [
+        new HeaderResolver(['x-lang', 'lang']),
+        new AcceptLanguageResolver(),
+        new QueryResolver(['lang']),
+      ],
+    }),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: [`.env.${process.env.NODE_ENV || 'development'}`, '.env'],
@@ -34,6 +58,7 @@ function buildMongoConnectionString(): string {
     MongooseModule.forRoot(buildMongoConnectionString()),
     VectorStoreModule,
     JobCenterCoreModule,
+    UserPreferencesModule,
     LlmModule,
     UsersModule,
     FeedItemsModule,

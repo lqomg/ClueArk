@@ -9,11 +9,11 @@ import Parser = require('rss-parser');
 import { SOURCE_KIND } from '../sources/source-kind';
 import { Source, SourceDocument, type HotApiMapper } from '../sources/schemas/source.schema';
 import { FeedItem, FeedItemDocument } from './schemas/feed-item.schema';
+import { FeedItemLlmService } from './feed-item-llm.service';
 import { fingerprintUrlKey } from '../sources/fingerprint.util';
 import type { CrawlerIngestBodyDto } from './dto/crawler-ingest.dto';
 import { applyRssPublishedAtFeedCorrection } from './rss-published-at-corrections';
 import {
-  FEED_MIN_SUMMARY_LEN_FOR_LLM,
   normalizeSummaryForStore,
 } from './feed-llm.constants';
 import {
@@ -218,6 +218,7 @@ export class FeedIngestService {
     @InjectModel(Source.name) private readonly sourceModel: Model<SourceDocument>,
     @InjectModel(FeedItem.name) private readonly feedItemModel: Model<FeedItemDocument>,
     private readonly scheduler: JobSchedulerService,
+    private readonly feedItemLlmService: FeedItemLlmService,
   ) {
     this.parser = new Parser({
       timeout: FETCH_TIMEOUT_MS,
@@ -280,7 +281,6 @@ export class FeedIngestService {
       const title = truncate(titleRaw, 500);
       const snippet = stripTags((it.contentSnippet ?? it.summary ?? it.content ?? '').trim());
       const summary = normalizeSummaryForStore(snippet);
-      const llmStatus = summary.length >= FEED_MIN_SUMMARY_LEN_FOR_LLM ? 'pending' : 'skipped';
 
       const publishedAtRaw = it.isoDate ?? it.pubDate ?? null;
       const publishedAt = coalescePublishedAtOrFallback(
@@ -300,11 +300,6 @@ export class FeedIngestService {
               summary,
               publishedAt,
               guid: truncate(guid, 512),
-              llmStatus,
-              llmTags: [],
-              llmRecommendReason: '',
-              llmModel: '',
-              llmError: '',
             },
           },
           upsert: true,
@@ -322,15 +317,20 @@ export class FeedIngestService {
   private async enqueueUpsertedItems(
     sourceId: Types.ObjectId,
     res: { upsertedIds?: Record<number, Types.ObjectId> },
+    forceLlmSkipped = false,
   ): Promise<void> {
-    const src = await this.sourceModel.findById(sourceId).select({ monitoredByCount: 1 }).lean().exec();
-    if (!src?.monitoredByCount) return;
     const upserted = res.upsertedIds;
     if (!upserted) return;
+    const ids = Object.keys(upserted).map((key) => upserted[key as unknown as number]);
+    if (ids.length) {
+      await this.feedItemLlmService.ensureInitialForNewItems(ids, forceLlmSkipped);
+    }
+
+    const src = await this.sourceModel.findById(sourceId).select({ monitoredByCount: 1 }).lean().exec();
+    if (!src?.monitoredByCount) return;
     const sid = String(sourceId);
-    const ids = Object.keys(upserted).map((key) => String(upserted[key as unknown as number]));
     for (const id of ids) {
-      await this.scheduler.enqueueProcessNewItem(id, sid, { trigger: 'pipeline' });
+      await this.scheduler.enqueueProcessNewItem(String(id), sid, { trigger: 'pipeline' });
     }
     if (ids.length) {
       this.logger.debug(
@@ -456,7 +456,6 @@ export class FeedIngestService {
       const title = truncate(titleRaw, 500);
       const snippet = stripTags((it.summary ?? '').trim());
       const summary = normalizeSummaryForStore(snippet);
-      const llmStatus = summary.trim().length >= FEED_MIN_SUMMARY_LEN_FOR_LLM ? 'pending' : 'skipped';
 
       const publishedAt = coalescePublishedAtOrFallback(
         capFuturePublishedAt(normalizePublishedAt(it.publishedAt, { now }), now),
@@ -475,11 +474,6 @@ export class FeedIngestService {
               summary,
               publishedAt,
               guid: truncate(guid, 512),
-              llmStatus,
-              llmTags: [],
-              llmRecommendReason: '',
-              llmModel: '',
-              llmError: '',
             },
           },
           upsert: true,
@@ -723,11 +717,6 @@ export class FeedIngestService {
               summary,
               publishedAt,
               guid: truncate(guid, 512),
-              llmStatus: 'skipped',
-              llmTags: [],
-              llmRecommendReason: '',
-              llmModel: '',
-              llmError: '',
             },
           },
           upsert: true,
@@ -738,7 +727,7 @@ export class FeedIngestService {
     if (!ops.length) return 0;
     const res = await this.feedItemModel.bulkWrite(ops, { ordered: false });
     await this.repairFuturePublishedAtForSource(sourceId, now);
-    await this.enqueueUpsertedItems(sourceId, res);
+    await this.enqueueUpsertedItems(sourceId, res, true);
     return res.upsertedCount ?? 0;
   }
 

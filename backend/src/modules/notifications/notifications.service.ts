@@ -2,15 +2,20 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { I18nService } from 'nestjs-i18n';
 import { FeedItem, FeedItemDocument } from '../feed-items/schemas/feed-item.schema';
 import { Notification, NotificationDocument } from './schemas/notification.schema';
 import { REDIS_CHANNEL_NOTIFICATION } from './notifications.constants';
 import {
   feedContextFromDoc,
+  feedContextWithLlm,
   toNotificationListItemDto,
 } from './notification-list.presenter';
 import { JobQueueAdapter } from '../job-center/job-queue.adapter';
 import { LoggerService } from '../logger';
+import { FeedItemLlmService } from '../feed-items/feed-item-llm.service';
+import { UserPreferencesService } from '../users/user-preferences.service';
+import { resolveAppDefaultLocale, type SupportedLocale } from '../../common/utils/locale.utils';
 
 export type CreateNotificationParams = {
   userId: string;
@@ -34,6 +39,9 @@ export class NotificationsService {
     @InjectModel(FeedItem.name) private readonly feedItemModel: Model<FeedItemDocument>,
     private readonly config: ConfigService,
     private readonly jobQueue: JobQueueAdapter,
+    private readonly feedItemLlmService: FeedItemLlmService,
+    private readonly userPreferences: UserPreferencesService,
+    private readonly i18n: I18nService,
     loggerService: LoggerService,
   ) {
     this.logger = loggerService.createLogger(NotificationsService.name);
@@ -132,17 +140,28 @@ export class NotificationsService {
 
   private async loadFeedContextByIds(
     feedItemIds: Types.ObjectId[],
+    viewerLocale: string,
   ): Promise<Map<string, ReturnType<typeof feedContextFromDoc>>> {
     const map = new Map<string, ReturnType<typeof feedContextFromDoc>>();
     if (!feedItemIds.length) return map;
+    const fallback = resolveAppDefaultLocale(this.config.get<string>('APP_DEFAULT_LOCALE'));
+    const locale = viewerLocale as SupportedLocale;
+    const llmViews = await this.feedItemLlmService.resolveViews(
+      feedItemIds.map(String),
+      locale,
+      fallback,
+    );
     const rows = await this.feedItemModel
       .find({ _id: { $in: feedItemIds } })
-      .select({ summary: 1, llmRecommendReason: 1, llmStatus: 1, sourceId: 1 })
+      .select({ summary: 1, sourceId: 1 })
       .populate({ path: 'sourceId', select: 'displayName' })
       .lean()
       .exec();
     for (const row of rows) {
-      map.set(String(row._id), feedContextFromDoc(row as unknown as Record<string, unknown>));
+      const id = String(row._id);
+      const base = feedContextFromDoc(row as unknown as Record<string, unknown>);
+      const llmView = llmViews.get(id);
+      map.set(id, llmView ? feedContextWithLlm(base, llmView) : base);
     }
     return map;
   }
@@ -154,6 +173,7 @@ export class NotificationsService {
 
   async listForUser(userId: string, page: number, pageSize: number) {
     const uid = new Types.ObjectId(userId);
+    const viewerLocale = await this.userPreferences.getLocaleOrDefault(userId);
     const skip = (page - 1) * pageSize;
     const [items, total] = await Promise.all([
       this.notificationModel
@@ -167,11 +187,15 @@ export class NotificationsService {
     ]);
 
     const feedIds = items.map((n) => n.feedItemId).filter((id) => id != null) as Types.ObjectId[];
-    const feedMap = await this.loadFeedContextByIds(feedIds);
+    const feedMap = await this.loadFeedContextByIds(feedIds, viewerLocale);
+    const alertLabel = this.i18n.t('notification.match.alertLabel', {
+      lang: viewerLocale,
+      defaultValue: this.i18n.t('notification.match.alertLabel', { lang: 'en' }),
+    });
 
     return {
       items: items.map((n) =>
-        toNotificationListItemDto(n, feedMap.get(String(n.feedItemId))),
+        toNotificationListItemDto(n, feedMap.get(String(n.feedItemId)), alertLabel),
       ),
       total,
       page,

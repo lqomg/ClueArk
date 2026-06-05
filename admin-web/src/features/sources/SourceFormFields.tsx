@@ -1,5 +1,6 @@
 import { Form, Input, InputNumber, Select, Switch, Upload, message } from 'antd';
 import type { UploadProps } from 'antd';
+import { useTranslation } from 'react-i18next';
 import type { AdminSource } from '@/shared/types';
 import { SOURCE_KINDS } from '@/shared/constants';
 import { uploadSourceAvatar } from '@/features/sources/api';
@@ -11,8 +12,16 @@ const DEFAULT_HOT_MAPPER = {
 };
 
 export function SourceFormFields() {
+  const { t } = useTranslation();
   const form = Form.useFormInstance();
   const kind = Form.useWatch('kind', form) ?? 'rss';
+
+  const kindLabel = (k: string) => {
+    if (k === 'web') return t('source.form.kindWeb');
+    if (k === 'rss') return t('source.form.kindRss');
+    if (k === 'hot_api') return t('source.form.kindHotApi');
+    return k;
+  };
 
   const uploadProps: UploadProps = {
     showUploadList: false,
@@ -20,9 +29,9 @@ export function SourceFormFields() {
       try {
         const res = await uploadSourceAvatar(file);
         form.setFieldValue('avatarUrl', res.avatarUrl);
-        message.success('头像已上传');
+        message.success(t('source.form.avatarUploaded'));
       } catch {
-        message.error('上传失败');
+        message.error(t('source.form.uploadFailed'));
       }
       return false;
     },
@@ -30,68 +39,75 @@ export function SourceFormFields() {
 
   return (
     <>
-      <Form.Item name="kind" label="类型" rules={[{ required: true }]}>
-        <Select
-          options={SOURCE_KINDS.map((k) => ({
-            value: k,
-            label: k === 'web' ? '网页列表' : k === 'rss' ? 'RSS' : '热点 API',
-          }))}
-        />
+      <Form.Item name="kind" label={t('source.form.kind')} rules={[{ required: true }]}>
+        <Select options={SOURCE_KINDS.map((k) => ({ value: k, label: kindLabel(k) }))} />
       </Form.Item>
-      <Form.Item name="displayName" label="名称" rules={[{ required: true }]}>
+      <Form.Item name="displayName" label={t('source.form.displayName')} rules={[{ required: true }]}>
         <Input />
       </Form.Item>
-      <Form.Item name="avatarUrl" label="头像 URL">
-        <Input addonAfter={<Upload {...uploadProps}>上传</Upload>} />
+      <Form.Item name="avatarUrl" label={t('source.form.avatarUrl')}>
+        <Input addonAfter={<Upload {...uploadProps}>{t('source.form.upload')}</Upload>} />
       </Form.Item>
-      <Form.Item name="note" label="备注">
+      <Form.Item name="note" label={t('source.form.note')}>
         <Input.TextArea rows={2} />
       </Form.Item>
-      <Form.Item name="pollIntervalSec" label="轮询间隔（秒）">
-        <InputNumber min={30} style={{ width: '100%' }} placeholder="留空使用默认" />
+      <Form.Item name="pollIntervalSec" label={t('source.form.pollIntervalSec')}>
+        <InputNumber min={30} style={{ width: '100%' }} placeholder={t('source.form.pollIntervalPlaceholder')} />
       </Form.Item>
-      <Form.Item name="enabled" label="启用" valuePropName="checked">
+      <Form.Item name="enabled" label={t('source.form.enabled')} valuePropName="checked">
         <Switch />
       </Form.Item>
-      <Form.Item name="sortOrder" label="排序">
+      <Form.Item name="sortOrder" label={t('source.form.sortOrder')}>
         <InputNumber style={{ width: '100%' }} />
       </Form.Item>
 
       {kind === 'web' ? (
         <>
-          <Form.Item name={['web', 'url']} label="站点 URL" rules={[{ required: true }]}>
+          <Form.Item name={['web', 'url']} label={t('source.form.siteUrl')} rules={[{ required: true }]}>
             <Input placeholder="https://example.com/" />
           </Form.Item>
-          <Form.Item name={['web', 'crawlListUrl']} label="列表页 URL">
-            <Input placeholder="缺省与站点 URL 相同" />
+          <Form.Item name={['web', 'crawlListUrl']} label={t('source.form.listUrl')}>
+            <Input placeholder={t('source.form.listUrlPlaceholder')} />
           </Form.Item>
-          <Form.Item name={['web', 'crawlSelectors', 'item']} label="条目选择器" rules={[{ required: true }]}>
+          <Form.Item
+            name={['web', 'crawlSelectors', 'item']}
+            label={t('source.form.selectorItem')}
+            rules={[{ required: true }]}
+          >
             <Input placeholder="article.item" />
           </Form.Item>
-          <Form.Item name={['web', 'crawlSelectors', 'link']} label="链接选择器" rules={[{ required: true }]}>
+          <Form.Item
+            name={['web', 'crawlSelectors', 'link']}
+            label={t('source.form.selectorLink')}
+            rules={[{ required: true }]}
+          >
             <Input placeholder="a@href" />
           </Form.Item>
-          <Form.Item name={['web', 'crawlSelectors', 'title']} label="标题选择器" rules={[{ required: true }]}>
+          <Form.Item
+            name={['web', 'crawlSelectors', 'title']}
+            label={t('source.form.selectorTitle')}
+            rules={[{ required: true }]}
+          >
             <Input placeholder=".title" />
           </Form.Item>
-          <Form.Item name={['web', 'crawlSelectors', 'summary']} label="摘要选择器">
+          <Form.Item name={['web', 'crawlSelectors', 'summary']} label={t('source.form.selectorSummary')}>
             <Input />
           </Form.Item>
-          <Form.Item name={['web', 'crawlSelectors', 'date']} label="日期选择器">
+          <Form.Item name={['web', 'crawlSelectors', 'date']} label={t('source.form.selectorDate')}>
             <Input />
           </Form.Item>
         </>
       ) : null}
 
       {kind === 'rss' ? (
-        <Form.Item name={['rss', 'feedUrl']} label="Feed URL" rules={[{ required: true }]}>
+        <Form.Item name={['rss', 'feedUrl']} label={t('source.form.feedUrl')} rules={[{ required: true }]}>
           <Input />
         </Form.Item>
       ) : null}
 
       {kind === 'hot_api' ? (
         <>
-          <Form.Item name={['hot', 'url']} label="API URL" rules={[{ required: true }]}>
+          <Form.Item name={['hot', 'url']} label={t('source.form.apiUrl')} rules={[{ required: true }]}>
             <Input />
           </Form.Item>
           <Form.Item name={['hot', 'mapper', 'itemsPath']} label="itemsPath" rules={[{ required: true }]}>
@@ -120,8 +136,8 @@ export function SourceFormFields() {
 
 function trimOrUndef(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
-  const t = value.trim();
-  return t || undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
 }
 
 function buildWebPayload(raw: unknown): Record<string, unknown> | undefined {

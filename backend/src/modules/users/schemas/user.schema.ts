@@ -14,8 +14,17 @@ export class User {
   @Prop({ required: true, trim: true })
   username: string;
 
-  @Prop({ required: true, select: false })
-  password: string;
+  /** 本地密码登录；Google 等 OAuth 用户可无密码 */
+  @Prop({ select: false })
+  password?: string;
+
+  /** Google OAuth `sub`，与邮箱账号绑定时用于快速查找 */
+  @Prop({ trim: true, sparse: true, unique: true })
+  googleSub?: string;
+
+  /** 最近一次密码变更时间；用于使该时刻之前签发的 JWT 失效 */
+  @Prop({ type: Date })
+  passwordChangedAt?: Date;
 
   @Prop({ default: true })
   isActive: boolean;
@@ -24,8 +33,12 @@ export class User {
   role: UserRole;
 
   /** IANA 时区，用于展示与按日历日聚合；API 仍返回 UTC 瞬时 */
-  @Prop({ default: 'Asia/Shanghai', trim: true })
+  @Prop({ required: true, default: 'Asia/Shanghai', trim: true })
   timeZone: string;
+
+  /** UI 与 LLM 衍生内容语言（en | zh-CN | ja | ko） */
+  @Prop({ type: String, required: true, enum: ['en', 'zh-CN', 'ja', 'ko'], default: 'en', trim: true })
+  locale: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

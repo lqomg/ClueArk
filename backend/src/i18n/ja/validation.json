@@ -1,0 +1,18 @@
+{
+  "NOT_EMPTY": "{property} は空にできません",
+  "IS_EMAIL": "{property} は有効なメールアドレスである必要があります",
+  "IS_STRING": "{property} は文字列である必要があります",
+  "IS_INT": "{property} は整数である必要があります",
+  "IS_NUMBER": "{property} は数値である必要があります",
+  "MIN_LENGTH": "{property} は {constraints.0} 文字以上である必要があります",
+  "MAX_LENGTH": "{property} は {constraints.0} 文字以下である必要があります",
+  "MIN": "{property} は {constraints.0} 以上である必要があります",
+  "MAX": "{property} は {constraints.0} 以下である必要があります",
+  "IS_ENUM": "{property} は有効な値である必要があります",
+  "IS_UUID": "{property} は有効な UUID である必要があります",
+  "IS_URL": "{property} は有効な URL である必要があります",
+  "IS_BOOLEAN": "{property} は真偽値である必要があります",
+  "ARRAY_MIN_SIZE": "{property} は少なくとも {constraints.0} 項目必要です",
+  "ARRAY_MAX_SIZE": "{property} は最大 {constraints.0} 項目までです",
+  "WHITELIST": "許可されていないプロパティ {property}"
+}

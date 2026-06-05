@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { User } from 'lucide-react';
 import { GithubRepoLink } from '@/components/GithubRepoLink';
 
@@ -23,6 +24,7 @@ const AppTopBarContext = createContext<AppTopBarContextValue | null>(null);
 export const APP_TOPBAR_HEIGHT_CLASS = 'h-16';
 
 export function AppTopBarProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
   const [slot, setSlotState] = useState<ReactNode | null>(null);
   const setSlot = useCallback((node: ReactNode | null) => {
     setSlotState(node);
@@ -47,8 +49,8 @@ export function AppTopBarProvider({ children }: { children: ReactNode }) {
             <Link
               to="/app/me"
               className="flex size-8 shrink-0 items-center justify-center rounded-full border border-ark-border bg-ark-surface text-slate-500 shadow-sm transition-all hover:border-white/20 hover:text-ark-text"
-              aria-label="个人中心"
-              title="个人中心"
+              aria-label={t('layout.profileAria')}
+              title={t('layout.profileAria')}
             >
               <User className="size-4" strokeWidth={2} />
             </Link>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { confirmPasswordReset, sendPasswordResetCode } from '@/api/auth';
 import {
@@ -6,11 +7,13 @@ import {
   inputClass,
   inputFlexClass,
   primaryBtnClass,
-  sendCodeBtnClass,
 } from '@/components/auth/AuthBrandingLayout';
-import { authErrBoxClass, authOkBoxClass } from '../utils';
+import { useOtpResendCooldown } from '@/hooks/useOtpResendCooldown';
+import { OtpSendCodeButton } from '../components/OtpSendCodeButton';
+import { authErrBoxClass, authOkBoxClass, isOtpRateLimitedError } from '../utils';
 
 export function ForgotPasswordPage() {
+  const { t } = useTranslation();
   const [step, setStep] = useState<'email' | 'reset'>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -18,6 +21,9 @@ export function ForgotPasswordPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resendingCode, setResendingCode] = useState(false);
+  const [codeSent, setCodeSent] = useState(false);
+  const { remaining: codeCooldown, startCooldown: startCodeCooldown } = useOtpResendCooldown();
 
   async function sendCode(e: React.FormEvent) {
     e.preventDefault();
@@ -26,12 +32,31 @@ export function ForgotPasswordPage() {
     setLoading(true);
     try {
       await sendPasswordResetCode({ email });
-      setMessage('若该邮箱已注册，我们已发送验证码，请查收邮件（含垃圾箱）。');
+      setMessage(t('auth.resetCodeSent'));
+      setCodeSent(true);
+      startCodeCooldown();
       setStep('reset');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '发送失败');
+      if (isOtpRateLimitedError(err)) startCodeCooldown();
+      setError(err instanceof Error ? err.message : t('auth.sendFailed'));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function onResendCode() {
+    setError(null);
+    setResendingCode(true);
+    try {
+      await sendPasswordResetCode({ email });
+      setMessage(t('auth.resetCodeSent'));
+      setCodeSent(true);
+      startCodeCooldown();
+    } catch (err) {
+      if (isOtpRateLimitedError(err)) startCodeCooldown();
+      setError(err instanceof Error ? err.message : t('auth.sendFailed'));
+    } finally {
+      setResendingCode(false);
     }
   }
 
@@ -42,16 +67,16 @@ export function ForgotPasswordPage() {
     setLoading(true);
     try {
       await confirmPasswordReset({ email, code, newPassword });
-      setMessage('密码已重置，请使用新密码登录。');
+      setMessage(t('auth.resetSuccess'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : '重置失败');
+      setError(err instanceof Error ? err.message : t('auth.resetFailed'));
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <AuthBrandingLayout title="找回密码" subtitle="向注册邮箱收取验证码，15 分钟内有效">
+    <AuthBrandingLayout title={t('auth.forgotPassword')} subtitle={t('auth.forgotSubtitle')}>
       {error ? <div className={authErrBoxClass}>{error}</div> : null}
       {message ? <div className={authOkBoxClass}>{message}</div> : null}
 
@@ -59,7 +84,7 @@ export function ForgotPasswordPage() {
         <form className="space-y-3.5" onSubmit={sendCode}>
           <div className="space-y-1.5">
             <label className="pl-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              邮箱 <span className="text-ark-accent opacity-60">*</span>
+              {t('auth.email')} <span className="text-ark-accent opacity-60">*</span>
             </label>
             <div className="flex min-w-0 items-stretch gap-2">
               <input
@@ -70,16 +95,20 @@ export function ForgotPasswordPage() {
                 placeholder="name@company.com"
                 required
               />
-              <button type="submit" disabled={loading} className={sendCodeBtnClass}>
-                {loading ? '发送中…' : '获取验证码'}
-              </button>
+              <OtpSendCodeButton
+                type="submit"
+                sending={loading}
+                sent={codeSent}
+                cooldown={codeCooldown}
+                emailReady={!!email.trim()}
+              />
             </div>
           </div>
         </form>
       ) : (
         <form className="space-y-3.5" onSubmit={resetPassword}>
           <div className="space-y-1.5">
-            <label className="pl-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">邮箱</label>
+            <label className="pl-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">{t('auth.email')}</label>
             <input
               type="email"
               className={inputClass}
@@ -90,21 +119,36 @@ export function ForgotPasswordPage() {
           </div>
           <div className="space-y-1.5">
             <label className="pl-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              6 位验证码
+              {t('auth.codeLabel')}
             </label>
-            <input
-              className={`${inputClass} max-w-[12rem] tracking-widest`}
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              inputMode="numeric"
-              maxLength={6}
-              placeholder="000000"
-              required
-            />
+            <div className="flex min-w-0 items-stretch gap-2">
+              <input
+                className={`${inputFlexClass} max-w-none tracking-widest`}
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                placeholder="000000"
+                required
+              />
+              <OtpSendCodeButton
+                onClick={() => void onResendCode()}
+                sending={resendingCode}
+                sent={codeSent}
+                cooldown={codeCooldown}
+                emailReady={!!email.trim()}
+              />
+            </div>
+            {codeSent && codeCooldown > 0 ? (
+              <p className="pl-1 text-[11px] leading-relaxed text-slate-600">
+                {t('auth.resendInSeconds', { seconds: codeCooldown })}
+              </p>
+            ) : null}
           </div>
           <div className="space-y-1.5">
             <label className="pl-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              新密码（至少 6 位）
+              {t('auth.newPassword')}
             </label>
             <input
               type="password"
@@ -116,7 +160,7 @@ export function ForgotPasswordPage() {
             />
           </div>
           <button type="submit" disabled={loading} className={primaryBtnClass}>
-            <span className="relative z-10">{loading ? '提交中…' : '重置密码'}</span>
+            <span className="relative z-10">{loading ? t('common.submitting') : t('auth.resetPassword')}</span>
           </button>
         </form>
       )}
@@ -126,7 +170,7 @@ export function ForgotPasswordPage() {
           to="/login"
           className="text-xs font-bold tracking-widest text-slate-500 transition-colors hover:text-ark-accent"
         >
-          返回登录
+          {t('auth.backToLogin')}
         </Link>
       </div>
     </AuthBrandingLayout>

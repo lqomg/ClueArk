@@ -57,7 +57,32 @@ export interface MonitorListMetrics {
 /** GET /monitors 返回项：监控实体 + 快照指标（未就绪时为 null） */
 export interface MonitorWithListMetrics extends Monitor {
   snapshotStatus?: 'pending' | 'computing' | 'ready' | 'stale' | 'failed';
+  createStatus?: 'processing' | 'ready' | 'failed';
+  createStep?: MonitorCreateStepId;
   metrics: MonitorListMetrics | null;
+}
+
+export type MonitorCreateStepId =
+  | 'understand'
+  | 'describe'
+  | 'sources'
+  | 'embedding'
+  | 'saving'
+  | 'snapshot'
+  | 'done';
+
+export interface MonitorCreateStatus {
+  monitorId: string;
+  createStatus: 'processing' | 'ready' | 'failed';
+  createStep: MonitorCreateStepId;
+  createError: string | null;
+  snapshotStatus: string;
+}
+
+export interface CreateMonitorResponse extends Monitor {
+  createStatus?: 'processing' | 'ready' | 'failed';
+  createStep?: MonitorCreateStepId;
+  snapshotStatus?: string;
 }
 
 export interface NotificationItem {

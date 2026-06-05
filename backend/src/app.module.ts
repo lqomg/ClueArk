@@ -7,6 +7,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from './modules/auth/auth.module';
 
 import { UsersModule } from './modules/users/users.module';
+import { UserPreferencesModule } from './modules/users/user-preferences.module';
 
 import { SourcesModule } from './modules/sources/sources.module';
 
@@ -131,6 +132,8 @@ function buildMongoConnectionString(): string {
     VectorStoreModule,
 
     JobCenterCoreModule,
+
+    UserPreferencesModule,
 
     NotificationsModule,
 

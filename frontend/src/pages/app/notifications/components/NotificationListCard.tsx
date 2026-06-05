@@ -1,9 +1,10 @@
+import { useTranslation } from 'react-i18next';
 import type { NotificationItem } from '@/types/models';
 import { relTimeIso } from '@/lib/datetime';
 
-function reasonOneLine(n: NotificationItem): string | null {
+function reasonOneLine(n: NotificationItem, pendingLabel: string): string | null {
   if (n.recommendReason.trim()) return n.recommendReason.trim();
-  if (n.llmStatus === 'pending' || n.llmStatus === 'processing') return '推荐理由生成中…';
+  if (n.llmStatus === 'pending' || n.llmStatus === 'processing') return pendingLabel;
   return null;
 }
 
@@ -14,8 +15,9 @@ export function NotificationListCard({
   item: NotificationItem;
   onOpen: () => void;
 }) {
-  const monitorLabel = n.monitorTitle.trim() || '未命名监控';
-  const reason = reasonOneLine(n);
+  const { t } = useTranslation();
+  const monitorLabel = n.monitorTitle.trim() || t('notifications.unnamedMonitor');
+  const reason = reasonOneLine(n, t('notifications.reasonPending'));
   const metaParts: string[] = [];
   if (n.sourceDisplayName.trim()) metaParts.push(n.sourceDisplayName.trim());
   if (reason) metaParts.push(reason);

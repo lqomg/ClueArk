@@ -4,8 +4,6 @@ import type { ConfigService } from '@nestjs/config';
 /** 与 API 默认、定时任务首期一致 */
 export const DEFAULT_BRIEF_PROFILE_ID = 'weekly_rolling';
 
-export const BRIEF_LLM_SYSTEM_VERSION = 'monitor-brief-v4';
-
 export type WindowMode = 'rolling_hours' | 'calendar_range';
 
 export type BriefProfile = {

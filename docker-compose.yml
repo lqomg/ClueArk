@@ -1,4 +1,4 @@
-# ClueArk 全栈单机部署（MongoDB + 后端 + 前端 Nginx）
+# ClueArk 全栈单机部署（MongoDB + 后端 + gateway + 前端 Nginx）
 #
 # 首次准备：
 #   1. cp .env.example .env，按需填写（生产务必设置 JWT_SECRET、ADMIN_PASSWORD、Mongo root 密码等）
@@ -8,13 +8,35 @@
 #   docker compose up -d --build
 #
 # 访问：
-#   用户产品 http://localhost:${WEB_PORT:-8080}
-#   运营后台 http://localhost:${ADMIN_WEB_PORT:-8081}（仅 admin 登录）
-# Nginx 将 /api 反代到 backend
+#   用户产品 https://clueark.com（或 http://<host>，经 gateway 默认站点）
+#   运营后台 https://admin.clueark.com（仅 admin 登录）
+#   域名与 Cloudflare 配置见 deploy/nginx/README.md
+#
+# gateway 容器按 Host 分流；web/admin-web 容器内 Nginx 将 /api 反代到 backend。
 #
 # 爬虫服务默认随栈启动（闭环抓取 Web 信源并上报主站）。
 
 services:
+  gateway:
+    image: nginx:1.27-alpine
+    container_name: clueark-gateway
+    restart: unless-stopped
+    ports:
+      - "${GATEWAY_BIND:-0.0.0.0}:${GATEWAY_PORT:-80}:80"
+    volumes:
+      - ./deploy/nginx/gateway.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      web:
+        condition: service_started
+      admin-web:
+        condition: service_started
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://127.0.0.1/']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
   redis:
     image: redis:7-alpine
     container_name: clueark-redis
@@ -37,7 +59,12 @@ services:
     volumes:
       - clueark_qdrant_data:/qdrant/storage
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:6333/readyz || exit 1"]
+      # qdrant/qdrant 镜像不含 wget/curl，用 bash /dev/tcp 探测 /readyz
+      test:
+        [
+          "CMD-SHELL",
+          "bash -c \"exec 3<>/dev/tcp/127.0.0.1/6333 && echo -e 'GET /readyz HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q 'HTTP/1.1 200' <&3\"",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -119,6 +146,8 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
+    healthcheck:
+      disable: true
 
   web:
     build:
@@ -129,8 +158,6 @@ services:
         VITE_APP_ENV: ${VITE_APP_ENV:-production}
     container_name: clueark-web
     restart: unless-stopped
-    ports:
-      - "${WEB_PORT:-80}:80"
     depends_on:
       backend:
         condition: service_healthy
@@ -143,8 +170,6 @@ services:
         VITE_API_BASE: ${ADMIN_VITE_API_BASE:-/api}
     container_name: clueark-admin-web
     restart: unless-stopped
-    ports:
-      - "${ADMIN_WEB_PORT:-8081}:80"
     depends_on:
       backend:
         condition: service_healthy

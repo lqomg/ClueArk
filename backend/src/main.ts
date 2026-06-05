@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { I18nService, I18nValidationExceptionFilter, i18nValidationErrorFactory } from 'nestjs-i18n';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { getConnectionToken } from '@nestjs/mongoose';
@@ -66,7 +67,11 @@ async function bootstrap() {
   const logger = loggerService.createLogger('Bootstrap');
   try {
     const exceptionLogger = loggerService.createLogger('ExceptionFilter');
-    app.useGlobalFilters(new AllExceptionsFilter(exceptionLogger));
+    const i18n = app.get(I18nService);
+    app.useGlobalFilters(
+      new AllExceptionsFilter(exceptionLogger, i18n as I18nService),
+      new I18nValidationExceptionFilter({ detailedErrors: false }),
+    );
     app.useGlobalInterceptors(new TransformInterceptor());
     const connection = app.get<Connection>(getConnectionToken());
     await connection.asPromise();
@@ -88,6 +93,7 @@ async function bootstrap() {
         whitelist: true,
         transform: true,
         forbidNonWhitelisted: true,
+        exceptionFactory: i18nValidationErrorFactory,
       }),
     );
     app.enableCors({

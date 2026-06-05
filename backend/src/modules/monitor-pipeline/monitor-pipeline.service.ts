@@ -1,16 +1,19 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { FeedItem, FeedItemDocument } from '../feed-items/schemas/feed-item.schema';
 import { Monitor, MonitorDocument } from '../monitors/schemas/monitor.schema';
 import { FeedSimEmbeddingService } from '../feed-items/feed-sim-embedding.service';
 import { FeedIncrementalClusterService } from '../feed-items/feed-incremental-cluster.service';
+import { FeedItemLlmService } from '../feed-items/feed-item-llm.service';
 import { VectorStoreService } from '../vector-store/vector-store.service';
 import type { FeedItemPayload, MonitorPayload } from '../vector-store/vector-store.types';
 import { NotificationsService } from '../notifications/notifications.service';
 import { JobSchedulerService } from '../job-center/job-scheduler.service';
 import { shouldEnqueueLlmEnrich } from '../feed-items/feed-llm.constants';
 import { LoggerService } from '../logger';
+import { isMonitorItemMatched, normalizeMinCosine } from '../monitors/monitor-match.util';
 
 @Injectable()
 export class MonitorPipelineService {
@@ -24,6 +27,8 @@ export class MonitorPipelineService {
     private readonly vectorStore: VectorStoreService,
     private readonly notifications: NotificationsService,
     private readonly scheduler: JobSchedulerService,
+    private readonly feedItemLlmService: FeedItemLlmService,
+    private readonly config: ConfigService,
     loggerService: LoggerService,
   ) {
     this.logger = loggerService.createLogger(MonitorPipelineService.name);
@@ -31,19 +36,6 @@ export class MonitorPipelineService {
 
   private prepTitle(title: string): string {
     return title.trim().slice(0, 512);
-  }
-
-  private keywordHit(title: string, keywords: string[], entities: string[]): boolean {
-    const t = title.toLowerCase();
-    for (const k of keywords) {
-      const w = k.trim().toLowerCase();
-      if (w && t.includes(w)) return true;
-    }
-    for (const e of entities) {
-      const w = e.trim().toLowerCase();
-      if (w && t.includes(w)) return true;
-    }
-    return false;
   }
 
   async processNewItem(feedItemId: string, sourceId: string, parentJobId?: string): Promise<void> {
@@ -88,7 +80,6 @@ export class MonitorPipelineService {
       title: title.slice(0, 200),
       link: String(item.link ?? ''),
       itemKey: String(item.itemKey ?? ''),
-      llmStatus: item.llmStatus,
       embeddingKind: 'title',
       clusterId: clusterIdStr,
     };
@@ -106,17 +97,8 @@ export class MonitorPipelineService {
 
     for (let i = 0; i < hits.length; i++) {
       const hit = hits[i];
-      const minCosine =
-        typeof hit.payload.minCosine === 'number' && Number.isFinite(hit.payload.minCosine)
-          ? Math.min(1, Math.max(0, hit.payload.minCosine))
-          : 0.43;
-      let score = hit.score;
-      if (score < minCosine) {
-        if (!this.keywordHit(title, hit.payload.keywords ?? [], hit.payload.entities ?? [])) {
-          continue;
-        }
-        score = minCosine;
-      }
+      if (!isMonitorItemMatched(hit.score, hit.payload.minCosine)) continue;
+      const score = hit.score;
       const monitorId = hit.monitorId;
       const m = await this.monitorModel.findById(monitorId).select({ title: 1, userId: 1 }).lean().exec();
       if (!m) continue;
@@ -142,7 +124,12 @@ export class MonitorPipelineService {
       .updateOne({ _id: item._id }, { $set: { pipelineStatus: 'matched' } })
       .exec();
 
-    const enrichQueued = shouldEnqueueLlmEnrich(item.llmStatus, item.summary);
+    const llmView = await this.feedItemLlmService.resolveViewById(
+      feedItemId,
+      FeedItemLlmService.defaultFallbackLocale(this.config.get<string>('APP_DEFAULT_LOCALE')),
+      FeedItemLlmService.defaultFallbackLocale(this.config.get<string>('APP_DEFAULT_LOCALE')),
+    );
+    const enrichQueued = shouldEnqueueLlmEnrich(llmView?.status ?? null, item.summary);
     if (enrichQueued) {
       await this.scheduler.enqueueEnrichItem(feedItemId, {
         trigger: 'pipeline',
@@ -215,12 +202,7 @@ export class MonitorPipelineService {
       monitorId: id,
       userId: String(monitor.userId),
       sourceIds: (monitor.sourceIds ?? []).map((x) => String(x)),
-      minCosine:
-        typeof monitor.minCosine === 'number' && Number.isFinite(monitor.minCosine)
-          ? monitor.minCosine
-          : 0.43,
-      keywords: (monitor.keywords ?? []).map(String),
-      entities: (monitor.entities ?? []).map(String),
+      minCosine: normalizeMinCosine(monitor.minCosine),
       deletedAt: monitor.deletedAt ? monitor.deletedAt.toISOString() : null,
     };
     await this.vectorStore.upsertMonitor(id, vector, payload);

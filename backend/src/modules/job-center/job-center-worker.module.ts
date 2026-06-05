@@ -5,6 +5,7 @@ import { FeedItemsModule } from '../feed-items/feed-items.module';
 import { MonitorsModule } from '../monitors/monitors.module';
 import { MonitorPipelineModule } from '../monitor-pipeline/monitor-pipeline.module';
 import { Source, SourceSchema } from '../sources/schemas/source.schema';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { JobCenterCoreModule } from './job-center-core.module';
 import { JobHandlerService } from './job-handler.service';
 import { JobProcessorsService } from './job-processors.service';
@@ -19,6 +20,7 @@ import { InternalJobsController } from './internal-jobs.controller';
     FeedItemsModule,
     MonitorsModule,
     MonitorPipelineModule,
+    NotificationsModule,
   ],
   controllers: [InternalJobsController],
   providers: [JobHandlerService, JobProcessorsService, JobTickScheduler],

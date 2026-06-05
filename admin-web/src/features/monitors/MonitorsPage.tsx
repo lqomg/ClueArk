@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { Button, Popconfirm, Tag, message } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { deleteMonitor, listMonitors } from '@/features/monitors/api';
 import { SNAPSHOT_STATUSES } from '@/shared/constants';
 import { formatDateTime } from '@/shared/utils';
@@ -18,64 +19,67 @@ const statusColor: Record<string, string> = {
 };
 
 export function MonitorsPage() {
+  const { t } = useTranslation();
   const actionRef = useRef<ActionType>();
 
   const columns: ProColumns<AdminMonitorListItem>[] = [
     {
-      title: '标题',
+      title: t('monitors.labelTitle'),
       dataIndex: 'title',
       ellipsis: true,
-      render: (_, row) => <Link to={`/monitors/${row.id}`}>{row.title || '（无标题）'}</Link>,
+      render: (_, row) => (
+        <Link to={`/monitors/${row.id}`}>{row.title || t('monitors.noTitle')}</Link>
+      ),
     },
-    { title: '话题', dataIndex: 'topicPrompt', ellipsis: true, search: false },
+    { title: t('monitors.topic'), dataIndex: 'topicPrompt', ellipsis: true, search: false },
     {
-      title: '所属用户',
+      title: t('monitors.owner'),
       dataIndex: ['owner', 'email'],
       render: (_, row) => row.owner.email || row.owner.username || row.userId,
     },
     {
-      title: 'Owner 邮箱',
+      title: t('monitors.ownerEmail'),
       dataIndex: 'ownerEmail',
       hideInTable: true,
     },
     {
-      title: '快照状态',
+      title: t('monitors.snapshotStatus'),
       dataIndex: 'status',
       valueType: 'select',
       valueEnum: Object.fromEntries(SNAPSHOT_STATUSES.map((s) => [s, { text: s }])),
       render: (_, row) => <Tag color={statusColor[row.snapshotStatus] ?? 'default'}>{row.snapshotStatus}</Tag>,
     },
-    { title: '信源数', dataIndex: 'sourceCount', search: false, width: 80 },
+    { title: t('monitors.sourceCount'), dataIndex: 'sourceCount', search: false, width: 80 },
     {
-      title: '创建时间',
+      title: t('monitors.createdAt'),
       dataIndex: 'createdAt',
       search: false,
       width: 180,
       render: (_, row) => formatDateTime(row.createdAt),
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       valueType: 'option',
       width: 160,
       render: (_, row) => [
         <Link key="detail" to={`/monitors/${row.id}`}>
-          详情
+          {t('monitors.detail')}
         </Link>,
         <Popconfirm
           key="delete"
-          title="确认删除该监控？"
+          title={t('monitors.confirmDelete')}
           onConfirm={async () => {
             try {
               await deleteMonitor(row.id);
-              message.success('已删除');
+              message.success(t('common.deleted'));
               actionRef.current?.reload();
             } catch (e) {
-              message.error(e instanceof ApiError ? e.message : '删除失败');
+              message.error(e instanceof ApiError ? e.message : t('common.deleteFailed'));
             }
           }}
         >
           <Button type="link" danger size="small">
-            删除
+            {t('common.delete')}
           </Button>
         </Popconfirm>,
       ],
@@ -84,7 +88,7 @@ export function MonitorsPage() {
 
   return (
     <ProTable<AdminMonitorListItem>
-      headerTitle="全站监控"
+      headerTitle={t('monitors.title')}
       actionRef={actionRef}
       rowKey="id"
       columns={columns}

@@ -1,9 +1,10 @@
-import { App as AntApp, ConfigProvider, Spin } from 'antd';
-import zhCN from 'antd/locale/zh_CN';
+import { App as AntApp, Spin } from 'antd';
 import { BrowserRouter } from 'react-router-dom';
 import { AppRouter } from '@/app/AppRouter';
 import { AuthBootstrap } from '@/features/auth/AuthBootstrap';
 import { useAuthStore } from '@/features/auth/authStore';
+import { AppLocaleProvider } from '@/i18n/AppLocaleProvider';
+import '@/i18n';
 
 function AppContent() {
   const authReady = useAuthStore((s) => s.authReady);
@@ -21,21 +22,13 @@ function AppContent() {
 
 export function App() {
   return (
-    <ConfigProvider
-      locale={zhCN}
-      theme={{
-        token: {
-          colorPrimary: '#1677ff',
-          borderRadius: 6,
-        },
-      }}
-    >
+    <AppLocaleProvider>
       <AntApp>
         <BrowserRouter>
           <AuthBootstrap />
           <AppContent />
         </BrowserRouter>
       </AntApp>
-    </ConfigProvider>
+    </AppLocaleProvider>
   );
 }

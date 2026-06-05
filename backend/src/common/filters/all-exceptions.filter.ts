@@ -6,17 +6,51 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { I18nContext, I18nService } from 'nestjs-i18n';
 import { LoggerService } from '../../modules/logger/logger.service';
+import { normalizeLocale } from '../utils/locale.utils';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger: LoggerService;
 
-  constructor(loggerService: LoggerService) {
+  constructor(
+    loggerService: LoggerService,
+    private readonly i18n: I18nService,
+  ) {
     this.logger = loggerService.createLogger('ExceptionFilter');
   }
 
-  catch(exception: any, host: ArgumentsHost) {
+  private resolveLang(host: ArgumentsHost, request: Request): string {
+    const ctx = I18nContext.current(host);
+    if (ctx?.lang) return normalizeLocale(ctx.lang);
+    const header = request.headers['accept-language'];
+    if (typeof header === 'string' && header.trim()) {
+      const first = header.split(',')[0]?.trim() || '';
+      const token = first.split(';')[0]?.trim() || '';
+      return normalizeLocale(token);
+    }
+    return 'en';
+  }
+
+  private extractRawMessage(message: unknown): string {
+    if (typeof message === 'string') return message;
+    if (Array.isArray(message)) return message.map((m) => String(m)).join('; ');
+    if (message && typeof message === 'object' && 'message' in message) {
+      return this.extractRawMessage((message as { message: unknown }).message);
+    }
+    return 'internal_error';
+  }
+
+  private translateMessage(raw: string, lang: string): string {
+    if (!/^[a-z][a-z0-9_]*$/i.test(raw)) return raw;
+    const key = `error.${raw}`;
+    const translated = String(this.i18n.t(key, { lang, defaultValue: '' }));
+    if (translated && translated !== key) return translated;
+    return raw;
+  }
+
+  catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
@@ -26,46 +60,27 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const message =
+    const rawResponse =
       exception instanceof HttpException
         ? exception.getResponse()
-        : exception.message || 'Internal server error';
+        : exception instanceof Error
+          ? exception.message
+          : 'internal_error';
 
-    // 统一错误响应格式
+    const lang = this.resolveLang(host, request);
+    const rawMessage = this.extractRawMessage(rawResponse);
+    const message = this.translateMessage(rawMessage, lang);
+
     const errorResponse = {
       code: status,
       data: null,
-      message: typeof message === 'string' ? message : (message as any).message || message,
+      message,
       timestamp: new Date().toISOString(),
       path: request.url,
     };
 
-    // 记录错误日志
-    this.logger.error(
-      `${request.method} ${request.url} - ${status}`,
-      exception.stack,
-      'ExceptionFilter',
-    );
-
-    // 记录详细的错误信息
-    this.logger.error({
-      message: 'Exception caught',
-      errorResponse,
-      exception: {
-        name: exception.name,
-        message: exception.message,
-        stack: exception.stack,
-      },
-      request: {
-        method: request.method,
-        url: request.url,
-        ip: request.ip,
-        userAgent: request.headers['user-agent'],
-        body: request.body,
-        query: request.query,
-        params: request.params,
-      },
-    });
+    const stack = exception instanceof Error ? exception.stack : undefined;
+    this.logger.error(`${request.method} ${request.url} - ${status}`, stack, 'ExceptionFilter');
 
     response.status(status).json(errorResponse);
   }

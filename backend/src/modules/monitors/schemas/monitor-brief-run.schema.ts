@@ -37,6 +37,9 @@ export class MonitorBriefRun {
   @Prop({ required: true, trim: true, maxlength: 128 })
   inputFingerprint: string;
 
+  @Prop({ type: String, enum: ['en', 'zh-CN', 'ja', 'ko'], default: 'en', index: true })
+  locale: string;
+
   @Prop({ type: String, enum: ['skipped_unchanged', 'succeeded', 'failed'], required: true, index: true })
   status: MonitorBriefRunStatus;
 
@@ -73,5 +76,5 @@ export class MonitorBriefRun {
 
 export const MonitorBriefRunSchema = SchemaFactory.createForClass(MonitorBriefRun);
 
-MonitorBriefRunSchema.index({ monitorId: 1, profileId: 1, status: 1, completedAt: -1 });
+MonitorBriefRunSchema.index({ monitorId: 1, profileId: 1, locale: 1, status: 1, completedAt: -1 });
 MonitorBriefRunSchema.index({ monitorId: 1, profileId: 1, periodKey: 1, completedAt: -1 });
