@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, FormField, Input, Select } from '@/components/ui';
 import { COMMON_IANA_TIME_ZONES } from '@/lib/datetime';
 import { userDisplayName, userInitials } from '@/lib/user-display';
+import type { WebSupportedLocale } from '@/lib/localeStorage';
 import { FormFeedback } from './FormFeedback';
 
 function SectionTitle({ children }: { children: string }) {
@@ -25,6 +27,8 @@ export function ProfilePanel({
   onUsernameChange,
   tzDraft,
   onTzChange,
+  localeDraft,
+  onLocaleChange,
   onSaveProfile,
   profileDirty,
   profileErr,
@@ -44,6 +48,8 @@ export function ProfilePanel({
   onUsernameChange: (value: string) => void;
   tzDraft: string;
   onTzChange: (value: string) => void;
+  localeDraft: WebSupportedLocale;
+  onLocaleChange: (value: WebSupportedLocale) => void;
   onSaveProfile: (e: React.FormEvent) => void;
   profileDirty: boolean;
   profileErr: string | null;
@@ -58,6 +64,7 @@ export function ProfilePanel({
   pwdMsg: string | null;
   pwdLoading: boolean;
 }) {
+  const { t } = useTranslation();
   const preview = userDisplayName({ email, username: usernameDraft });
   const initials = userInitials({ email, username: usernameDraft });
 
@@ -76,24 +83,24 @@ export function ProfilePanel({
         </div>
       </div>
 
-      <SectionBlock title="资料">
+      <SectionBlock title={t('profile.title')}>
         <form className="space-y-4" onSubmit={onSaveProfile}>
           {profileErr ? <FormFeedback type="error" message={profileErr} /> : null}
           {profileMsg ? <FormFeedback type="success" message={profileMsg} /> : null}
-          <FormField label="用户名" id="profile-username">
+          <FormField label={t('profile.username')} id="profile-username">
             <Input
               id="profile-username"
               value={usernameDraft}
               onChange={(e) => onUsernameChange(e.target.value)}
-              placeholder="显示名称"
+              placeholder={t('profile.displayNamePlaceholder')}
               maxLength={64}
               autoComplete="username"
             />
           </FormField>
-          <FormField label="邮箱" id="profile-email">
+          <FormField label={t('profile.email')} id="profile-email">
             <Input id="profile-email" value={email} readOnly disabled className="text-slate-400" />
           </FormField>
-          <FormField label="显示时区" id="profile-timezone">
+          <FormField label={t('profile.timezone')} id="profile-timezone">
             <Select
               id="profile-timezone"
               value={tzDraft}
@@ -107,37 +114,47 @@ export function ProfilePanel({
               ))}
             </Select>
           </FormField>
-          <p className="text-xs leading-relaxed text-slate-500">
-            情报列表、话题监控中的时间与近 7 日趋势，会按所选时区展示与统计。
-          </p>
+          <FormField label={t('profile.language')} id="profile-locale">
+            <Select
+              id="profile-locale"
+              value={localeDraft}
+              onChange={(e) => onLocaleChange(e.target.value as WebSupportedLocale)}
+              className="font-mono text-xs"
+            >
+              <option value="zh-CN">{t('profile.langZhCN')}</option>
+              <option value="en">{t('profile.langEn')}</option>
+              <option value="ja">{t('profile.langJa')}</option>
+              <option value="ko">{t('profile.langKo')}</option>
+            </Select>
+          </FormField>
           <div className="flex justify-end pt-1">
             <Button type="submit" variant="primary" size="md" disabled={!profileDirty || profileSaving}>
-              {profileSaving ? '保存中…' : '保存资料'}
+              {profileSaving ? t('profile.saving') : t('profile.save')}
             </Button>
           </div>
         </form>
       </SectionBlock>
 
-      <SectionBlock title="安全">
+      <SectionBlock title={t('profile.security')}>
         <form className="space-y-4" onSubmit={onChangePassword}>
           {pwdErr ? <FormFeedback type="error" message={pwdErr} /> : null}
           {pwdMsg ? <FormFeedback type="success" message={pwdMsg} /> : null}
           <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="原密码" id="profile-old-password">
+            <FormField label={t('profile.oldPassword')} id="profile-old-password">
               <Input
                 id="profile-old-password"
                 type="password"
-                placeholder="当前密码"
+                placeholder={t('profile.oldPasswordPlaceholder')}
                 value={oldPassword}
                 onChange={(e) => onOldPasswordChange(e.target.value)}
                 autoComplete="current-password"
               />
             </FormField>
-            <FormField label="新密码" id="profile-new-password">
+            <FormField label={t('profile.newPassword')} id="profile-new-password">
               <Input
                 id="profile-new-password"
                 type="password"
-                placeholder="至少 6 位"
+                placeholder={t('auth.passwordPlaceholder')}
                 value={newPassword}
                 onChange={(e) => onNewPasswordChange(e.target.value)}
                 autoComplete="new-password"
@@ -151,7 +168,7 @@ export function ProfilePanel({
               size="md"
               disabled={pwdLoading || !oldPassword || !newPassword}
             >
-              {pwdLoading ? '更新中…' : '更新密码'}
+              {pwdLoading ? t('profile.updatingPassword') : t('profile.updatePassword')}
             </Button>
           </div>
         </form>

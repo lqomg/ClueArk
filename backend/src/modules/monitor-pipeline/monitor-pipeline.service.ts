@@ -6,6 +6,7 @@ import { FeedItem, FeedItemDocument } from '../feed-items/schemas/feed-item.sche
 import { Monitor, MonitorDocument } from '../monitors/schemas/monitor.schema';
 import { FeedSimEmbeddingService } from '../feed-items/feed-sim-embedding.service';
 import { FeedIncrementalClusterService } from '../feed-items/feed-incremental-cluster.service';
+import { FeedItemLlmService } from '../feed-items/feed-item-llm.service';
 import { VectorStoreService } from '../vector-store/vector-store.service';
 import type { FeedItemPayload, MonitorPayload } from '../vector-store/vector-store.types';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -31,6 +32,7 @@ export class MonitorPipelineService {
     private readonly vectorStore: VectorStoreService,
     private readonly notifications: NotificationsService,
     private readonly scheduler: JobSchedulerService,
+    private readonly feedItemLlmService: FeedItemLlmService,
     private readonly config: ConfigService,
     loggerService: LoggerService,
   ) {
@@ -83,7 +85,6 @@ export class MonitorPipelineService {
       title: title.slice(0, 200),
       link: String(item.link ?? ''),
       itemKey: String(item.itemKey ?? ''),
-      llmStatus: item.llmStatus,
       embeddingKind: 'title',
       clusterId: clusterIdStr,
     };
@@ -147,7 +148,12 @@ export class MonitorPipelineService {
       .updateOne({ _id: item._id }, { $set: { pipelineStatus: 'matched' } })
       .exec();
 
-    const enrichQueued = shouldEnqueueLlmEnrich(item.llmStatus, item.summary);
+    const llmView = await this.feedItemLlmService.resolveViewById(
+      feedItemId,
+      FeedItemLlmService.defaultFallbackLocale(this.config.get<string>('APP_DEFAULT_LOCALE')),
+      FeedItemLlmService.defaultFallbackLocale(this.config.get<string>('APP_DEFAULT_LOCALE')),
+    );
+    const enrichQueued = shouldEnqueueLlmEnrich(llmView?.status ?? null, item.summary);
     if (enrichQueued) {
       await this.scheduler.enqueueEnrichItem(feedItemId, {
         trigger: 'pipeline',
@@ -221,8 +227,6 @@ export class MonitorPipelineService {
       userId: String(monitor.userId),
       sourceIds: (monitor.sourceIds ?? []).map((x) => String(x)),
       minCosine: resolveMinCosine(monitor.minCosine),
-      keywords: (monitor.keywords ?? []).map(String),
-      entities: (monitor.entities ?? []).map(String),
       deletedAt: monitor.deletedAt ? monitor.deletedAt.toISOString() : null,
     };
     await this.vectorStore.upsertMonitor(id, vector, payload);

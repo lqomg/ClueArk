@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { getDashboardFeed } from '@/api/dashboard';
 import { listMonitors } from '@/api/monitors';
@@ -17,8 +18,9 @@ import { HOME_FEED_PAGE_SIZE, HOME_FEED_RECENT_HOURS, computeDashboardSummary } 
 const SEARCH_DEBOUNCE_MS = 320;
 
 export function HomePage() {
+  const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
-  const displayName = user?.username?.trim() || user?.email?.split('@')[0] || '用户';
+  const displayName = user?.username?.trim() || user?.email?.split('@')[0] || t('common.user');
 
   const [monitors, setMonitors] = useState<Awaited<ReturnType<typeof listMonitors>> | null>(null);
   const [feed, setFeed] = useState<HomeFeedItem[]>([]);
@@ -53,12 +55,12 @@ export function HomePage() {
       setFeed(res.items);
     } catch (e) {
       if (seq !== feedReqSeq.current) return;
-      setError(e instanceof Error ? e.message : '加载情报流失败');
+      setError(e instanceof Error ? e.message : t('home.loadFeedFailed'));
       setFeed([]);
     } finally {
       if (seq === feedReqSeq.current) setLoadingFeed(false);
     }
-  }, []);
+  }, [t]);
 
   const loadBootstrap = useCallback(async () => {
     setLoadingMonitors(true);
@@ -72,14 +74,14 @@ export function HomePage() {
       setMonitors(monitorRows);
       setAlerts(notifRes.items);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '加载失败');
+      setError(e instanceof Error ? e.message : t('common.loadFailed'));
       setMonitors(null);
       setAlerts([]);
     } finally {
       setLoadingMonitors(false);
       setLoadingAlerts(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadBootstrap();
@@ -111,7 +113,7 @@ export function HomePage() {
   if (loadingMonitors) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
-        加载中…
+        {t('common.loading')}
       </div>
     );
   }
@@ -120,15 +122,15 @@ export function HomePage() {
     return (
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-4 py-8 text-center">
         {error ? <p className="text-sm text-red-400">{error}</p> : null}
-        <p className="text-slate-400">暂无监控话题</p>
+        <p className="text-slate-400">{t('home.noMonitors')}</p>
         <p className="max-w-md text-sm text-slate-500">
-          创建第一个监控话题后，首页将展示跨话题混排的实时情报流与提醒摘要。
+          {t('home.noMonitorsDesc')}
         </p>
         <Link
           to="/app/monitors/manage"
           className="inline-flex items-center justify-center rounded-lg bg-ark-accent px-4 py-2 text-sm font-bold text-black shadow-lg shadow-ark-accent/15 transition hover:opacity-95"
         >
-          创建监控话题
+          {t('monitors.create')}
         </Link>
       </div>
     );

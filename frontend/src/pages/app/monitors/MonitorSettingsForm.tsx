@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { getMonitor, patchMonitorSources } from '@/api/monitors';
 import { listSources } from '@/api/sources';
 import type { Monitor, Source } from '@/types/models';
@@ -28,6 +29,7 @@ export type MonitorSettingsFormProps = {
 };
 
 export function MonitorSettingsForm({ monitorId }: MonitorSettingsFormProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [monitor, setMonitor] = useState<Monitor | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
@@ -47,12 +49,12 @@ export function MonitorSettingsForm({ monitorId }: MonitorSettingsFormProps) {
       setSelected(new Set(m.sourceIds));
       setMinCosine(typeof m.minCosine === 'number' && Number.isFinite(m.minCosine) ? m.minCosine : 0.43);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '加载失败');
+      setError(e instanceof Error ? e.message : t('common.loadFailed'));
       setMonitor(null);
     } finally {
       setLoading(false);
     }
-  }, [monitorId]);
+  }, [monitorId, t]);
 
   useEffect(() => {
     void load();
@@ -82,7 +84,7 @@ export function MonitorSettingsForm({ monitorId }: MonitorSettingsFormProps) {
       setMonitor(updated);
       navigate(`/app/monitors?monitor=${encodeURIComponent(monitorId)}`, { replace: false });
     } catch (e) {
-      setError(e instanceof Error ? e.message : '保存失败');
+      setError(e instanceof Error ? e.message : t('common.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -97,41 +99,39 @@ export function MonitorSettingsForm({ monitorId }: MonitorSettingsFormProps) {
       <div className="min-w-0 flex-1 pr-2">
         <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-slate-500">
           <Link to="/app/monitors/manage" className="shrink-0 hover:text-ark-accent">
-            监控管理
+            {t('monitors.manage')}
           </Link>
           <span aria-hidden>/</span>
           <Link
             to={`/app/monitors/${monitorId}/timeline`}
             className="min-w-0 max-w-[10rem] truncate hover:text-ark-accent sm:max-w-[14rem]"
           >
-            {monitor?.title ?? '时间线'}
+            {monitor?.title ?? t('monitors.timeline')}
           </Link>
           <span aria-hidden>/</span>
-          <span className="shrink-0 text-slate-600">监控配置</span>
+          <span className="shrink-0 text-slate-600">{t('monitors.settings')}</span>
         </div>
-        <h1 className="mt-0.5 truncate text-sm font-black tracking-tight text-white md:text-base">监控配置</h1>
+        <h1 className="mt-0.5 truncate text-sm font-black tracking-tight text-white md:text-base">
+          {t('monitors.settings')}
+        </h1>
       </div>
     ),
-    [monitorId, monitor?.title],
+    [monitorId, monitor?.title, t],
   );
 
   return (
     <div className="relative mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-6">
-      <p className="text-xs text-slate-500">
-        可修改绑定信源与语义相关度阈值；信源须全部为当前已启用。保存后时间线按新条件过滤。
-      </p>
+      <p className="text-xs text-slate-500">{t('monitors.settingsDesc')}</p>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
       {loading ? (
-        <p className="text-sm text-slate-500">加载中…</p>
+        <p className="text-sm text-slate-500">{t('common.loading')}</p>
       ) : (
         <>
           <div className="rounded-xl border border-ark-border bg-ark-surface/40 p-4">
-            <div className="text-sm font-medium text-slate-200">最低语义相关度</div>
-            <p className="mt-1 text-[11px] text-slate-500">
-              仅展示与监控话题描述相似度 ≥ 该值的动态。调高更精准、条数更少；调低更宽松。
-            </p>
+            <div className="text-sm font-medium text-slate-200">{t('monitors.minSimilarity')}</div>
+            <p className="mt-1 text-[11px] text-slate-500">{t('monitors.minSimilarityHint')}</p>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <input
                 type="range"
@@ -141,7 +141,7 @@ export function MonitorSettingsForm({ monitorId }: MonitorSettingsFormProps) {
                 value={minCosine}
                 onChange={(e) => setMinCosine(Number(e.target.value))}
                 className="h-2 min-w-[200px] flex-1 cursor-pointer accent-ark-accent"
-                aria-label="最低相似度"
+                aria-label={t('monitors.minSimilarityAria')}
               />
               <span className="tabular-nums text-sm font-semibold text-ark-accent">{minCosine.toFixed(2)}</span>
             </div>
@@ -170,10 +170,10 @@ export function MonitorSettingsForm({ monitorId }: MonitorSettingsFormProps) {
           </ul>
           <div className="flex flex-wrap gap-3">
             <Button type="button" variant="primary" size="md" disabled={saving} onClick={() => void save()}>
-              {saving ? '保存中…' : '保存'}
+              {saving ? t('profile.saving') : t('common.save')}
             </Button>
             <Button type="button" variant="outline" disabled={saving} onClick={handleCancel}>
-              取消
+              {t('common.cancel')}
             </Button>
           </div>
         </>

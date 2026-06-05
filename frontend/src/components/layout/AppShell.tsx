@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Bell, Bookmark, Home, LayoutDashboard, LayoutList, LogOut, User } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { ProductMark } from '@/components/brand/ProductMark';
 import { GithubRepoLink } from '@/components/GithubRepoLink';
 import { ShellSidebarUser } from '@/components/layout/ShellSidebarUser';
@@ -35,6 +36,7 @@ export function AppShell() {
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
   const { count: unreadCount } = useNotificationUnread();
+  const { t } = useTranslation();
 
   function logout() {
     clear();
@@ -47,7 +49,7 @@ export function AppShell() {
         <div className="p-6">
           <ProductMark variant="sidebar" to="/app/home" className="mb-3" />
           <p className="mb-8 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">
-            个人情报助手
+            {t('app.tagline')}
           </p>
 
           <nav className="space-y-1">
@@ -55,7 +57,7 @@ export function AppShell() {
               {({ isActive }) => (
                 <>
                   <Home size={18} className={shellNavIconClass(isActive)} />
-                  首页
+                  {t('nav.home')}
                 </>
               )}
             </NavLink>
@@ -64,7 +66,7 @@ export function AppShell() {
               {({ isActive }) => (
                 <>
                   <LayoutDashboard size={18} className={shellNavIconClass(isActive)} />
-                  话题监控
+                  {t('nav.monitors')}
                 </>
               )}
             </NavLink>
@@ -73,7 +75,7 @@ export function AppShell() {
               {({ isActive }) => (
                 <>
                   <LayoutList size={18} className={shellNavIconClass(isActive)} />
-                  监控管理
+                  {t('nav.manage')}
                 </>
               )}
             </NavLink>
@@ -82,7 +84,7 @@ export function AppShell() {
               {({ isActive }) => (
                 <>
                   <Bell size={18} className={shellNavIconClass(isActive)} />
-                  <span className="min-w-0 flex-1 text-left">通知中心</span>
+                  <span className="min-w-0 flex-1 text-left">{t('nav.notifications')}</span>
                   <UnreadBadge count={unreadCount} />
                 </>
               )}
@@ -91,7 +93,7 @@ export function AppShell() {
               {({ isActive }) => (
                 <>
                   <Bookmark size={18} className={shellNavIconClass(isActive)} />
-                  信源
+                  {t('nav.sources')}
                 </>
               )}
             </NavLink>
@@ -110,7 +112,7 @@ export function AppShell() {
               onClick={logout}
             >
               <LogOut size={18} className="transition-transform group-hover:-translate-x-0.5" />
-              退出登录
+              {t('nav.logout')}
             </button>
           </div>
         </div>
@@ -124,26 +126,26 @@ export function AppShell() {
             <div className="flex items-center gap-3">
               <GithubRepoLink showUrl={false} iconSize={20} className="text-slate-500 hover:text-ark-accent" />
               <button type="button" className="text-xs text-slate-500 hover:text-ark-accent" onClick={logout}>
-                退出
+                {t('nav.logout')}
               </button>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-slate-500">
             <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/home">
               <Home size={14} />
-              首页
+              {t('nav.home')}
             </Link>
             <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/monitors">
               <LayoutDashboard size={14} />
-              话题监控
+              {t('nav.monitors')}
             </Link>
             <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/monitors/manage">
               <LayoutList size={14} />
-              监控管理
+              {t('nav.manage')}
             </Link>
             <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/notifications">
               <Bell size={14} />
-              通知
+              {t('nav.notifications')}
               {unreadCount > 0 ? (
                 <span className="rounded-full bg-ark-accent/20 px-1.5 text-[10px] font-medium text-ark-accent">
                   {unreadCount > 99 ? '99+' : unreadCount}
@@ -152,11 +154,11 @@ export function AppShell() {
             </Link>
             <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/sources">
               <Bookmark size={14} />
-              信源
+              {t('nav.sources')}
             </Link>
             <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/me">
               <User size={14} />
-              我的
+              {t('nav.profile')}
             </Link>
           </div>
         </header>

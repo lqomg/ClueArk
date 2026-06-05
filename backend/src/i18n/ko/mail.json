@@ -1,0 +1,20 @@
+{
+  "otpSubject": {
+    "register": "ClueArk 등록 인증 코드",
+    "login_otp": "ClueArk 로그인 코드",
+    "password_reset": "ClueArk 비밀번호 재설정 코드"
+  },
+  "otpHeadline": {
+    "register": "등록 확인",
+    "login_otp": "로그인 확인",
+    "password_reset": "비밀번호 재설정"
+  },
+  "otpTextHeader": "【ClueArk】{headline}",
+  "otpCodeLine": "인증 코드: {code} (15분간 유효)",
+  "otpTextFooter": "ClueArk는 RSS, 웹 목록, 핫 API 등을 집계하여 토픽 모니터링을 지원합니다. 본인 요청이 아니면 무시하세요.",
+  "otpTextAuto": "자동 발송 메일입니다. 회신하지 마세요.",
+  "otpHtmlIntro": "본인 확인 중입니다. <strong style=\"color:#0f172a;\">15분 이내</strong>에 아래 코드를 입력하세요. 본인 요청이 아니면 무시하세요.",
+  "otpHtmlAboutTitle": "ClueArk 소개",
+  "otpHtmlAboutBody": "개인 및 팀을 위한 공개 소스 정보 워크스페이스. 공유 소스 풀에서 탐색·필터·추적할 수 있습니다.",
+  "otpHtmlAuto": "자동 발송 · 회신 불가"
+}

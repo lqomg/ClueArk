@@ -1,23 +1,22 @@
 import { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
-import { getEnvironmentNotice, type EnvironmentNotice as Notice } from '@/lib/app-env';
+import { getAppEnv, type AppEnv } from '@/lib/app-env';
 
 const DISMISS_KEY_PREFIX = 'ark-env-notice-dismissed:';
 
-function noticeStyles(notice: Notice, placement: 'banner' | 'inline') {
-  const isDev = notice.env === 'development';
+function noticeStyles(env: Exclude<AppEnv, 'production'>, placement: 'banner' | 'inline') {
+  const isDev = env === 'development';
   if (placement === 'inline') {
-    return isDev
-      ? 'text-amber-500/95'
-      : 'text-orange-400/95';
+    return isDev ? 'text-amber-500/95' : 'text-orange-400/95';
   }
   return isDev
     ? 'border-amber-500/25 bg-amber-500/10 text-amber-100'
     : 'border-orange-500/25 bg-orange-500/10 text-orange-100';
 }
 
-function dismissStorageKey(notice: Notice) {
-  return `${DISMISS_KEY_PREFIX}${notice.env}`;
+function dismissStorageKey(env: Exclude<AppEnv, 'production'>) {
+  return `${DISMISS_KEY_PREFIX}${env}`;
 }
 
 function readDismissed(key: string): boolean {
@@ -37,35 +36,40 @@ function writeDismissed(key: string): void {
 }
 
 export function EnvironmentBanner() {
-  const notice = useMemo(() => getEnvironmentNotice(), []);
-  const dismissKey = notice ? dismissStorageKey(notice) : '';
-  const canDismiss = notice?.env === 'demo';
+  const { t } = useTranslation();
+  const env = useMemo(() => getAppEnv(), []);
+  const noticeEnv = env === 'development' || env === 'demo' ? env : null;
+  const dismissKey = noticeEnv ? dismissStorageKey(noticeEnv) : '';
+  const canDismiss = noticeEnv === 'demo';
   const [dismissed, setDismissed] = useState(() =>
-    notice && canDismiss ? readDismissed(dismissKey) : false,
+    noticeEnv && canDismiss ? readDismissed(dismissKey) : false,
   );
 
   const dismiss = useCallback(() => {
-    if (!notice || !canDismiss) return;
+    if (!noticeEnv || !canDismiss) return;
     writeDismissed(dismissKey);
     setDismissed(true);
-  }, [canDismiss, dismissKey, notice]);
+  }, [canDismiss, dismissKey, noticeEnv]);
 
-  if (!notice || dismissed) return null;
+  if (!noticeEnv || dismissed) return null;
+
+  const title = noticeEnv === 'development' ? t('env.devTitle') : t('env.demoTitle');
+  const detail = noticeEnv === 'development' ? t('env.devDetail') : t('env.demoDetail');
 
   return (
     <div
       role="status"
-      className={`flex shrink-0 items-start gap-2 border-b px-4 py-2 text-xs leading-relaxed md:px-6 ${noticeStyles(notice, 'banner')}`}
+      className={`flex shrink-0 items-start gap-2 border-b px-4 py-2 text-xs leading-relaxed md:px-6 ${noticeStyles(noticeEnv, 'banner')}`}
     >
       <p className="min-w-0 flex-1">
-        <span className="font-semibold">{notice.title}</span>
-        <span className="text-white/70"> · {notice.detail}</span>
+        <span className="font-semibold">{title}</span>
+        <span className="text-white/70"> · {detail}</span>
       </p>
       {canDismiss ? (
         <button
           type="button"
           className="shrink-0 rounded p-0.5 text-white/60 transition hover:bg-white/10 hover:text-white"
-          aria-label="关闭提示"
+          aria-label={t('common.dismiss')}
           onClick={dismiss}
         >
           <X size={14} />
@@ -77,16 +81,21 @@ export function EnvironmentBanner() {
 
 /** 登录/找回密码等认证页底部环境说明 */
 export function EnvironmentNoticeInline() {
-  const notice = useMemo(() => getEnvironmentNotice(), []);
-  if (!notice) return null;
+  const { t } = useTranslation();
+  const env = useMemo(() => getAppEnv(), []);
+  const noticeEnv = env === 'development' || env === 'demo' ? env : null;
+  if (!noticeEnv) return null;
+
+  const title = noticeEnv === 'development' ? t('env.devTitle') : t('env.demoTitle');
+  const detail = noticeEnv === 'development' ? t('env.devDetail') : t('env.demoDetail');
 
   return (
     <p
       role="status"
-      className={`px-1 text-center text-[12px] leading-relaxed tracking-wide ${noticeStyles(notice, 'inline')}`}
+      className={`px-1 text-center text-[12px] leading-relaxed tracking-wide ${noticeStyles(noticeEnv, 'inline')}`}
     >
-      <span className="font-semibold">{notice.title}</span>
-      <span className="text-slate-500"> · {notice.detail}</span>
+      <span className="font-semibold">{title}</span>
+      <span className="text-slate-500"> · {detail}</span>
     </p>
   );
 }

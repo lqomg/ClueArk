@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import { Activity, Shield, Target } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/cn';
 
 export function TrendSpark({ counts, className }: { counts: number[]; className?: string }) {
@@ -106,6 +107,7 @@ export function HomeMetricCards({
   trendSpark: number[];
   snapshotReadyRate: number | null;
 }) {
+  const { t } = useTranslation();
   const deltaLabel =
     trendDeltaPct == null
       ? null
@@ -114,23 +116,23 @@ export function HomeMetricCards({
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <MetricCard
-        label="监控话题"
+        label={t('home.metricTopics')}
         value={monitorCount}
-        hint="正在监控中的话题"
+        hint={t('home.metricTopicsHint')}
         icon={Target}
       />
       <MetricCard
-        label="今日情报量"
+        label={t('home.metricTodayCount')}
         value={todayIntel}
-        hint="近 24 小时新增条目"
+        hint={t('home.metricTodayHint')}
         icon={Activity}
         delta={deltaLabel}
         footer={<TrendSpark counts={trendSpark} />}
       />
       <MetricCard
-        label="研判就绪率"
+        label={t('home.metricReadyRate')}
         value={snapshotReadyRate != null ? `${snapshotReadyRate}%` : '—'}
-        hint="快照已就绪的监控占比"
+        hint={t('home.metricReadyHint')}
         icon={Shield}
       />
     </div>

@@ -27,6 +27,12 @@ export class MonitorsController {
     return this.monitorsService.create(userId, dto);
   }
 
+  @Get(':id/create-status')
+  getCreateStatus(@CurrentUser('userId') userId: string, @Param('id') id: string) {
+    this.logger.log(`GET /monitors/:id/create-status monitorId=${id} userId=${userId}`);
+    return this.monitorsService.getCreateStatus(id, userId);
+  }
+
   @Get(':id/feed-items')
   listFeed(
     @CurrentUser('userId') userId: string,

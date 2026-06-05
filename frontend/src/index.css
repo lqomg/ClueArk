@@ -101,4 +101,63 @@ input[type='checkbox'] {
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  .monitor-create-ring-spin {
+    animation: monitor-create-ring-spin 10s linear infinite;
+  }
+
+  .monitor-create-glow {
+    animation: monitor-create-glow-pulse 3.5s ease-in-out infinite;
+  }
+
+  .monitor-create-step-enter {
+    animation: monitor-create-step-enter 0.38s ease-out both;
+  }
+
+  .monitor-create-success-pop {
+    animation: monitor-create-success-pop 0.5s cubic-bezier(0.34, 1.45, 0.64, 1) both;
+  }
+}
+
+@keyframes monitor-create-ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes monitor-create-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.28;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes monitor-create-step-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes monitor-create-success-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  65% {
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }

@@ -6,7 +6,6 @@ export type FeedItemPayload = {
   title: string;
   link: string;
   itemKey: string;
-  llmStatus: string;
   embeddingKind: 'title' | 'full';
   clusterId?: string | null;
 };
@@ -17,8 +16,6 @@ export type MonitorPayload = {
   userId: string;
   sourceIds: string[];
   minCosine: number;
-  keywords: string[];
-  entities: string[];
   deletedAt: string | null;
 };
 

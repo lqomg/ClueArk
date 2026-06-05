@@ -167,17 +167,31 @@ export class JobSchedulerService {
     });
   }
 
+  async enqueueCreateMonitor(
+    monitorId: string,
+    userId: string,
+    topic: string,
+    opts?: { trigger?: EnqueueInput['trigger'] },
+  ): Promise<EnqueueResult> {
+    return this.enqueue({
+      type: 'create_monitor',
+      payload: { monitorId, userId, topic },
+      trigger: opts?.trigger ?? 'api',
+      priority: 2,
+    });
+  }
+
   async enqueueRunBrief(
     monitorId: string,
     profileId: string,
-    opts?: { trigger?: EnqueueInput['trigger']; uniqueSuffix?: string },
+    opts?: { trigger?: EnqueueInput['trigger']; uniqueSuffix?: string; locale?: string },
   ): Promise<EnqueueResult> {
     const dedupeKey = opts?.uniqueSuffix
       ? `brief:${monitorId}:${profileId}:${opts.uniqueSuffix}`
       : undefined;
     return this.enqueue({
       type: 'run_brief',
-      payload: { monitorId, profileId },
+      payload: { monitorId, profileId, locale: opts?.locale },
       trigger: opts?.trigger ?? 'cron',
       dedupeKey,
     });

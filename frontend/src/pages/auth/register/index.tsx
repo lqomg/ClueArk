@@ -1,17 +1,21 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { register as registerApi, sendRegisterCode } from '@/api/auth';
-import { useAuthStore } from '@/stores/authStore';
+import { authUserFromTokenResponse, useAuthStore } from '@/stores/authStore';
+import { changeWebLanguage } from '@/i18n';
 import {
   AuthBrandingLayout,
   inputClass,
   inputFlexClass,
   primaryBtnClass,
-  sendCodeBtnClass,
 } from '@/components/auth/AuthBrandingLayout';
-import { authErrBoxClass } from '../utils';
+import { useOtpResendCooldown } from '@/hooks/useOtpResendCooldown';
+import { OtpSendCodeButton } from '../components/OtpSendCodeButton';
+import { authErrBoxClass, isOtpRateLimitedError } from '../utils';
 
 export function RegisterPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const setSession = useAuthStore((s) => s.setSession);
   const [email, setEmail] = useState('');
@@ -23,6 +27,7 @@ export function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
+  const { remaining: codeCooldown, startCooldown: startCodeCooldown } = useOtpResendCooldown();
 
   async function onSendCode() {
     setError(null);
@@ -30,8 +35,10 @@ export function RegisterPage() {
     try {
       await sendRegisterCode({ email });
       setCodeSent(true);
+      startCodeCooldown();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '发送失败');
+      if (isOtpRateLimitedError(err)) startCodeCooldown();
+      setError(err instanceof Error ? err.message : t('auth.sendFailed'));
     } finally {
       setSendingCode(false);
     }
@@ -41,39 +48,34 @@ export function RegisterPage() {
     e.preventDefault();
     setError(null);
     if (!acceptTerms) {
-      setError('请先阅读并勾选同意用户协议与隐私政策');
+      setError(t('auth.acceptTermsRequired'));
       return;
     }
     if (!codeSent) {
-      setError('请先获取邮箱验证码');
+      setError(t('auth.requestCodeFirst'));
       return;
     }
     setLoading(true);
     try {
       const data = await registerApi({ email, code, password, confirmPassword, acceptTerms });
-      const uid = data.user.id || data.user._id;
-      setSession(data.access_token, {
-        id: uid,
-        email: data.user.email,
-        username: data.user.username,
-        role: data.user.role,
-        timeZone: data.user.timeZone,
-      });
+      const user = authUserFromTokenResponse(data);
+      setSession(data.access_token, user);
+      changeWebLanguage(user.locale);
       navigate('/app/sources', { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : '注册失败');
+      setError(err instanceof Error ? err.message : t('auth.registerFailed'));
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <AuthBrandingLayout title="注册" subtitle="使用邮箱验证码完成注册" showLegalFooter={false}>
+    <AuthBrandingLayout title={t('auth.register')} subtitle={t('auth.registerSubtitle')} showLegalFooter={false}>
       <form className="space-y-3.5" onSubmit={onSubmit}>
         {error ? <div className={authErrBoxClass}>{error}</div> : null}
         <div className="space-y-1.5">
           <label className="pl-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            邮箱 <span className="text-ark-accent opacity-60">*</span>
+            {t('auth.email')} <span className="text-ark-accent opacity-60">*</span>
           </label>
           <div className="flex min-w-0 items-stretch gap-2">
             <input
@@ -85,24 +87,28 @@ export function RegisterPage() {
               placeholder="name@company.com"
               required
             />
-            <button
-              type="button"
-              disabled={sendingCode || !email.trim()}
+            <OtpSendCodeButton
               onClick={() => void onSendCode()}
-              className={sendCodeBtnClass}
-            >
-              {sendingCode ? '发送中…' : codeSent ? '重新获取' : '获取验证码'}
-            </button>
+              sending={sendingCode}
+              sent={codeSent}
+              cooldown={codeCooldown}
+              emailReady={!!email.trim()}
+            />
           </div>
           {codeSent ? (
             <p className="pl-1 text-[11px] leading-relaxed text-slate-500">
-              验证码已发至邮箱，15 分钟内有效（请留意垃圾箱）。
+              {t('auth.codeSentRegister')}
+              {codeCooldown > 0 ? (
+                <span className="mt-0.5 block text-slate-600">
+                  {t('auth.resendInSeconds', { seconds: codeCooldown })}
+                </span>
+              ) : null}
             </p>
           ) : null}
         </div>
         <div className="space-y-1.5">
           <label className="pl-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            6 位验证码 <span className="text-ark-accent opacity-60">*</span>
+            {t('auth.codeLabel')} <span className="text-ark-accent opacity-60">*</span>
           </label>
           <input
             className={`${inputClass} max-w-[12rem] tracking-widest`}
@@ -117,7 +123,7 @@ export function RegisterPage() {
         </div>
         <div className="space-y-1.5">
           <label className="pl-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            密码（至少 6 位） <span className="text-ark-accent opacity-60">*</span>
+            {t('auth.passwordMin')} <span className="text-ark-accent opacity-60">*</span>
           </label>
           <input
             type="password"
@@ -125,14 +131,14 @@ export function RegisterPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="new-password"
-            placeholder="至少 6 位"
+            placeholder={t('auth.passwordPlaceholder')}
             required
             minLength={6}
           />
         </div>
         <div className="space-y-1.5">
           <label className="pl-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            确认密码 <span className="text-ark-accent opacity-60">*</span>
+            {t('auth.confirmPassword')} <span className="text-ark-accent opacity-60">*</span>
           </label>
           <input
             type="password"
@@ -140,7 +146,7 @@ export function RegisterPage() {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             autoComplete="new-password"
-            placeholder="再次输入"
+            placeholder={t('auth.confirmPlaceholder')}
             required
             minLength={6}
           />
@@ -153,18 +159,18 @@ export function RegisterPage() {
             onChange={(e) => setAcceptTerms(e.target.checked)}
           />
           <span>
-            我已阅读并同意
+            {t('auth.acceptTerms')}
             <Link to="/legal/terms" className="mx-0.5 text-ark-accent hover:underline" target="_blank">
-              《用户服务协议》
+              {t('auth.termsOfService')}
             </Link>
-            与
+            {t('auth.conjunctionAnd')}
             <Link to="/legal/privacy" className="mx-0.5 text-ark-accent hover:underline" target="_blank">
-              《隐私政策》
+              {t('auth.privacyPolicy')}
             </Link>
           </span>
         </label>
         <button type="submit" disabled={loading} className={primaryBtnClass}>
-          <span className="relative z-10">{loading ? '提交中…' : '注册并登录'}</span>
+          <span className="relative z-10">{loading ? t('common.submitting') : t('auth.registerSubmit')}</span>
         </button>
       </form>
 
@@ -173,7 +179,7 @@ export function RegisterPage() {
           to="/login"
           className="text-xs font-bold tracking-widest text-slate-500 transition-colors hover:text-ark-accent"
         >
-          已有账号？返回登录
+          {t('auth.hasAccount')}
         </Link>
       </div>
     </AuthBrandingLayout>

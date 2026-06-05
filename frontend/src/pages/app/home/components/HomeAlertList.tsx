@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 import type { NotificationItem } from '@/types/models';
@@ -5,6 +6,7 @@ import { relTimeIso } from '@/lib/datetime';
 import { importanceScore } from '../utils';
 
 export function HomeAlertList({ alerts, loading }: { alerts: NotificationItem[]; loading: boolean }) {
+  const { t } = useTranslation();
   const top = alerts.slice(0, 6);
 
   return (
@@ -12,19 +14,19 @@ export function HomeAlertList({ alerts, loading }: { alerts: NotificationItem[];
       <header className="flex shrink-0 items-center justify-between gap-2 border-b border-white/[0.06] px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
           <AlertTriangle className="size-4 shrink-0 text-amber-400/90" strokeWidth={2} aria-hidden />
-          <h2 className="text-sm font-semibold text-white">实时提醒</h2>
-          <span className="text-[10px] text-slate-600">紧急事件推送</span>
+          <h2 className="text-sm font-semibold text-white">{t('home.alerts')}</h2>
+          <span className="text-[10px] text-slate-600">{t('home.alertsUrgent')}</span>
         </div>
         <Link to="/app/notifications" className="shrink-0 text-[11px] font-medium text-slate-400 transition hover:text-ark-accent hover:underline">
-          全部
+          {t('common.all')}
         </Link>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2 [scrollbar-width:thin]">
         {loading ? (
-          <p className="py-8 text-center text-xs text-slate-500">加载中…</p>
+          <p className="py-8 text-center text-xs text-slate-500">{t('common.loading')}</p>
         ) : top.length === 0 ? (
-          <p className="py-8 text-center text-xs text-slate-500">暂无未读或最新提醒</p>
+          <p className="py-8 text-center text-xs text-slate-500">{t('home.noAlerts')}</p>
         ) : (
           <ol className="space-y-1">
             {top.map((n, idx) => {

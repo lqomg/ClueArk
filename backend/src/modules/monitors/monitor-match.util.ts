@@ -1,12 +1,16 @@
 import { cosineSimilarity } from '../feed-items/feed-similarity.util';
 
 export const DEFAULT_MONITOR_MATCH_RECENT_HOURS = 720;
+export const DEFAULT_MIN_COSINE = 0.43;
 
 export function resolveMinCosine(raw: number | null | undefined): number {
   return typeof raw === 'number' && Number.isFinite(raw)
     ? Math.min(1, Math.max(0, raw))
-    : 0.43;
+    : DEFAULT_MIN_COSINE;
 }
+
+/** @deprecated 使用 resolveMinCosine */
+export const normalizeMinCosine = resolveMinCosine;
 
 export function resolveMatchRecentHours(configValue: unknown): number {
   const raw = Number(configValue);
@@ -72,4 +76,8 @@ export function evaluateMonitorMatchVectors(
   const score = cosineSimilarity(params.itemVector, params.monitorVector);
   const { itemVector: _i, monitorVector: _m, ...rest } = params;
   return evaluateMonitorMatch({ ...rest, score });
+}
+
+export function isMonitorItemMatched(score: number, minCosine: unknown): boolean {
+  return Number.isFinite(score) && score >= resolveMinCosine(minCosine as number | null | undefined);
 }

@@ -7,43 +7,11 @@ import type { LlmChatPort } from '../llm/llm.types';
 import { JobSchedulerService } from '../job-center/job-scheduler.service';
 import { Source, SourceDocument } from '../sources/schemas/source.schema';
 import { FeedItem, FeedItemDocument } from './schemas/feed-item.schema';
+import { FeedItemLlm, FeedItemLlmDocument } from './schemas/feed-item-llm.schema';
+import { FeedItemLlmService } from './feed-item-llm.service';
 import { buildFeedEnrichSystemPrompt, buildFeedEnrichUserPayload } from './feed-llm-prompts';
 import { FEED_MIN_SUMMARY_LEN_FOR_LLM } from './feed-llm.constants';
-
-const MAX_TAGS = 6;
-const MAX_TAG_LEN = 24;
-
-type EnrichJson = {
-  tags?: unknown;
-  recommendReason?: unknown;
-};
-
-/** 开放标签：去重、长度与数量限制，不做词表过滤 */
-function normalizeTags(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (let i = 0; i < raw.length && out.length < MAX_TAGS; i++) {
-    const t = String(raw[i] ?? '')
-      .trim()
-      .slice(0, MAX_TAG_LEN);
-    if (!t) continue;
-    const k = t.toLowerCase();
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(t);
-  }
-  return out;
-}
-
-function normalizeReason(raw: unknown): string {
-  const s = typeof raw === 'string' ? raw.trim() : String(raw ?? '').trim();
-  return s.slice(0, 2000);
-}
-
-function isEnrichShape(v: unknown): v is EnrichJson {
-  return v != null && typeof v === 'object';
-}
+import { parseAndValidateEnrichResponse } from './feed-llm-enrich.parse';
 
 @Injectable()
 export class FeedLlmEnrichService {
@@ -51,16 +19,14 @@ export class FeedLlmEnrichService {
 
   constructor(
     @InjectModel(FeedItem.name) private readonly feedItemModel: Model<FeedItemDocument>,
+    @InjectModel(FeedItemLlm.name) private readonly llmModel: Model<FeedItemLlmDocument>,
     @InjectModel(Source.name) private readonly sourceModel: Model<SourceDocument>,
     @Inject(LLM_CHAT) private readonly llm: LlmChatPort,
     private readonly config: ConfigService,
     private readonly scheduler: JobSchedulerService,
+    private readonly llmService: FeedItemLlmService,
   ) {}
 
-  /**
-   * 将被监控信源上的 pending（或超时 processing）条目入队 enrich_llm。
-   * 供管理员补救；日常由 pipeline 在 process_new_item 后入队。
-   */
   async enqueueMonitoredPending(limit: number): Promise<{ enqueued: number; skipped: boolean }> {
     const key = this.config.get<string>('DEEPSEEK_API_KEY')?.trim();
     if (!key) {
@@ -81,70 +47,73 @@ export class FeedLlmEnrichService {
     const sourceIds = monitored.map((s) => s._id as Types.ObjectId);
     if (!sourceIds.length) return { enqueued: 0, skipped: false };
 
-    const docs = await this.feedItemModel
+    const llmRows = await this.llmModel
       .find({
-        sourceId: { $in: sourceIds },
-        $or: [{ llmStatus: 'pending' }, { llmStatus: 'processing', updatedAt: { $lt: staleBefore } }],
+        $or: [{ status: 'pending' }, { status: 'processing', updatedAt: { $lt: staleBefore } }],
       })
-      .sort({ createdAt: 1 })
-      .limit(n)
+      .sort({ updatedAt: 1 })
+      .limit(n * 3)
+      .select({ feedItemId: 1 })
+      .lean()
+      .exec();
+    if (!llmRows.length) return { enqueued: 0, skipped: false };
+
+    const candidateIds = llmRows.map((r) => r.feedItemId as Types.ObjectId);
+    const monitoredItems = await this.feedItemModel
+      .find({ _id: { $in: candidateIds }, sourceId: { $in: sourceIds } })
       .select({ _id: 1 })
+      .limit(n)
       .lean()
       .exec();
 
-    for (let i = 0; i < docs.length; i++) {
-      await this.scheduler.enqueueEnrichItem(String(docs[i]._id), { trigger: 'manual' });
+    for (const row of monitoredItems) {
+      await this.scheduler.enqueueEnrichItem(String(row._id), { trigger: 'manual' });
     }
-    if (docs.length) {
-      this.logger.debug(`event=enrich_monitored_pending_enqueued count=${docs.length}`);
+    if (monitoredItems.length) {
+      this.logger.debug(`event=enrich_monitored_pending_enqueued count=${monitoredItems.length}`);
     }
-    return { enqueued: docs.length, skipped: false };
+    return { enqueued: monitoredItems.length, skipped: false };
   }
 
-  /** 队列 worker：按 id 富化单条 */
   async enrichOneById(feedItemId: string): Promise<void> {
     const key = this.config.get<string>('DEEPSEEK_API_KEY')?.trim();
     if (!key) return;
+    const oid = Types.ObjectId.isValid(feedItemId) ? new Types.ObjectId(feedItemId) : null;
+    if (!oid) return;
+
+    const existing = await this.llmModel
+      .findOne({ feedItemId: oid, status: { $in: ['done', 'skipped'] } })
+      .lean()
+      .exec();
+    if (existing) return;
+
     const doc = await this.feedItemModel
       .findById(feedItemId)
       .populate({ path: 'sourceId', select: 'displayName' })
       .lean()
       .exec();
     if (!doc) return;
-    if (doc.llmStatus === 'done' || doc.llmStatus === 'skipped') {
-      return;
-    }
+
     try {
-      await this.enrichOne(doc as Record<string, unknown>);
+      await this.enrichOne(doc as Record<string, unknown>, oid);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      await this.feedItemModel
-        .updateOne({ _id: feedItemId }, { $set: { llmStatus: 'failed', llmError: msg.slice(0, 2000) } })
-        .exec();
-      this.logger.warn(`LLM 富化失败 [${feedItemId}]: ${msg}`);
+      await this.llmService.upsertFailed(oid, msg);
+      this.logger.warn(`LLM enrich failed [${feedItemId}]: ${msg}`);
     }
   }
 
-  private async enrichOne(doc: Record<string, unknown>): Promise<void> {
+  private async enrichOne(doc: Record<string, unknown>, feedItemId: Types.ObjectId): Promise<void> {
     const title = String(doc.title ?? '');
     const summary = String(doc.summary ?? '');
+
     if (summary.trim().length < FEED_MIN_SUMMARY_LEN_FOR_LLM) {
-      await this.feedItemModel
-        .updateOne(
-          { _id: doc._id as Types.ObjectId },
-          {
-            $set: {
-              llmStatus: 'skipped',
-              llmTags: [],
-              llmRecommendReason: '',
-              llmModel: '',
-              llmError: '',
-            },
-          },
-        )
-        .exec();
+      await this.llmService.upsertSkipped(feedItemId);
       return;
     }
+
+    await this.llmService.markProcessing(feedItemId);
+
     const sid = doc.sourceId;
     let sourceDisplayName = '';
     if (sid && typeof sid === 'object') {
@@ -154,25 +123,13 @@ export class FeedLlmEnrichService {
     const system = buildFeedEnrichSystemPrompt();
     const user = buildFeedEnrichUserPayload({ title, summary, sourceDisplayName });
     const raw = await this.llm.completeJson<unknown>(system, user);
-    if (!isEnrichShape(raw)) throw new Error('LLM 返回格式无效');
-
-    const llmTags = normalizeTags(raw.tags);
-    const llmRecommendReason = normalizeReason(raw.recommendReason);
+    const parsed = parseAndValidateEnrichResponse(raw);
     const llmModel = this.config.get<string>('DEEPSEEK_MODEL')?.trim() || 'deepseek-chat';
 
-    await this.feedItemModel
-      .updateOne(
-        { _id: doc._id as Types.ObjectId },
-        {
-          $set: {
-            llmStatus: 'done',
-            llmTags,
-            llmRecommendReason,
-            llmModel,
-            llmError: '',
-          },
-        },
-      )
-      .exec();
+    await this.llmService.upsertDone(feedItemId, {
+      tagKeys: parsed.tagKeys,
+      locales: parsed.locales,
+      llmModel,
+    });
   }
 }

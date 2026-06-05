@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ArrowUp, Layers, Search } from 'lucide-react';
 import { listSources } from '@/api/sources';
 import type { SourceKind, Source } from '@/types/models';
@@ -10,9 +11,17 @@ import { Button, IconButton, Input, Select, Segmented } from '@/components/ui';
 import type { ListResponse } from './types';
 import { formatShortDateTime, normalizeUserTimeZone } from '@/lib/datetime';
 import { useAuthStore } from '@/stores/authStore';
-import { KIND_LABEL, scrollSourcesListToTop } from './utils';
+import { scrollSourcesListToTop } from './utils';
+import type { WebTranslationKey } from '@/i18n/locales/en';
+
+const KIND_I18N: Record<SourceKind, WebTranslationKey> = {
+  web: 'sources.kindWeb',
+  rss: 'sources.kindRss',
+  hot_api: 'sources.hot',
+};
 
 export function SourcesPage() {
+  const { t } = useTranslation();
   const viewerTz = useAuthStore((s) => normalizeUserTimeZone(s.user?.timeZone));
   const poolView = useSourceUiStore((s) => s.poolView);
   const setPoolView = useSourceUiStore((s) => s.setPoolView);
@@ -25,6 +34,8 @@ export function SourcesPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showBackTop, setShowBackTop] = useState(false);
+
+  const kindLabel = (kind: SourceKind) => t(KIND_I18N[kind]);
 
   const query = useMemo(() => {
     const p = new URLSearchParams();
@@ -44,11 +55,11 @@ export function SourcesPage() {
       const l = await listSources(query);
       setList(l);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '加载失败');
+      setError(e instanceof Error ? e.message : t('common.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [query]);
+  }, [query, t]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -85,7 +96,7 @@ export function SourcesPage() {
     () => (
       <div className="flex min-w-0 w-full items-center justify-between gap-4">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-          <h1 className="shrink-0 text-lg font-semibold tracking-tight text-ark-text">信源</h1>
+          <h1 className="shrink-0 text-lg font-semibold tracking-tight text-ark-text">{t('sources.title')}</h1>
           <TopBarCountPill
             className="sm:hidden"
             compact
@@ -96,7 +107,7 @@ export function SourcesPage() {
             <TopBarCountPill
               value={list?.total ?? '—'}
               trailing={
-                hasActiveFilters ? <span className="ml-1 font-normal normal-case tracking-normal text-slate-500">· 已筛选</span> : null
+                hasActiveFilters ? <span className="ml-1 font-normal normal-case tracking-normal text-slate-500">· {t('sources.filtered')}</span> : null
               }
             />
           </div>
@@ -108,13 +119,13 @@ export function SourcesPage() {
           size="md"
           className="shrink-0"
           options={[
-            { value: 'list', label: '列表' },
-            { value: 'card', label: '卡片' },
+            { value: 'list', label: t('sources.listView') },
+            { value: 'card', label: t('sources.cardView') },
           ]}
         />
       </div>
     ),
-    [poolView, setPoolView, list?.total, hasActiveFilters],
+    [poolView, setPoolView, list?.total, hasActiveFilters, t],
   );
 
   return (
@@ -128,9 +139,9 @@ export function SourcesPage() {
               aria-hidden
             />
             <Input
-              aria-label="搜索展示名或备注"
+              aria-label={t('sources.searchLabel')}
               className="h-10 w-full rounded-lg border-ark-border bg-ark-surface py-2 pl-9 pr-3 text-sm text-ark-text placeholder:text-slate-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/25"
-              placeholder="展示名 / 备注…"
+              placeholder={t('sources.searchPlaceholder')}
               value={search}
               onChange={(e) => {
                 setPage(1);
@@ -139,9 +150,9 @@ export function SourcesPage() {
             />
           </div>
           <div className="flex w-full min-w-0 flex-col gap-1 sm:max-w-[11rem] md:w-44 md:max-w-none md:shrink-0">
-            <span className="text-[10px] font-medium text-slate-600">类型</span>
+            <span className="text-[10px] font-medium text-slate-600">{t('sources.kindFilter')}</span>
             <Select
-              aria-label="按类型筛选"
+              aria-label={t('sources.kindFilter')}
               className="h-10 w-full min-w-0 rounded-lg border-ark-border bg-ark-surface text-sm focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/25"
               value={kindFilter}
               onChange={(e) => {
@@ -149,16 +160,16 @@ export function SourcesPage() {
                 setKindFilter(e.target.value as SourceKind | '');
               }}
             >
-              <option value="">全部类型</option>
-              <option value="web">网站</option>
-              <option value="rss">RSS</option>
-              <option value="hot_api">热点</option>
+              <option value="">{t('sources.allKinds')}</option>
+              <option value="web">{t('sources.kindWeb')}</option>
+              <option value="rss">{t('sources.kindRss')}</option>
+              <option value="hot_api">{t('sources.hot')}</option>
             </Select>
           </div>
           <div className="flex w-full min-w-0 flex-col gap-1 sm:max-w-[14rem] md:w-56 md:max-w-none md:shrink-0">
-            <span className="text-[10px] font-medium text-slate-600">排序</span>
+            <span className="text-[10px] font-medium text-slate-600">{t('sources.sortLabel')}</span>
             <Select
-              aria-label="排序方式"
+              aria-label={t('sources.sortLabel')}
               className="h-10 w-full min-w-0 rounded-lg border-ark-border bg-ark-surface text-sm focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/25"
               value={`${sortBy}:${sortOrder}`}
               onChange={(e) => {
@@ -168,10 +179,10 @@ export function SourcesPage() {
                 setPage(1);
               }}
             >
-              <option value="createdAt:desc">时间 · 新→旧</option>
-              <option value="createdAt:asc">时间 · 旧→新</option>
-              <option value="displayName:asc">名称 · A→Z</option>
-              <option value="displayName:desc">名称 · Z→A</option>
+              <option value="createdAt:desc">{t('sources.sortNewOld')}</option>
+              <option value="createdAt:asc">{t('sources.sortOldNew')}</option>
+              <option value="displayName:asc">{t('sources.sortNameAz')}</option>
+              <option value="displayName:desc">{t('sources.sortNameZa')}</option>
             </Select>
           </div>
         </div>
@@ -182,7 +193,7 @@ export function SourcesPage() {
           {error}
         </div>
       ) : null}
-      {loading ? <div className="shrink-0 text-xs text-slate-500">刷新中…</div> : null}
+      {loading ? <div className="shrink-0 text-xs text-slate-500">{t('common.refreshing')}</div> : null}
 
       <div
         id="sources-list-scroll"
@@ -191,14 +202,14 @@ export function SourcesPage() {
         {isEmpty ? (
           <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-ark-border bg-white/[0.03] py-24 text-slate-500">
             <Layers className="mb-4 size-14 opacity-20" strokeWidth={1.25} />
-            <p className="text-lg font-semibold text-slate-400">暂无信源</p>
+            <p className="text-lg font-semibold text-slate-400">{t('sources.empty')}</p>
             <p className="mt-2 max-w-sm text-center text-sm text-slate-600">
-              {hasActiveFilters ? '当前筛选条件下没有结果，可尝试清空筛选。' : '信源池由管理员统一维护，后续可在监控中从池内多选组成子集。'}
+              {hasActiveFilters ? t('sources.emptyFiltered') : t('sources.emptyDefault')}
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               {hasActiveFilters ? (
                 <Button type="button" variant="secondary" size="lg" className="px-6 py-2.5 font-semibold" onClick={clearFilters}>
-                  清空筛选
+                  {t('sources.clearFilters')}
                 </Button>
               ) : null}
             </div>
@@ -208,19 +219,19 @@ export function SourcesPage() {
             <table className="w-full border-collapse text-sm">
               <thead className="bg-ark-surface text-left text-xs text-slate-500">
                 <tr>
-                  <th className="px-3 py-2">类型</th>
-                  <th className="px-3 py-2">展示名</th>
-                  <th className="px-3 py-2">归属</th>
-                  <th className="px-3 py-2">入口</th>
-                  <th className="px-3 py-2">时间</th>
-                  <th className="px-3 py-2">直达</th>
+                  <th className="px-3 py-2">{t('sources.colKind')}</th>
+                  <th className="px-3 py-2">{t('sources.colName')}</th>
+                  <th className="px-3 py-2">{t('sources.colOwner')}</th>
+                  <th className="px-3 py-2">{t('sources.colEntry')}</th>
+                  <th className="px-3 py-2">{t('sources.colTime')}</th>
+                  <th className="px-3 py-2">{t('sources.colOpen')}</th>
                 </tr>
               </thead>
               <tbody>
                 {(list?.items ?? []).map((s) => {
                   return (
                     <tr key={s.id} className="border-t border-ark-border bg-ark-bg/20">
-                      <td className="px-3 py-2 text-slate-500">{KIND_LABEL[s.kind]}</td>
+                      <td className="px-3 py-2 text-slate-500">{kindLabel(s.kind)}</td>
                       <td className="px-3 py-2">
                         <button
                           type="button"
@@ -231,14 +242,14 @@ export function SourcesPage() {
                           <span className="min-w-0 truncate">{s.displayName}</span>
                         </button>
                       </td>
-                      <td className="px-3 py-2 text-slate-500">{s.isOfficial ? '官方' : '非官方'}</td>
+                      <td className="px-3 py-2 text-slate-500">{s.isOfficial ? t('sources.official') : t('sources.unofficial')}</td>
                       <td className="max-w-[180px] truncate px-3 py-2 text-slate-500" title={s.openUrl}>
                         {s.openUrl || '—'}
                       </td>
                       <td className="px-3 py-2 text-slate-500">{formatShortDateTime(s.createdAt, viewerTz)}</td>
                       <td className="px-3 py-2 whitespace-nowrap">
                         <button type="button" className="text-ark-accent hover:underline" onClick={() => openSource(s)}>
-                          直达
+                          {t('sources.open')}
                         </button>
                       </td>
                     </tr>
@@ -263,11 +274,11 @@ export function SourcesPage() {
                     <SourceAvatar kind={s.kind} name={s.displayName} avatarUrl={s.avatarUrl} size="md" className="mt-0.5" />
                     <span className="min-w-0 pt-0.5">{s.displayName}</span>
                   </button>
-                  <p className="mt-1 text-xs text-slate-500">{KIND_LABEL[s.kind]}</p>
+                  <p className="mt-1 text-xs text-slate-500">{kindLabel(s.kind)}</p>
                   <p className="mt-2 line-clamp-2 text-xs text-slate-500">{s.note || s.openUrl}</p>
                   <div className="mt-4 flex flex-wrap gap-2 text-xs">
                     <button type="button" className="text-ark-accent hover:underline" onClick={() => openSource(s)}>
-                      直达
+                      {t('sources.open')}
                     </button>
                   </div>
                 </div>
@@ -279,7 +290,7 @@ export function SourcesPage() {
         {!isEmpty ? (
           <div className="mt-6 flex items-center justify-between text-sm text-slate-500">
             <div>
-              共 {list?.total ?? 0} 条 · 第 {list?.page ?? page} 页
+              {t('sources.pagination', { total: list?.total ?? 0, page: list?.page ?? page })}
             </div>
             <div className="space-x-2">
               <Button
@@ -290,7 +301,7 @@ export function SourcesPage() {
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
-                上一页
+                {t('sources.prevPage')}
               </Button>
               <Button
                 type="button"
@@ -300,7 +311,7 @@ export function SourcesPage() {
                 disabled={list ? page * list.pageSize >= list.total : true}
                 onClick={() => setPage((p) => p + 1)}
               >
-                下一页
+                {t('sources.nextPage')}
               </Button>
             </div>
           </div>
@@ -312,7 +323,7 @@ export function SourcesPage() {
           type="button"
           className="fixed bottom-8 right-6 z-50 size-12 border border-ark-border bg-ark-bg/90 p-0 text-slate-400 shadow-2xl backdrop-blur-md hover:border-ark-accent/40 hover:bg-white/10 hover:text-ark-accent md:bottom-10 md:right-10"
           onClick={scrollSourcesListToTop}
-          aria-label="回到顶部"
+          aria-label={t('sources.backToTop')}
         >
           <ArrowUp size={20} strokeWidth={2} />
         </IconButton>

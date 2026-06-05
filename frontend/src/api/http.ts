@@ -1,5 +1,7 @@
 import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '@/stores/authStore';
+import { getWebLocale } from '@/lib/localeStorage';
+import { tr } from '@/i18n/tr';
 
 const baseURL = import.meta.env.VITE_API_BASE?.replace(/\/$/, '') || '/api';
 
@@ -18,7 +20,7 @@ export function normalizeMessage(message: unknown): string {
   if (message && typeof message === 'object' && 'message' in message) {
     return normalizeMessage((message as { message: unknown }).message);
   }
-  return '请求失败';
+  return tr('http.requestFailed');
 }
 
 function unwrapBody(status: number, raw: unknown): unknown {
@@ -28,7 +30,7 @@ function unwrapBody(status: number, raw: unknown): unknown {
     try {
       body = text ? JSON.parse(text) : null;
     } catch {
-      throw new ApiError(text || 'invalid_json', status);
+      throw new ApiError(text || tr('http.invalidJson'), status);
     }
   }
   if (body == null || typeof body !== 'object') {
@@ -56,6 +58,9 @@ http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (token) {
     config.headers.set('Authorization', `Bearer ${token}`);
   }
+  const locale = getWebLocale();
+  config.headers.set('Accept-Language', locale);
+  config.headers.set('x-lang', locale);
   const data = config.data;
   if (data != null && !(data instanceof FormData) && !config.headers.get('Content-Type')) {
     config.headers.set('Content-Type', 'application/json');
@@ -95,6 +100,6 @@ http.interceptors.response.use(
       );
       return Promise.reject(new ApiError(msg, status));
     }
-    return Promise.reject(new ApiError(error.message || '网络错误', status));
+    return Promise.reject(new ApiError(error.message || tr('http.networkError'), status));
   },
 );

@@ -1,4 +1,7 @@
 import { Types } from 'mongoose';
+import type { FeedLlmView } from '../feed-items/feed-item-llm.service';
+
+const SUMMARY_PREVIEW_MAX = 160;
 
 export type NotificationListFeedContext = {
   sourceDisplayName: string;
@@ -21,9 +24,8 @@ export type NotificationListItemDto = {
   recommendReason: string;
   summaryPreview: string;
   llmStatus: string;
+  alertLabel: string;
 };
-
-const SUMMARY_PREVIEW_MAX = 240;
 
 export function summaryPreview(summary: string): string {
   const s = summary.trim();
@@ -47,13 +49,23 @@ export function feedContextFromDoc(
   if (sid && typeof sid === 'object' && 'displayName' in sid) {
     sourceDisplayName = String((sid as { displayName?: string }).displayName ?? '').trim();
   }
-  const recommendReason = String(doc.llmRecommendReason ?? '').trim();
   const summary = String(doc.summary ?? '').trim();
   return {
     sourceDisplayName,
-    recommendReason,
+    recommendReason: '',
     summaryPreview: summaryPreview(summary),
-    llmStatus: String(doc.llmStatus ?? 'pending'),
+    llmStatus: 'pending',
+  };
+}
+
+export function feedContextWithLlm(
+  base: NotificationListFeedContext,
+  llmView: FeedLlmView,
+): NotificationListFeedContext {
+  return {
+    ...base,
+    recommendReason: llmView.recommendReason || base.recommendReason,
+    llmStatus: llmView.status || base.llmStatus,
   };
 }
 
@@ -70,6 +82,7 @@ export function toNotificationListItemDto(
     createdAt?: Date;
   },
   feed?: NotificationListFeedContext,
+  alertLabel = '',
 ): NotificationListItemDto {
   const ctx = feed ?? feedContextFromDoc(undefined);
   return {
@@ -86,5 +99,6 @@ export function toNotificationListItemDto(
     recommendReason: ctx.recommendReason,
     summaryPreview: ctx.summaryPreview,
     llmStatus: ctx.llmStatus,
+    alertLabel,
   };
 }

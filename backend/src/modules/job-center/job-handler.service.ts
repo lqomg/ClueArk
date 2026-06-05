@@ -16,6 +16,7 @@ import type {
   EnrichItemPayload,
   ProcessNewItemPayload,
   ReindexMonitorPayload,
+  CreateMonitorPayload,
   RunBriefPayload,
   SourcePollPayload,
 } from './job.types';
@@ -81,6 +82,11 @@ export class JobHandlerService {
     return { monitorId: payload.monitorId, backfill: payload.backfill !== false };
   }
 
+  async handleCreateMonitor(payload: CreateMonitorPayload): Promise<Record<string, unknown>> {
+    await this.monitors.processCreateMonitorJob(payload.monitorId, payload.userId, payload.topic);
+    return { monitorId: payload.monitorId };
+  }
+
   async handleEnrichItem(payload: EnrichItemPayload): Promise<Record<string, unknown>> {
     await this.enrich.enrichOneById(payload.feedItemId);
     return { feedItemId: payload.feedItemId };
@@ -92,8 +98,13 @@ export class JobHandlerService {
   }
 
   async handleRunBrief(payload: RunBriefPayload, mongoJobId: string): Promise<Record<string, unknown>> {
-    await this.monitors.runBriefForMonitorId(payload.monitorId, payload.profileId, mongoJobId);
-    return { monitorId: payload.monitorId, profileId: payload.profileId };
+    await this.monitors.runBriefForMonitorId(
+      payload.monitorId,
+      payload.profileId,
+      mongoJobId,
+      payload.locale,
+    );
+    return { monitorId: payload.monitorId, profileId: payload.profileId, locale: payload.locale };
   }
 
   /** crawl_web 由 crawler 进程执行，backend 不应调用 */

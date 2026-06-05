@@ -8,6 +8,7 @@ import {
   JOB_NAME_ENRICH_ITEM,
   JOB_NAME_PROCESS_NEW_ITEM,
   JOB_NAME_REINDEX_MONITOR,
+  JOB_NAME_CREATE_MONITOR,
   JOB_NAME_RUN_BRIEF,
   JOB_NAME_SOURCE_POLL,
   QUEUE_BRIEF,
@@ -25,6 +26,7 @@ import type {
   EnrichItemPayload,
   ProcessNewItemPayload,
   ReindexMonitorPayload,
+  CreateMonitorPayload,
   RunBriefPayload,
   SourcePollPayload,
 } from './job.types';
@@ -115,6 +117,11 @@ export class JobProcessorsService implements OnModuleInit, OnModuleDestroy {
             mongoJobId: string;
           };
           await this.runWithLifecycle(job, () => this.handlers.handleReindexMonitor(payload));
+        } else if (job.name === JOB_NAME_CREATE_MONITOR) {
+          const { mongoJobId: _m, ...payload } = job.data as CreateMonitorPayload & {
+            mongoJobId: string;
+          };
+          await this.runWithLifecycle(job, () => this.handlers.handleCreateMonitor(payload));
         }
       },
       { connection, concurrency: pipelineConcurrency },

@@ -17,6 +17,10 @@ export class LoginOtpCode {
 
   @Prop({ default: false })
   consumed: boolean;
+
+  /** 校验失败累计次数；达到上限后作废该邮箱所有有效验证码以防暴力破解 */
+  @Prop({ default: 0 })
+  attempts: number;
 }
 
 export const LoginOtpCodeSchema = SchemaFactory.createForClass(LoginOtpCode);

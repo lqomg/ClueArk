@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { Button, Modal, Form, Input, Select, message, Tag } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { createUser, listUsers, setUserActive } from '@/features/users/api';
 import { useAuthStore } from '@/features/auth/authStore';
 import { USER_ROLE } from '@/shared/constants';
@@ -10,6 +11,7 @@ import type { AdminUser } from '@/shared/types';
 import { ApiError } from '@/shared/api/http';
 
 export function UsersPage() {
+  const { t } = useTranslation();
   const actionRef = useRef<ActionType>();
   const selfId = useAuthStore((s) => s.user?.id);
   const [createOpen, setCreateOpen] = useState(false);
@@ -18,36 +20,37 @@ export function UsersPage() {
 
   const columns: ProColumns<AdminUser>[] = [
     {
-      title: '关键词',
+      title: t('users.keyword'),
       dataIndex: 'keyword',
       hideInTable: true,
     },
-    { title: '邮箱', dataIndex: 'email', copyable: true, search: false },
-    { title: '用户名', dataIndex: 'username', search: false },
+    { title: t('users.email'), dataIndex: 'email', copyable: true, search: false },
+    { title: t('users.username'), dataIndex: 'username', search: false },
     {
-      title: '角色',
+      title: t('users.role'),
       dataIndex: 'role',
       width: 100,
       render: (_, row) => (
         <Tag color={row.role === USER_ROLE.Admin ? 'blue' : 'default'}>
-          {row.role === USER_ROLE.Admin ? '管理员' : '用户'}
+          {row.role === USER_ROLE.Admin ? t('users.roleAdmin') : t('users.roleUser')}
         </Tag>
       ),
     },
     {
-      title: '状态',
+      title: t('users.status'),
       dataIndex: 'isActive',
       width: 100,
-      render: (_, row) => (row.isActive ? <Tag color="success">启用</Tag> : <Tag>停用</Tag>),
+      render: (_, row) =>
+        row.isActive ? <Tag color="success">{t('users.statusActive')}</Tag> : <Tag>{t('users.statusInactive')}</Tag>,
     },
     {
-      title: '注册时间',
+      title: t('users.createdAt'),
       dataIndex: 'createdAt',
       width: 180,
       render: (_, row) => formatDateTime(row.createdAt),
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       valueType: 'option',
       width: 120,
       render: (_, row) => [
@@ -59,14 +62,14 @@ export function UsersPage() {
           onClick={async () => {
             try {
               await setUserActive(row.id, !row.isActive);
-              message.success(row.isActive ? '已停用' : '已启用');
+              message.success(row.isActive ? t('users.deactivated') : t('users.activated'));
               actionRef.current?.reload();
             } catch (e) {
-              message.error(e instanceof ApiError ? e.message : '操作失败');
+              message.error(e instanceof ApiError ? e.message : t('common.operationFailed'));
             }
           }}
         >
-          {row.isActive ? '停用' : '启用'}
+          {row.isActive ? t('users.deactivate') : t('users.activate')}
         </Button>,
       ],
     },
@@ -75,14 +78,14 @@ export function UsersPage() {
   return (
     <>
       <ProTable<AdminUser>
-        headerTitle="用户管理"
+        headerTitle={t('users.title')}
         actionRef={actionRef}
         rowKey="id"
         columns={columns}
         search={{ labelWidth: 'auto' }}
         toolBarRender={() => [
           <Button key="create" type="primary" onClick={() => setCreateOpen(true)}>
-            新建用户
+            {t('users.create')}
           </Button>,
         ]}
         request={async (params) => {
@@ -97,7 +100,7 @@ export function UsersPage() {
       />
 
       <Modal
-        title="新建用户"
+        title={t('users.createTitle')}
         open={createOpen}
         confirmLoading={creating}
         onCancel={() => {
@@ -119,31 +122,31 @@ export function UsersPage() {
                 role: values.role,
                 username: values.username?.trim() || undefined,
               });
-              message.success('用户已创建');
+              message.success(t('users.createdMsg'));
               setCreateOpen(false);
               form.resetFields();
               actionRef.current?.reload();
             } catch (e) {
-              message.error(e instanceof ApiError ? e.message : '创建失败');
+              message.error(e instanceof ApiError ? e.message : t('common.createFailed'));
             } finally {
               setCreating(false);
             }
           }}
         >
-          <Form.Item name="email" label="邮箱" rules={[{ required: true, type: 'email' }]}>
+          <Form.Item name="email" label={t('users.email')} rules={[{ required: true, type: 'email' }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="password" label="密码" rules={[{ required: true, min: 6 }]}>
+          <Form.Item name="password" label={t('auth.password')} rules={[{ required: true, min: 6 }]}>
             <Input.Password />
           </Form.Item>
-          <Form.Item name="username" label="用户名">
+          <Form.Item name="username" label={t('users.username')}>
             <Input />
           </Form.Item>
-          <Form.Item name="role" label="角色" rules={[{ required: true }]}>
+          <Form.Item name="role" label={t('users.role')} rules={[{ required: true }]}>
             <Select
               options={[
-                { value: USER_ROLE.User, label: '用户' },
-                { value: USER_ROLE.Admin, label: '管理员' },
+                { value: USER_ROLE.User, label: t('users.roleUser') },
+                { value: USER_ROLE.Admin, label: t('users.roleAdmin') },
               ]}
             />
           </Form.Item>

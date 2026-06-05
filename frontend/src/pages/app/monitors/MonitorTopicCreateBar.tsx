@@ -1,4 +1,5 @@
 import type { FormEvent, Ref } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { cn } from '@/lib/cn';
@@ -22,6 +23,8 @@ export function MonitorTopicCreateBar({
   inputId,
   outerClassName,
 }: MonitorTopicCreateBarProps) {
+  const { t } = useTranslation();
+
   return (
     <div
       className={cn(
@@ -44,7 +47,7 @@ export function MonitorTopicCreateBar({
           id={inputId}
           value={topicDraft}
           onChange={(e) => setTopicDraft(e.target.value)}
-          placeholder="输入你想持续监控的方向，例如：大模型在医疗影像辅助诊断中的落地与监管…"
+          placeholder={t('monitors.createPlaceholder')}
           className="min-h-10 min-w-0 flex-1 border-0 bg-transparent px-1 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-0"
         />
         <Button
@@ -53,7 +56,7 @@ export function MonitorTopicCreateBar({
           disabled={creating}
           className="min-h-9 shrink-0 rounded-full px-5 py-2 text-sm font-bold shadow-md shadow-ark-accent/25 sm:min-h-10 sm:px-6"
         >
-          {creating ? '创建中…' : '创建监控'}
+          {creating ? t('monitors.creating') : t('monitors.create')}
         </Button>
       </form>
     </div>

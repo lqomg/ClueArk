@@ -1,0 +1,20 @@
+{
+  "otpSubject": {
+    "register": "ClueArk registration code",
+    "login_otp": "ClueArk login code",
+    "password_reset": "ClueArk password reset code"
+  },
+  "otpHeadline": {
+    "register": "Registration verification",
+    "login_otp": "Sign-in verification",
+    "password_reset": "Password reset"
+  },
+  "otpTextHeader": "【ClueArk】{headline}",
+  "otpCodeLine": "Your verification code: {code} (valid for 15 minutes)",
+  "otpTextFooter": "ClueArk aggregates RSS, web lists, and hot APIs for topic monitoring. If you did not request this, please ignore this email.",
+  "otpTextAuto": "This is an automated message. Please do not reply.",
+  "otpHtmlIntro": "You are completing identity verification. Enter the code below within <strong style=\"color:#0f172a;\">15 minutes</strong>. If this was not you, please ignore this email.",
+  "otpHtmlAboutTitle": "About ClueArk",
+  "otpHtmlAboutBody": "An open-source intelligence workspace for individuals and teams to browse, filter, and follow leads from a shared source pool.",
+  "otpHtmlAuto": "Automated message · do not reply"
+}

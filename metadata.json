@@ -1,0 +1,221 @@
+{
+    "format": "scripture burrito",
+    "projectName": "clueark",
+    "projectId": "s7pf3jup4s94us6vmk9o5",
+    "meta": {
+        "version": "0.0.0",
+        "category": "Translation",
+        "generator": {
+            "softwareName": "Codex Editor",
+            "softwareVersion": "0.27.0",
+            "userName": "",
+            "userEmail": ""
+        },
+        "defaultLocale": "en",
+        "dateCreated": "Wed May 27 2026",
+        "normalization": "NFC",
+        "comments": [],
+        "requiredExtensions": {
+            "codexEditor": "0.27.0",
+            "frontierAuthentication": "0.6.0"
+        },
+        "validationCount": 1,
+        "validationCountAudio": 1,
+        "abbreviation": ""
+    },
+    "idAuthorities": {},
+    "identification": {},
+    "languages": [
+        {
+            "tag": "eng",
+            "name": {
+                "en": "English"
+            },
+            "iso2b": "eng",
+            "iso2t": "eng",
+            "iso1": "en",
+            "scope": "individual",
+            "type": "living",
+            "refName": "English",
+            "comment": null,
+            "projectStatus": "source"
+        },
+        {
+            "name": {
+                "en": "Chinese"
+            },
+            "tag": "zho",
+            "refName": "Chinese",
+            "projectStatus": "target"
+        }
+    ],
+    "type": {
+        "flavorType": {
+            "name": "default",
+            "flavor": {
+                "name": "default",
+                "usfmVersion": "3.0",
+                "translationType": "unknown",
+                "audience": "general",
+                "projectType": "unknown"
+            },
+            "currentScope": {
+                "GEN": [],
+                "EXO": [],
+                "LEV": [],
+                "NUM": [],
+                "DEU": [],
+                "JOS": [],
+                "JDG": [],
+                "RUT": [],
+                "1SA": [],
+                "2SA": [],
+                "1KI": [],
+                "2KI": [],
+                "1CH": [],
+                "2CH": [],
+                "EZR": [],
+                "NEH": [],
+                "EST": [],
+                "JOB": [],
+                "PSA": [],
+                "PRO": [],
+                "ECC": [],
+                "SNG": [],
+                "ISA": [],
+                "JER": [],
+                "LAM": [],
+                "EZK": [],
+                "DAN": [],
+                "HOS": [],
+                "JOL": [],
+                "AMO": [],
+                "OBA": [],
+                "JON": [],
+                "MIC": [],
+                "NAM": [],
+                "HAB": [],
+                "ZEP": [],
+                "HAG": [],
+                "ZEC": [],
+                "MAL": [],
+                "MAT": [],
+                "MRK": [],
+                "LUK": [],
+                "JHN": [],
+                "ACT": [],
+                "ROM": [],
+                "1CO": [],
+                "2CO": [],
+                "GAL": [],
+                "EPH": [],
+                "PHP": [],
+                "COL": [],
+                "1TH": [],
+                "2TH": [],
+                "1TI": [],
+                "2TI": [],
+                "TIT": [],
+                "PHM": [],
+                "HEB": [],
+                "JAS": [],
+                "1PE": [],
+                "2PE": [],
+                "1JN": [],
+                "2JN": [],
+                "3JN": [],
+                "JUD": [],
+                "REV": []
+            }
+        }
+    },
+    "confidential": false,
+    "agencies": [],
+    "targetAreas": [],
+    "localizedNames": {},
+    "ingredients": {},
+    "copyright": {
+        "shortStatements": []
+    },
+    "edits": [
+        {
+            "editMap": [
+                "meta",
+                "validationCount"
+            ],
+            "value": 1,
+            "timestamp": 1779862145149,
+            "type": "user-edit",
+            "author": "LinQi"
+        },
+        {
+            "editMap": [
+                "meta",
+                "validationCountAudio"
+            ],
+            "value": 1,
+            "timestamp": 1779862145149,
+            "type": "user-edit",
+            "author": "LinQi"
+        },
+        {
+            "editMap": [
+                "meta",
+                "abbreviation"
+            ],
+            "value": "",
+            "timestamp": 1779862145149,
+            "type": "user-edit",
+            "author": "LinQi"
+        },
+        {
+            "editMap": [
+                "chatSystemMessage"
+            ],
+            "value": "When translating from Chinese Sign Language (CSL) to written Chinese, translators must account for fundamental structural differences: CSL's topic-prominent structure with topic-comment ordering should be reorganized into Chinese's subject-predicate patterns while maintaining information flow; spatial grammar and classifier constructions in CSL (which convey location, motion, and object characteristics through three-dimensional space) must be lexicalized into appropriate Chinese locative phrases, directional complements, and measure words; non-manual markers like facial expressions and head movements that carry grammatical functions (negation, questions, conditionals) need explicit lexical equivalents (不, 吗, 如果); time reference in CSL, typically established once at discourse beginning without continuous tense marking, requires appropriate Chinese temporal expressions and aspect markers (了, 着, 过) distributed throughout the text; role shift and constructed action/dialogue in CSL should be converted to reported speech with proper attribution and quotative markers (说, 认为); the high-context, visually-grounded nature of CSL may require adding implicit subjects, objects, and contextual information that would be clear from signing space but absent in the visual modality; register adjustments are critical since CSL often maintains conversational features that may need elevation to match written Chinese formality expectations; and finally, the simultaneous multi-channel information in CSL (manual signs plus non-manuals) must be linearized into Chinese's sequential structure while preserving semantic completeness and natural discourse cohesion.",
+            "timestamp": 1779862156578,
+            "type": "user-edit",
+            "author": "LinQi"
+        },
+        {
+            "editMap": [
+                "languages"
+            ],
+            "value": [
+                {
+                    "tag": "eng",
+                    "name": {
+                        "en": "English"
+                    },
+                    "iso2b": "eng",
+                    "iso2t": "eng",
+                    "iso1": "en",
+                    "scope": "individual",
+                    "type": "living",
+                    "refName": "English",
+                    "comment": null,
+                    "projectStatus": "source"
+                },
+                {
+                    "name": {
+                        "en": "Chinese"
+                    },
+                    "tag": "zho",
+                    "refName": "Chinese",
+                    "projectStatus": "target"
+                }
+            ],
+            "timestamp": 1779862258473,
+            "type": "user-edit",
+            "author": "LinQi"
+        }
+    ],
+    "chatSystemMessage": "When translating from Chinese Sign Language (CSL) to written Chinese, translators must account for fundamental structural differences: CSL's topic-prominent structure with topic-comment ordering should be reorganized into Chinese's subject-predicate patterns while maintaining information flow; spatial grammar and classifier constructions in CSL (which convey location, motion, and object characteristics through three-dimensional space) must be lexicalized into appropriate Chinese locative phrases, directional complements, and measure words; non-manual markers like facial expressions and head movements that carry grammatical functions (negation, questions, conditionals) need explicit lexical equivalents (不, 吗, 如果); time reference in CSL, typically established once at discourse beginning without continuous tense marking, requires appropriate Chinese temporal expressions and aspect markers (了, 着, 过) distributed throughout the text; role shift and constructed action/dialogue in CSL should be converted to reported speech with proper attribution and quotative markers (说, 认为); the high-context, visually-grounded nature of CSL may require adding implicit subjects, objects, and contextual information that would be clear from signing space but absent in the visual modality; register adjustments are critical since CSL often maintains conversational features that may need elevation to match written Chinese formality expectations; and finally, the simultaneous multi-channel information in CSL (manual signs plus non-manuals) must be linearized into Chinese's sequential structure while preserving semantic completeness and natural discourse cohesion.",
+    "users": [
+        {
+            "userName": "LinQi",
+            "codexVersion": "1.108.11148",
+            "updatedAt": 1779862222193
+        }
+    ]
+}

@@ -1,6 +1,5 @@
 {
-  "generic": {
-    "title": "发现新版本",
-    "body": "有新版本可用，请更新应用。"
+  "match": {
+    "alertLabel": "新匹配"
   }
 }

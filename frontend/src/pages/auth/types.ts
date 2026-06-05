@@ -1,4 +1,5 @@
 import type { UserRole } from '@/constants/user-role';
+import type { WebSupportedLocale } from '@/lib/localeStorage';
 
 /** 登录 / 注册接口返回 */
 export interface AuthTokenResponse {
@@ -9,6 +10,7 @@ export interface AuthTokenResponse {
     email: string;
     username: string;
     role?: UserRole;
-    timeZone?: string;
+    timeZone: string;
+    locale: WebSupportedLocale;
   };
 }

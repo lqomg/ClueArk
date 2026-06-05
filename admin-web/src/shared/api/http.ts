@@ -1,6 +1,8 @@
 import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '@/features/auth/authStore';
 import { normalizeMessage } from '@/shared/utils';
+import i18n from '@/i18n';
+import { adminLocaleToAcceptLanguage, getAdminLocale } from '@/i18n/localeStorage';
 
 const baseURL = import.meta.env.VITE_API_BASE?.replace(/\/$/, '') || '/api';
 
@@ -46,6 +48,9 @@ http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (token) {
     config.headers.set('Authorization', `Bearer ${token}`);
   }
+  const lang = adminLocaleToAcceptLanguage(getAdminLocale());
+  config.headers.set('Accept-Language', lang);
+  config.headers.set('x-lang', lang);
   const data = config.data;
   if (data != null && !(data instanceof FormData) && !config.headers.get('Content-Type')) {
     config.headers.set('Content-Type', 'application/json');
@@ -85,7 +90,7 @@ http.interceptors.response.use(
       );
       return Promise.reject(new ApiError(msg, status));
     }
-    return Promise.reject(new ApiError(error.message || '网络错误', status));
+    return Promise.reject(new ApiError(error.message || i18n.t('common.networkError'), status));
   },
 );
 

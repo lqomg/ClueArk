@@ -1,0 +1,20 @@
+{
+  "otpSubject": {
+    "register": "ClueArk 注册验证码",
+    "login_otp": "ClueArk 验证码登录",
+    "password_reset": "ClueArk 重置密码验证码"
+  },
+  "otpHeadline": {
+    "register": "注册验证",
+    "login_otp": "验证码登录",
+    "password_reset": "重置密码"
+  },
+  "otpTextHeader": "【ClueArk · 线索方舟】{headline}",
+  "otpCodeLine": "您的验证码：{code}（15 分钟内有效）",
+  "otpTextFooter": "线索方舟用于聚合 RSS、网页与热点等公开信源，支持话题监控与情报浏览。如非本人操作，请忽略本邮件。",
+  "otpTextAuto": "此为系统自动发送，请勿直接回复。",
+  "otpHtmlIntro": "您正在完成身份验证。请在 <strong style=\"color:#0f172a;\">15 分钟</strong> 内输入下方验证码。如非本人操作，请忽略本邮件。",
+  "otpHtmlAboutTitle": "关于线索方舟",
+  "otpHtmlAboutBody": "面向个人与团队的公开信源聚合与话题监控工具，便于在同一信源池上浏览、筛选与跟进线索。",
+  "otpHtmlAuto": "系统自动发送 · 请勿回复"
+}

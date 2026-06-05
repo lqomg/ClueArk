@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { listMonitorClusterItems } from '@/api/monitors';
 import type { MonitorClusterFeedItem } from '@/types/models';
 import { Drawer } from '@/components/ui';
@@ -13,6 +14,7 @@ type Props = {
 };
 
 export function MonitorClusterDrawer({ monitorId, clusterId, open, onClose }: Props) {
+  const { t } = useTranslation();
   const tz = useAuthStore((s) => normalizeUserTimeZone(s.user?.timeZone));
   const [items, setItems] = useState<MonitorClusterFeedItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -30,7 +32,7 @@ export function MonitorClusterDrawer({ monitorId, clusterId, open, onClose }: Pr
         if (!cancelled) setItems(res.items);
       } catch (e) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : '加载失败');
+          setError(e instanceof Error ? e.message : t('common.loadFailed'));
           setItems([]);
         }
       } finally {
@@ -40,20 +42,20 @@ export function MonitorClusterDrawer({ monitorId, clusterId, open, onClose }: Pr
     return () => {
       cancelled = true;
     };
-  }, [open, monitorId, clusterId]);
+  }, [open, monitorId, clusterId, t]);
 
   return (
     <Drawer
       open={open}
       onClose={onClose}
-      title="相似报道"
-      description="同一事件在绑定信源下的其它条目"
+      title={t('monitors.clusterDrawerTitle')}
+      description={t('monitors.clusterDrawerDesc')}
       panelClassName="sm:max-w-lg"
     >
-      {loading ? <p className="text-sm text-slate-500">加载中…</p> : null}
+      {loading ? <p className="text-sm text-slate-500">{t('common.loading')}</p> : null}
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
       {!loading && !error && items.length === 0 ? (
-        <p className="text-sm text-slate-500">暂无其它报道</p>
+        <p className="text-sm text-slate-500">{t('monitors.clusterEmpty')}</p>
       ) : null}
       <ul className="m-0 flex list-none flex-col gap-4 p-0">
         {items.map((it) => {

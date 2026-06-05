@@ -1,0 +1,18 @@
+{
+  "NOT_EMPTY": "{property}은(는) 비어 있을 수 없습니다",
+  "IS_EMAIL": "{property}은(는) 유효한 이메일이어야 합니다",
+  "IS_STRING": "{property}은(는) 문자열이어야 합니다",
+  "IS_INT": "{property}은(는) 정수여야 합니다",
+  "IS_NUMBER": "{property}은(는) 숫자여야 합니다",
+  "MIN_LENGTH": "{property}은(는) 최소 {constraints.0}자 이상이어야 합니다",
+  "MAX_LENGTH": "{property}은(는) 최대 {constraints.0}자 이하여야 합니다",
+  "MIN": "{property}은(는) {constraints.0} 이상이어야 합니다",
+  "MAX": "{property}은(는) {constraints.0} 이하여야 합니다",
+  "IS_ENUM": "{property}은(는) 유효한 값이어야 합니다",
+  "IS_UUID": "{property}은(는) 유효한 UUID여야 합니다",
+  "IS_URL": "{property}은(는) 유효한 URL이어야 합니다",
+  "IS_BOOLEAN": "{property}은(는) 불리언이어야 합니다",
+  "ARRAY_MIN_SIZE": "{property}은(는) 최소 {constraints.0}개 항목이 필요합니다",
+  "ARRAY_MAX_SIZE": "{property}은(는) 최대 {constraints.0}개 항목까지 가능합니다",
+  "WHITELIST": "허용되지 않은 속성 {property}"
+}

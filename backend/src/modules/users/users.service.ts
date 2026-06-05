@@ -11,12 +11,20 @@ import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { User, UserDocument, type UserRole } from './schemas/user.schema';
 import { USER_ROLE } from './user-role';
-import { FALLBACK_APP_TIME_ZONE, isValidIanaTimeZone } from '../../common/utils/timezone.utils';
+import { isValidIanaTimeZone } from '../../common/utils/timezone.utils';
+import { normalizeLocale, resolveAppDefaultLocale } from '../../common/utils/locale.utils';
 
 export interface CreateUserInput {
   email: string;
   password: string;
   username?: string;
+  locale?: string;
+}
+
+export interface CreateGoogleUserInput {
+  email: string;
+  googleSub: string;
+  locale?: string;
 }
 
 @Injectable()
@@ -34,10 +42,13 @@ export class UsersService {
     }
     const username = (input.username?.trim() || (await this.generateUsernameFromEmail(email))).trim();
     const hashed = await bcrypt.hash(input.password, 10);
+    const defaultLocale = resolveAppDefaultLocale(this.config.get<string>('APP_DEFAULT_LOCALE'));
+    const locale = input.locale != null ? normalizeLocale(input.locale) : defaultLocale;
     const doc = new this.userModel({
       email,
       username,
       password: hashed,
+      locale,
     });
     return doc.save();
   }
@@ -58,32 +69,65 @@ export class UsersService {
     return this.userModel.findOne({ email: email.trim().toLowerCase() }).select('+password').exec();
   }
 
-  async findByUsername(username: string): Promise<UserDocument | null> {
-    const trimmed = username.trim();
-    if (!trimmed) return null;
-    const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return this.userModel.findOne({ username: new RegExp(`^${escaped}$`, 'i') }).select('+password').exec();
+  async findByGoogleSub(googleSub: string): Promise<UserDocument | null> {
+    const sub = googleSub.trim();
+    if (!sub) return null;
+    return this.userModel.findOne({ googleSub: sub }).exec();
+  }
+
+  async createFromGoogle(input: CreateGoogleUserInput): Promise<UserDocument> {
+    const email = input.email.trim().toLowerCase();
+    const googleSub = input.googleSub.trim();
+    const exists = await this.userModel.exists({ email }).exec();
+    if (exists) {
+      throw new ConflictException('email_already_exists');
+    }
+    const subTaken = await this.userModel.exists({ googleSub }).exec();
+    if (subTaken) {
+      throw new ConflictException('google_account_conflict');
+    }
+    const username = await this.generateUsernameFromEmail(email);
+    const defaultLocale = resolveAppDefaultLocale(this.config.get<string>('APP_DEFAULT_LOCALE'));
+    const locale = input.locale != null ? normalizeLocale(input.locale) : defaultLocale;
+    const doc = new this.userModel({
+      email,
+      username,
+      googleSub,
+      locale,
+    });
+    return doc.save();
+  }
+
+  async bindGoogleSub(userId: string, googleSub: string): Promise<UserDocument> {
+    const sub = googleSub.trim();
+    const conflict = await this.userModel
+      .findOne({ googleSub: sub, _id: { $ne: userId } })
+      .select('_id')
+      .lean()
+      .exec();
+    if (conflict) {
+      throw new ConflictException('google_account_conflict');
+    }
+    const updated = await this.userModel
+      .findByIdAndUpdate(userId, { $set: { googleSub: sub } }, { new: true })
+      .exec();
+    if (!updated) throw new NotFoundException('user_not_found');
+    return updated;
   }
 
   async findById(id: string): Promise<UserDocument | null> {
     return this.userModel.findById(id).exec();
   }
 
-  /** 解析用户 IANA 时区；缺省/非法时用 APP_DEFAULT_TIMEZONE 或 Asia/Shanghai */
-  async getTimeZoneOrDefault(userId: string): Promise<string> {
-    const raw = this.config.get<string>('APP_DEFAULT_TIMEZONE')?.trim();
-    const fromEnv = raw && isValidIanaTimeZone(raw) ? raw : FALLBACK_APP_TIME_ZONE;
-    const u = await this.findById(userId);
-    if (!u) return fromEnv;
-    const tz = typeof (u as UserDocument & { timeZone?: string }).timeZone === 'string'
-      ? (u as UserDocument & { timeZone: string }).timeZone.trim()
-      : '';
-    if (tz && isValidIanaTimeZone(tz)) return tz;
-    return fromEnv;
-  }
-
-  async updateProfile(userId: string, patch: { username?: string; timeZone?: string }): Promise<UserDocument> {
+  async updateProfile(
+    userId: string,
+    patch: { username?: string; timeZone?: string; locale?: string },
+  ): Promise<{ user: UserDocument; localeChanged: boolean }> {
     const $set: Record<string, string> = {};
+    let localeChanged = false;
+    const existing = await this.findById(userId);
+    if (!existing) throw new NotFoundException('user_not_found');
+    const prevLocale = normalizeLocale((existing as UserDocument & { locale?: string }).locale);
     if (patch.username != null && patch.username.trim()) {
       $set.username = patch.username.trim();
     }
@@ -94,21 +138,24 @@ export class UsersService {
       }
       $set.timeZone = t;
     }
+    if (patch.locale != null) {
+      const next = normalizeLocale(patch.locale);
+      if (next !== prevLocale) localeChanged = true;
+      $set.locale = next;
+    }
     if (!Object.keys($set).length) {
-      const u = await this.findById(userId);
-      if (!u) throw new NotFoundException('user_not_found');
-      return u;
+      return { user: existing, localeChanged: false };
     }
     const updated = await this.userModel.findByIdAndUpdate(userId, { $set }, { new: true }).exec();
     if (!updated) throw new NotFoundException('user_not_found');
-    return updated;
+    return { user: updated, localeChanged };
   }
 
   async validatePassword(plain: string, hashed: string): Promise<boolean> {
     return bcrypt.compare(plain, hashed);
   }
 
-  async updatePassword(userId: string, oldPassword: string, newPassword: string): Promise<void> {
+  async updatePassword(userId: string, oldPassword: string, newPassword: string): Promise<UserDocument> {
     const user = await this.userModel.findById(userId).select('+password').exec();
     if (!user) throw new NotFoundException('user_not_found');
     const plain = (user as UserDocument & { password?: string }).password;
@@ -116,13 +163,20 @@ export class UsersService {
     const ok = await this.validatePassword(oldPassword, plain);
     if (!ok) throw new UnauthorizedException('invalid_old_password');
     const hashed = await bcrypt.hash(newPassword, 10);
-    await this.userModel.updateOne({ _id: userId }, { $set: { password: hashed } }).exec();
+    // 记录变更时间以使旧 JWT 失效
+    await this.userModel
+      .updateOne({ _id: userId }, { $set: { password: hashed, passwordChangedAt: new Date() } })
+      .exec();
+    return user;
   }
 
   async setPasswordByEmail(email: string, newPassword: string): Promise<void> {
     const normalized = email.trim().toLowerCase();
     const hashed = await bcrypt.hash(newPassword, 10);
-    const res = await this.userModel.updateOne({ email: normalized }, { $set: { password: hashed } }).exec();
+    // 记录变更时间以使旧 JWT 失效
+    const res = await this.userModel
+      .updateOne({ email: normalized }, { $set: { password: hashed, passwordChangedAt: new Date() } })
+      .exec();
     if (res.matchedCount === 0) throw new NotFoundException('user_not_found');
   }
 

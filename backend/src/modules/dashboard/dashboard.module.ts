@@ -1,11 +1,11 @@
-import { Module, forwardRef } from '@nestjs/common';
-import { AuthCoreModule } from '../auth/auth-core.module';
+import { Module } from '@nestjs/common';
+import { AuthGuardsModule } from '../auth/auth-guards.module';
 import { MonitorsModule } from '../monitors/monitors.module';
 import { DashboardController } from './dashboard.controller';
 import { DashboardService } from './dashboard.service';
 
 @Module({
-  imports: [forwardRef(() => AuthCoreModule), MonitorsModule],
+  imports: [AuthGuardsModule, MonitorsModule],
   controllers: [DashboardController],
   providers: [DashboardService],
 })

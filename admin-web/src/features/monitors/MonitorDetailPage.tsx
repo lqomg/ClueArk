@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button, Card, Descriptions, Popconfirm, Space, Spin, Tag, message } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { deleteMonitor, getMonitor } from '@/features/monitors/api';
 import { formatDateTime } from '@/shared/utils';
 import type { AdminMonitorDetail } from '@/shared/types';
 import { ApiError } from '@/shared/api/http';
 
 export function MonitorDetailPage() {
+  const { t } = useTranslation();
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const [row, setRow] = useState<AdminMonitorDetail | null>(null);
@@ -20,7 +22,7 @@ export function MonitorDetailPage() {
         if (alive) setRow(data);
       })
       .catch((e) => {
-        message.error(e instanceof ApiError ? e.message : '加载失败');
+        message.error(e instanceof ApiError ? e.message : t('common.loadFailed'));
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -28,55 +30,63 @@ export function MonitorDetailPage() {
     return () => {
       alive = false;
     };
-  }, [id]);
+  }, [id, t]);
 
   if (loading) {
     return <Spin style={{ display: 'block', margin: '80px auto' }} />;
   }
   if (!row) {
-    return <Card>监控不存在</Card>;
+    return <Card>{t('monitors.notFound')}</Card>;
   }
+
+  const dash = t('common.dash');
 
   return (
     <Card
-      title={row.title || '监控详情'}
+      title={row.title || t('monitors.detailTitle')}
       extra={
         <Space>
-          <Link to={`/jobs?monitorId=${row.id}`}>相关任务</Link>
+          <Link to={`/jobs?monitorId=${row.id}`}>{t('monitors.relatedJobs')}</Link>
           <Popconfirm
-            title="确认删除该监控？"
+            title={t('monitors.confirmDelete')}
             onConfirm={async () => {
               try {
                 await deleteMonitor(row.id);
-                message.success('已删除');
+                message.success(t('common.deleted'));
                 navigate('/monitors', { replace: true });
               } catch (e) {
-                message.error(e instanceof ApiError ? e.message : '删除失败');
+                message.error(e instanceof ApiError ? e.message : t('common.deleteFailed'));
               }
             }}
           >
-            <Button danger>删除</Button>
+            <Button danger>{t('common.delete')}</Button>
           </Popconfirm>
         </Space>
       }
     >
       <Descriptions column={1} bordered size="small">
-        <Descriptions.Item label="ID">{row.id}</Descriptions.Item>
-        <Descriptions.Item label="所属用户">
+        <Descriptions.Item label={t('monitors.id')}>{row.id}</Descriptions.Item>
+        <Descriptions.Item label={t('monitors.owner')}>
           {row.owner.email} ({row.owner.username})
         </Descriptions.Item>
-        <Descriptions.Item label="话题">{row.topicPrompt || '—'}</Descriptions.Item>
-        <Descriptions.Item label="描述">{row.description || '—'}</Descriptions.Item>
-        <Descriptions.Item label="快照状态">
+        <Descriptions.Item label={t('monitors.topic')}>{row.topicPrompt || dash}</Descriptions.Item>
+        <Descriptions.Item label={t('monitors.description')}>{row.description || dash}</Descriptions.Item>
+        <Descriptions.Item label={t('monitors.snapshotStatus')}>
           <Tag>{row.snapshotStatus}</Tag>
         </Descriptions.Item>
-        <Descriptions.Item label="快照计算时间">{formatDateTime(row.snapshotComputedAt)}</Descriptions.Item>
-        <Descriptions.Item label="最低余弦">{row.minCosine}</Descriptions.Item>
-        <Descriptions.Item label="信源数">{row.sourceCount}</Descriptions.Item>
-        <Descriptions.Item label="关键词">{row.keywords.join('、') || '—'}</Descriptions.Item>
-        <Descriptions.Item label="实体">{row.entities.join('、') || '—'}</Descriptions.Item>
-        <Descriptions.Item label="创建时间">{formatDateTime(row.createdAt)}</Descriptions.Item>
-        <Descriptions.Item label="更新时间">{formatDateTime(row.updatedAt)}</Descriptions.Item>
+        <Descriptions.Item label={t('monitors.snapshotComputedAt')}>
+          {formatDateTime(row.snapshotComputedAt)}
+        </Descriptions.Item>
+        <Descriptions.Item label={t('monitors.minCosine')}>{row.minCosine}</Descriptions.Item>
+        <Descriptions.Item label={t('monitors.sourceCount')}>{row.sourceCount}</Descriptions.Item>
+        <Descriptions.Item label={t('monitors.keywords')}>
+          {row.keywords.join('、') || dash}
+        </Descriptions.Item>
+        <Descriptions.Item label={t('monitors.entities')}>
+          {row.entities.join('、') || dash}
+        </Descriptions.Item>
+        <Descriptions.Item label={t('monitors.createdAt')}>{formatDateTime(row.createdAt)}</Descriptions.Item>
+        <Descriptions.Item label={t('monitors.updatedAt')}>{formatDateTime(row.updatedAt)}</Descriptions.Item>
       </Descriptions>
     </Card>
   );

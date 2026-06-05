@@ -3,6 +3,7 @@ export const JOB_TYPES = [
   'crawl_web',
   'process_new_item',
   'reindex_monitor',
+  'create_monitor',
   'enrich_item',
   'compute_snapshot',
   'run_brief',
@@ -46,11 +47,13 @@ export type ProcessNewItemPayload = { feedItemId: string; sourceId: string };
 
 export type ReindexMonitorPayload = { monitorId: string; backfill?: boolean };
 
+export type CreateMonitorPayload = { monitorId: string; userId: string; topic: string };
+
 export type EnrichItemPayload = { feedItemId: string };
 
 export type ComputeSnapshotPayload = { monitorId: string; recentHours: number };
 
-export type RunBriefPayload = { monitorId: string; profileId: string };
+export type RunBriefPayload = { monitorId: string; profileId: string; locale?: string };
 
 export type JobPayload =
   | SourcePollPayload
@@ -58,6 +61,7 @@ export type JobPayload =
   | Record<string, unknown>
   | ProcessNewItemPayload
   | ReindexMonitorPayload
+  | CreateMonitorPayload
   | EnrichItemPayload
   | ComputeSnapshotPayload
   | RunBriefPayload;
