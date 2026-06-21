@@ -13,12 +13,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { JobSchedulerService } from '../job-center/job-scheduler.service';
 import { shouldEnqueueLlmEnrich } from '../feed-items/feed-llm.constants';
 import { LoggerService } from '../logger';
-import {
-  evaluateMonitorMatch,
-  matchPeriodMs,
-  resolveMatchRecentHours,
-  resolveMinCosine,
-} from '../monitors/monitor-match.util';
+import { isMonitorItemMatched, normalizeMinCosine } from '../monitors/monitor-match.util';
 
 @Injectable()
 export class MonitorPipelineService {
@@ -99,30 +94,11 @@ export class MonitorPipelineService {
     this.logger.debug(`event=pipeline_search feedItemId=${feedItemId} qdrantHits=${hits.length}`);
 
     const matchedMonitorIds: string[] = [];
-    const recentHours = resolveMatchRecentHours(this.config.get('MONITOR_DEFAULT_RECENT_HOURS'));
-    const { periodStartMs, periodEndMs } = matchPeriodMs(recentHours);
-    const publishedAtMs = publishedAt.getTime();
 
     for (let i = 0; i < hits.length; i++) {
       const hit = hits[i];
-      const minCosine = resolveMinCosine(hit.payload.minCosine);
-      const monitorSourceIds = (hit.payload.sourceIds ?? []).map(String);
-      const match = evaluateMonitorMatch({
-        score: hit.score,
-        minCosine,
-        sourceId,
-        monitorSourceIds,
-        publishedAtMs,
-        periodStartMs,
-        periodEndMs,
-      });
-      if (match.matched === false) {
-        this.logger.debug(
-          `event=pipeline_match_skip feedItemId=${feedItemId} monitorId=${hit.monitorId} reason=${match.reason} score=${hit.score.toFixed(4)} minCosine=${minCosine}`,
-        );
-        continue;
-      }
-      const score = match.score;
+      if (!isMonitorItemMatched(hit.score, hit.payload.minCosine)) continue;
+      const score = hit.score;
       const monitorId = hit.monitorId;
       const m = await this.monitorModel.findById(monitorId).select({ title: 1, userId: 1 }).lean().exec();
       if (!m) continue;
@@ -226,7 +202,7 @@ export class MonitorPipelineService {
       monitorId: id,
       userId: String(monitor.userId),
       sourceIds: (monitor.sourceIds ?? []).map((x) => String(x)),
-      minCosine: resolveMinCosine(monitor.minCosine),
+      minCosine: normalizeMinCosine(monitor.minCosine),
       deletedAt: monitor.deletedAt ? monitor.deletedAt.toISOString() : null,
     };
     await this.vectorStore.upsertMonitor(id, vector, payload);

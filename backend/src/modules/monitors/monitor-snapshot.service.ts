@@ -27,10 +27,7 @@ import {
   dedupeScoredByCluster,
   feedClusterGroupKey,
 } from "../feed-items/feed-cluster-timeline.util";
-import {
-  evaluateMonitorMatch,
-  resolveMinCosine,
-} from "./monitor-match.util";
+import { normalizeMinCosine } from "./monitor-match.util";
 
 export type MonitorFeedTimelineItem = ReturnType<typeof serializeFeedItem> & {
   relevanceScore: number;
@@ -88,7 +85,7 @@ export class MonitorSnapshotService {
     scored: { doc: Record<string, unknown>; score: number }[];
     minSim: number;
   }> {
-    const minSim = resolveMinCosine(monitor.minCosine);
+    const minSim = normalizeMinCosine(monitor.minCosine);
     const sourceIds = (monitor.sourceIds ?? []).map((x) => String(x));
     const queryVec = await this.vectorStore.getMonitorVector(
       String(monitor._id),
@@ -117,27 +114,7 @@ export class MonitorSnapshotService {
       .map((h) => {
         const doc = mongoMap.get(h.feedItemId);
         if (!doc) return null;
-        const publishedAtMs = new Date(doc.publishedAt as Date).getTime();
-        const rawSourceId = doc.sourceId;
-        const sourceId =
-          rawSourceId && typeof rawSourceId === "object" && "_id" in rawSourceId
-            ? String((rawSourceId as { _id: Types.ObjectId })._id)
-            : rawSourceId instanceof Types.ObjectId
-              ? String(rawSourceId)
-              : typeof rawSourceId === "string"
-                ? rawSourceId
-                : "";
-        const match = evaluateMonitorMatch({
-          score: h.score,
-          minCosine: minSim,
-          sourceId,
-          monitorSourceIds: sourceIds,
-          publishedAtMs,
-          periodStartMs,
-          periodEndMs,
-        });
-        if (!match.matched) return null;
-        return { doc: doc as Record<string, unknown>, score: match.score };
+        return { doc: doc as Record<string, unknown>, score: h.score };
       })
       .filter(
         (x): x is { doc: Record<string, unknown>; score: number } => x != null,
@@ -286,7 +263,7 @@ export class MonitorSnapshotService {
       );
       const ownerLocale = await this.userPreferences.getLocaleOrDefault(String(userId));
       const fallback = this.defaultLocale();
-      const minSim = resolveMinCosine(monitor.minCosine);
+      const minSim = normalizeMinCosine(monitor.minCosine);
       const sourceIds = (monitor.sourceIds ?? []).map((x) => String(x));
       const nowMs = Date.now();
       const periodStartMs = nowMs - recentHours * 3600000;

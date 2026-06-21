@@ -107,7 +107,7 @@ export const ja: Record<WebTranslationKey, string> = {
   'home.metricTodayHint': '過去24時間の新規',
   'home.metricReadyRate': 'ブリーフ準備率',
   'home.metricReadyHint': 'スナップショット準備済みの割合',
-  'home.alertsUrgent': '緊急アラート',
+  'home.alertsUrgent': '緊急プッシュ',
   'home.noAlerts': '未読・最新のアラートはありません',
   'home.loadingFeed': 'フィードを読み込み中…',
   'home.feedEmpty': '該当項目がありません。取り込みを待つか監視を作成してください。',

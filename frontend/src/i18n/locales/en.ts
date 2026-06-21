@@ -370,7 +370,7 @@ export const en: Record<WebTranslationKey, string> = {
   'home.metricTodayHint': 'New items in last 24h',
   'home.metricReadyRate': 'Brief ready rate',
   'home.metricReadyHint': 'Monitors with ready snapshots',
-  'home.alertsUrgent': 'Urgent alerts',
+  'home.alertsUrgent': 'Urgent push',
   'home.noAlerts': 'No unread or recent alerts',
   'home.loadingFeed': 'Loading feed…',
   'home.feedEmpty': 'No matching items. Wait for ingestion or create a monitor.',

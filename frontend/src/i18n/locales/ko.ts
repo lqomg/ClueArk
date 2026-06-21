@@ -107,7 +107,7 @@ export const ko: Record<WebTranslationKey, string> = {
   'home.metricTodayHint': '최근 24시간 신규',
   'home.metricReadyRate': '브리프 준비율',
   'home.metricReadyHint': '스냅샷 준비된 모니터 비율',
-  'home.alertsUrgent': '긴급 알림',
+  'home.alertsUrgent': '긴급 푸시',
   'home.noAlerts': '읽지 않거나 최근 알림 없음',
   'home.loadingFeed': '피드 로딩 중…',
   'home.feedEmpty': '일치 항목 없음. 수집을 기다리거나 모니터를 만드세요.',

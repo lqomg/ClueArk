@@ -16,7 +16,7 @@ export function HomeWelcomeHeader({
   monitors?: MonitorWithListMetrics[];
 }) {
   const { t } = useTranslation();
-  const showCompactFilter =
+  const showMobileFilter =
     monitors != null && monitors.length > 0 && onMonitorFilterChange != null;
 
   return (
@@ -39,7 +39,7 @@ export function HomeWelcomeHeader({
         </Link>
       </div>
 
-      {showCompactFilter ? (
+      {showMobileFilter ? (
         <Select
           value={monitorFilter ?? ''}
           onChange={(e) => onMonitorFilterChange(e.target.value || null)}

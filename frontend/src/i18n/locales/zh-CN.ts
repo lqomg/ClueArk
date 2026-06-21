@@ -107,7 +107,7 @@ export const zhCN: Record<WebTranslationKey, string> = {
   'home.metricTodayHint': '近 24 小时新增条目',
   'home.metricReadyRate': '研判就绪率',
   'home.metricReadyHint': '快照已就绪的监控占比',
-  'home.alertsUrgent': '紧急提醒',
+  'home.alertsUrgent': '紧急事件推送',
   'home.noAlerts': '暂无未读或最新提醒',
   'home.loadingFeed': '加载情报流…',
   'home.feedEmpty': '暂无匹配条目，请稍候采集或前往监控管理创建话题。',
