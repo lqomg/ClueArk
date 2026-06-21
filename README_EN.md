@@ -65,10 +65,8 @@ Personal intelligence collection: subscribe to topics on the shared pool, read a
 
 ### Planned
 
-- [ ] **Native social platform integrations**
-  - [ ] **X (Twitter)**: Timelines, keyword search, or list-page ingestion
-  - [ ] **Weibo**: Author feeds, topics, and trending monitors
-  - [ ] **WeChat Official Accounts**: Subscription/service account article lists (where compliant)
+- [～] **Native social platform integrations**
+  - [～] **X (Twitter)**: Timelines, keyword search, or list-page ingestion
   - [ ] More: Zhihu, Toutiao, Xiaohongshu, etc. (phased rollout)
 - [ ] **Product i18n**
   - [~] Backend `nestjs-i18n` for errors/notifications (zh-CN, en, ja, ko)
