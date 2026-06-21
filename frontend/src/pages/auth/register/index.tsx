@@ -12,6 +12,7 @@ import {
 } from '@/components/auth/AuthBrandingLayout';
 import { useOtpResendCooldown } from '@/hooks/useOtpResendCooldown';
 import { OtpSendCodeButton } from '../components/OtpSendCodeButton';
+import { GoogleSignInButton, isGoogleSignInEnabled } from '../components/GoogleSignInButton';
 import { authErrBoxClass, isOtpRateLimitedError } from '../utils';
 
 export function RegisterPage() {
@@ -173,6 +174,17 @@ export function RegisterPage() {
           <span className="relative z-10">{loading ? t('common.submitting') : t('auth.registerSubmit')}</span>
         </button>
       </form>
+
+      <div className="relative pt-2">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t border-white/5" />
+        </div>
+        <div className="relative flex justify-center text-[10px] font-medium tracking-widest text-slate-600">
+          <span className="bg-ark-bg px-4">{t('auth.orDivider')}</span>
+        </div>
+      </div>
+
+      {isGoogleSignInEnabled() ? <GoogleSignInButton from="/app/sources" /> : null}
 
       <div className="text-center">
         <Link
