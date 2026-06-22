@@ -29,7 +29,7 @@
 
 <img width="1920" height="919" alt="ClueArk 界面预览" src="/assets/demo.png" />
 
-<img width="1920" height="919" alt="ClueArk 界面预览" src="/assets/demo1.png" />
+<img width="1920" height="919" alt="ClueArk 界面预览" src="/assets/demo2.png" />
 
 ## 功能特性
 
