@@ -23,9 +23,9 @@
 
 > 项目基于 React + TypeScript + NestJS + MongoDB + Docker 构建，是一套偏前端视角的全栈实践，也可作为前端开发者入门全栈开发的参考。
 
-<img width="1920" height="919" alt="ClueArk 界面预览" src="/assets/demo.png" />
+<img width="1920" height="919" alt="ClueArk 界面预览" src="/assets/home-zh.png" />
 
-<img width="1920" height="919" alt="ClueArk 界面预览" src="/assets/demo2.png" />
+<img width="1920" height="919" alt="ClueArk 界面预览" src="/assets/promo-social-zh.png" />
 
 ## 功能特性
 
