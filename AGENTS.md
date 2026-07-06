@@ -1,6 +1,6 @@
 # ClueArk 协作说明
 
-本文档归纳仓库布局、部署与本地开发的常用入口。完整功能说明见 **[README.md](./README.md)**、**[README_EN.md](./README_EN.md)**；爬虫服务见 **[crawler/README.md](./crawler/README.md)**。
+本文档归纳仓库布局、部署与本地开发的常用入口。完整功能说明见 **[README.md](./README.md)**（英文）、**[README_ZH.md](./README_ZH.md)**（中文）；爬虫服务见 **[crawler/README.md](./crawler/README.md)**。
 
 ## 概述
 
