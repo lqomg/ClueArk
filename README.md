@@ -208,6 +208,8 @@ When using this software to crawl or access third-party sites, comply with appli
 
 If you find security issues in deployment (default secrets, exposure, etc.), contact maintainers privately when appropriate; fixes and documentation/PRs are welcome.
 
+This repository currently includes the **web app** and **admin console**. The **mobile app (iOS / Android)** and **desktop app** are not yet open sourced; the desktop app will be open sourced in the near future.
+
 ## License
 
 This project is open source under the **[MIT License](LICENSE)**.
