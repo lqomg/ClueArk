@@ -23,9 +23,9 @@ Demo: [https://clueark.com](https://clueark.com)
 
 > Built with React + TypeScript + NestJS + MongoDB + Docker, ClueArk is a full-stack reference with a frontend-oriented perspective, and can serve as a practical starting point for frontend developers learning full-stack delivery.
 
-<img width="1920" height="919" alt="ClueArk preview" src="/assets/demo.png" />
+<img width="1920" height="919" alt="ClueArk preview" src="/assets/demo-en.png" />
 
-<img width="1920" height="919" alt="ClueArk preview" src="/assets/demo2.png" />
+<img width="1920" height="919" alt="ClueArk preview" src="/assets/demo-en1.png" />
 
 ## Features
 
