@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>ClueArk</title>
+  <rect width="1024" height="1024" rx="224" ry="224" fill="#0F0F11"/>
+  <circle cx="512" cy="512" r="263" fill="none" stroke="#F2EFE9" stroke-width="113"/>
+  <circle cx="512" cy="512" r="81" fill="#F2EFE9"/>
+  <circle cx="760" cy="309" r="86" fill="#C62828"/>
+</svg>

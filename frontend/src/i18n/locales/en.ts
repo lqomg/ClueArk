@@ -1,5 +1,8 @@
 export type WebTranslationKey =
   | 'app.tagline'
+  | 'brand.ariaLabel'
+  | 'brand.nameLeading'
+  | 'brand.nameAccent'
   | 'nav.home'
   | 'nav.monitors'
   | 'nav.manage'
@@ -265,6 +268,9 @@ export type WebTranslationKey =
 
 export const en: Record<WebTranslationKey, string> = {
   'app.tagline': 'Personal intelligence assistant',
+  'brand.ariaLabel': 'ClueArk',
+  'brand.nameLeading': 'Clue',
+  'brand.nameAccent': 'Ark',
   'nav.home': 'Home',
   'nav.monitors': 'Monitors',
   'nav.manage': 'Manage',

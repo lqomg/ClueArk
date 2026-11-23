@@ -4,7 +4,7 @@
 
 ## 概述
 
-**ClueArk（线索方舟）**：面向个人与团队的 AI 情报聚合平台。围绕话题监控聚合 RSS/Atom、网页列表（独立爬虫）、JSON 热点 API 等公开信源；可选接入 DeepSeek 兼容 API 做条目富化、OpenAI 兼容 Embeddings 做语义匹配与相似报道聚类。技术栈：**React 18 + TypeScript + Vite**（前端）、**NestJS + MongoDB（Mongoose）**（主 API）、**独立 NestJS 爬虫服务（Cheerio）**、**Docker Compose** 部署。
+**ClueArk（观枢）**：面向个人与团队的 AI 情报工作台（MIT）。围绕话题监控聚合 RSS/Atom、网页列表（独立爬虫）、JSON 热点 API；启动必填 DeepSeek 兼容 LLM 与 OpenAI 兼容 Embeddings（见下）。技术栈：**React 18 + TypeScript + Vite**、**NestJS + MongoDB**、**爬虫（Cheerio）**、**Docker Compose**。
 
 ## 仓库结构
 
@@ -26,7 +26,7 @@
 - `worker-scheduler/` — 仅 worker 进程：`@Cron`（信源轮询、快照/Brief 入队、相似聚类维护）
 - `monitors/` — 话题监控、`monitor_snapshots` 物化读模型
 - `vector-store/` — Qdrant 向量 upsert/search（禁止 HTTP 读路径做余弦）
-- `queue/` — BullMQ 流水线；**`worker` 容器**（`node dist/worker`）消费
+- `job-center/` — BullMQ 任务入队 / 消费 / 审计；**`worker` 容器**（`node dist/worker`）消费（开源当前任务集见 `job.types.ts` 注释）
 - `notifications/` — 匹配通知（站内）
 - `monitor-pipeline/` — ingest 后 embed → match → notify
 - `llm/` — 条目富化（`enrich_llm` 队列；仅监控信源经 pipeline 入队，无 Cron 扫全库）
@@ -60,7 +60,7 @@ docker compose up -d --build
 - API：经 **`/api`** 由 Nginx 反代；默认 Compose 下 backend 不单独对外映射业务端口。
 - MongoDB：映射 `MONGO_BIND_PORT`（默认 27017）；公网部署需限制访问面。
 
-完整变量见 **`/.env.example`**；DeepSeek、Embedding、RSS/热点等可选开关见 **`backend/.env.example`**。
+完整变量见 **`/.env.example`**。**进程启动必填**（缺则退出）：`REDIS_URL`、`QDRANT_URL`、`FEED_EMBEDDING_API_KEY`、`DEEPSEEK_API_KEY`。其余 RSS/热点等见 **`backend/.env.example`**。
 
 ## 本地开发
 

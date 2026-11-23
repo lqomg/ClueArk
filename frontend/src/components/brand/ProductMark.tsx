@@ -1,23 +1,24 @@
+import { useTranslation } from 'react-i18next';
 import { Link, type LinkProps } from 'react-router-dom';
 
-/** 与 `public/favicon.png` 同源，避免将大图打入 JS bundle */
-const PRODUCT_ICON_SRC = '/favicon.png';
+/** 浅底用带深色底板的完整标；勿用 /clueark-mark.svg（奶油色透明底，白底上几乎看不见）。 */
+const BRAND_ICON = '/clueark-icon.svg';
 
 const variants = {
   sidebar: {
     gap: 'gap-1.5',
-    text: 'text-xl font-black tracking-tighter',
-    imgClass: 'h-5 w-5',
+    text: 'whitespace-nowrap text-[1.02rem] font-semibold tracking-[0.03em]',
+    imgClass: 'h-6 w-6 rounded-[6px]',
   },
   auth: {
-    gap: 'gap-2',
-    text: 'text-2xl font-black tracking-tighter',
-    imgClass: 'h-7 w-7 shrink-0 md:h-8 md:w-8',
+    gap: 'gap-2.5',
+    text: 'text-[22px] font-semibold tracking-wide',
+    imgClass: 'h-9 w-9 shrink-0 rounded-[10px]',
   },
   compact: {
     gap: 'gap-1.5',
-    text: 'text-sm font-bold tracking-tight',
-    imgClass: 'h-5 w-5 shrink-0',
+    text: 'text-sm font-semibold tracking-wide',
+    imgClass: 'h-6 w-6 shrink-0 rounded-[6px]',
   },
 } as const;
 
@@ -32,23 +33,28 @@ export function ProductMark({
   to: LinkProps['to'];
   className?: string;
 }) {
+  const { t } = useTranslation();
   const v = variants[variant];
+  const imgSize = variant === 'auth' ? 36 : 24;
   return (
     <Link
       to={to}
-      aria-label="ClueArk 线索方舟"
-      className={`inline-flex items-center ${v.gap} transition-all hover:opacity-90 ${className ?? ''}`}
+      aria-label={t('brand.ariaLabel')}
+      title={t('brand.ariaLabel')}
+      className={`inline-flex items-center transition-all hover:opacity-90 ${v.gap} ${className ?? ''}`}
     >
-      <span className={v.text}>线索</span>
       <img
-        src={PRODUCT_ICON_SRC}
+        src={BRAND_ICON}
         alt=""
-        width={variant === 'auth' ? 32 : 20}
-        height={variant === 'auth' ? 32 : 20}
-        className={`rounded-md ${v.imgClass}`}
+        width={imgSize}
+        height={imgSize}
+        className={v.imgClass}
         decoding="async"
       />
-      <span className={`${v.text} text-ark-accent`}>方舟</span>
+      <span className={v.text}>
+        {t('brand.nameLeading')}
+        <span className="text-ark-accent">{t('brand.nameAccent')}</span>
+      </span>
     </Link>
   );
 }

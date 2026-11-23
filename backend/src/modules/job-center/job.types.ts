@@ -1,3 +1,7 @@
+/**
+ * Worker 已接线的任务类型。新增类型须同时注册 handler / 队列映射，
+ * 避免只改常量导致入队后无人消费。
+ */
 export const JOB_TYPES = [
   'source_poll',
   'crawl_web',

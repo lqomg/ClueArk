@@ -2,6 +2,9 @@ import type { WebTranslationKey } from './en';
 
 export const ko: Record<WebTranslationKey, string> = {
   'app.tagline': '개인 인텔리전스 어시스턴트',
+  'brand.ariaLabel': 'ClueArk',
+  'brand.nameLeading': '클루',
+  'brand.nameAccent': '아크',
   'nav.home': '홈',
   'nav.monitors': '모니터',
   'nav.manage': '관리',

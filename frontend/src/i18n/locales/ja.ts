@@ -2,6 +2,9 @@ import type { WebTranslationKey } from './en';
 
 export const ja: Record<WebTranslationKey, string> = {
   'app.tagline': 'パーソナルインテリジェンス',
+  'brand.ariaLabel': 'ClueArk',
+  'brand.nameLeading': 'クルー',
+  'brand.nameAccent': 'アーク',
   'nav.home': 'ホーム',
   'nav.monitors': '監視',
   'nav.manage': '管理',

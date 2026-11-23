@@ -1,13 +1,25 @@
 {
-  "name": "ClueArk 线索方舟",
-  "short_name": "线索方舟",
+  "name": "ClueArk 观枢",
+  "short_name": "观枢",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f141a",
-  "theme_color": "#0f141a",
+  "background_color": "#F2EFE9",
+  "theme_color": "#0F0F11",
   "icons": [
     {
       "src": "/favicon.png",
+      "sizes": "64x64",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"

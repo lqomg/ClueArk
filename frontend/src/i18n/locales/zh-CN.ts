@@ -2,6 +2,9 @@ import type { WebTranslationKey } from './en';
 
 export const zhCN: Record<WebTranslationKey, string> = {
   'app.tagline': '个人情报助手',
+  'brand.ariaLabel': 'ClueArk 观枢',
+  'brand.nameLeading': '观',
+  'brand.nameAccent': '枢',
   'nav.home': '首页',
   'nav.monitors': '话题监控',
   'nav.manage': '监控管理',
