@@ -7,6 +7,11 @@ import type { Monitor, Source } from '@/types/models';
 import { useAppTopBar } from '@/components/layout/AppTopBar';
 import { Button } from '@/components/ui';
 import { SourceAvatar } from '@/components/sources/SourceAvatar';
+import {
+  myTopicsPath,
+  topicTimelinePath,
+  topicsOverviewPath,
+} from '@/pages/app/topics/paths';
 
 async function loadAllEnabledSources(): Promise<Source[]> {
   const out: Source[] = [];
@@ -82,7 +87,7 @@ export function MonitorSettingsForm({ monitorId }: MonitorSettingsFormProps) {
     try {
       const updated = await patchMonitorSources(monitorId, { sourceIds: orderedIds, minCosine });
       setMonitor(updated);
-      navigate(`/app/monitors?monitor=${encodeURIComponent(monitorId)}`, { replace: false });
+      navigate(topicsOverviewPath(monitorId), { replace: false });
     } catch (e) {
       setError(e instanceof Error ? e.message : t('common.saveFailed'));
     } finally {
@@ -91,19 +96,19 @@ export function MonitorSettingsForm({ monitorId }: MonitorSettingsFormProps) {
   }
 
   function handleCancel() {
-    navigate(`/app/monitors/${monitorId}/timeline`);
+    navigate(topicTimelinePath(monitorId));
   }
 
   useAppTopBar(
     () => (
       <div className="min-w-0 flex-1 pr-2">
         <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-slate-500">
-          <Link to="/app/monitors/manage" className="shrink-0 hover:text-ark-accent">
+          <Link to={myTopicsPath()} className="shrink-0 hover:text-ark-accent">
             {t('monitors.manage')}
           </Link>
           <span aria-hidden>/</span>
           <Link
-            to={`/app/monitors/${monitorId}/timeline`}
+            to={topicTimelinePath(monitorId)}
             className="min-w-0 max-w-[10rem] truncate hover:text-ark-accent sm:max-w-[14rem]"
           >
             {monitor?.title ?? t('monitors.timeline')}

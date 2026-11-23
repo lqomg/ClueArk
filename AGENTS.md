@@ -4,7 +4,7 @@
 
 ## 概述
 
-**ClueArk（观枢）**：面向个人与团队的 AI 情报工作台（MIT）。围绕话题监控聚合 RSS/Atom、网页列表（独立爬虫）、JSON 热点 API；启动必填 DeepSeek 兼容 LLM 与 OpenAI 兼容 Embeddings（见下）。技术栈：**React 18 + TypeScript + Vite**、**NestJS + MongoDB**、**爬虫（Cheerio）**、**Docker Compose**。
+**ClueArk（观枢）**：面向个人与团队的 AI 情报工作台（MIT）。围绕专题聚合 RSS/Atom、网页列表（独立爬虫）、JSON 热点 API；启动必填 DeepSeek 兼容 LLM 与 OpenAI 兼容 Embeddings（见下）。技术栈：**React 18 + TypeScript + Vite**、**NestJS + MongoDB**、**爬虫（Cheerio）**、**Docker Compose**。
 
 ## 仓库结构
 
@@ -24,7 +24,7 @@
 - `feed-items/` — 条目、采集 ingest、RSS/热点等管线（无用户向列表 API）
 - `sources/` — 统一信源池；RSS/热点轮询由 **worker** 内 `SourcePollScheduler` 调度
 - `worker-scheduler/` — 仅 worker 进程：`@Cron`（信源轮询、快照/Brief 入队、相似聚类维护）
-- `monitors/` — 话题监控、`monitor_snapshots` 物化读模型
+- `monitors/` — 专题（API 仍称 monitor）、`monitor_snapshots` 物化读模型
 - `vector-store/` — Qdrant 向量 upsert/search（禁止 HTTP 读路径做余弦）
 - `job-center/` — BullMQ 任务入队 / 消费 / 审计；**`worker` 容器**（`node dist/worker`）消费（开源当前任务集见 `job.types.ts` 注释）
 - `notifications/` — 匹配通知（站内）
@@ -43,7 +43,7 @@
 4. **列表/研判**：`GET /monitors` 读 `monitor_snapshots`；`GET /monitors/:id/intelligence` 禁止同步全量打分。
 5. **Compose 栈**：`mongodb` + `redis` + `qdrant` + `worker`（必须先就绪；**Cron + BullMQ 消费**）+ `backend`（HTTP + 入队，无 `@Cron`）+ `web`（用户产品）+ `admin-web`（运营后台）+ `crawler`。
 6. **启动校验**：`REDIS_URL`、`QDRANT_URL`、`FEED_EMBEDDING_API_KEY`、`DEEPSEEK_API_KEY` 必填；Mongo/Redis/Qdrant 连不上则进程退出；API 启动前等待 worker Redis 心跳。本地 `npm run dev` 同时起 API 与 worker。
-7. **前端**：用户产品默认 `/app/monitors`；运营后台为独立 SPA（`admin-web/`，`POST /api/admin/auth/login`）。主站已移除 embedded `/app/admin/*`。
+7. **前端**：用户产品默认 `/app/home`；专题路径 `/app/topics`、`/app/my-topics`（旧 `/app/monitors*` 重定向）；运营后台为独立 SPA（`admin-web/`，`POST /api/admin/auth/login`）。主站已移除 embedded `/app/admin/*`。
 
 ## 部署（Docker Compose）
 

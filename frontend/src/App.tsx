@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { RequireAuth } from '@/routes/RequireAuth';
@@ -16,6 +16,8 @@ import { MonitorManagePage } from '@/pages/app/monitors/manage';
 import { MonitorSettingsPage } from '@/pages/app/monitors/settings';
 import { HomePage } from '@/pages/app/home';
 import { ProfilePage } from '@/pages/app/me';
+import { ExplorePage } from '@/pages/app/explore';
+import { topicSettingsPath, topicTimelinePath } from '@/pages/app/topics/paths';
 
 function AuthBootstrap() {
   const hydrate = useAuthStore((s) => s.hydrate);
@@ -33,6 +35,16 @@ function GuestOnly({ children }: { children: React.ReactElement }) {
     return <Navigate to={to} replace />;
   }
   return children;
+}
+
+function LegacyMonitorTimelineRedirect() {
+  const { id = '' } = useParams<{ id: string }>();
+  return <Navigate to={topicTimelinePath(id)} replace />;
+}
+
+function LegacyMonitorSettingsRedirect() {
+  const { id = '' } = useParams<{ id: string }>();
+  return <Navigate to={topicSettingsPath(id)} replace />;
 }
 
 export default function App() {
@@ -76,12 +88,25 @@ export default function App() {
         >
           <Route index element={<Navigate to="home" replace />} />
           <Route path="home" element={<HomePage />} />
+          <Route path="explore" element={<ExplorePage />} />
           <Route path="notifications" element={<NotificationsPage />} />
-          <Route path="monitors/new" element={<Navigate to="/app/monitors/manage" replace />} />
-          <Route path="monitors/manage" element={<MonitorManagePage />} />
-          <Route path="monitors/:id/settings" element={<MonitorSettingsPage />} />
-          <Route path="monitors/:id/timeline" element={<MonitorDetailPage />} />
-          <Route path="monitors" element={<MonitorOverviewPage />} />
+
+          {/* 专题（对外路径） */}
+          <Route path="topics" element={<MonitorOverviewPage />} />
+          <Route path="my-topics" element={<MonitorManagePage />} />
+          <Route path="topics/new" element={<Navigate to="/app/my-topics" replace />} />
+          <Route path="topics/:id/settings" element={<MonitorSettingsPage />} />
+          <Route path="topics/:id" element={<MonitorDetailPage />} />
+          <Route path="topics/:id/timeline" element={<LegacyMonitorTimelineRedirect />} />
+
+          {/* 旧 monitors 路径兼容 */}
+          <Route path="monitors" element={<Navigate to="/app/topics" replace />} />
+          <Route path="monitors/new" element={<Navigate to="/app/my-topics" replace />} />
+          <Route path="monitors/manage" element={<Navigate to="/app/my-topics" replace />} />
+          <Route path="monitors/:id/settings" element={<LegacyMonitorSettingsRedirect />} />
+          <Route path="monitors/:id/timeline" element={<LegacyMonitorTimelineRedirect />} />
+          <Route path="monitors/:id" element={<LegacyMonitorTimelineRedirect />} />
+
           <Route path="sources" element={<SourcesPage />} />
           <Route path="me" element={<ProfilePage />} />
         </Route>

@@ -8,6 +8,11 @@ import { useAppTopBar } from '@/components/layout/AppTopBar';
 import { TopBarCountPill } from '@/components/layout/TopBarCountPill';
 import { Button, Segmented, Timeline } from '@/components/ui';
 import { MonitorTimelineItem } from '@/pages/app/monitors/components/MonitorTimelineItem';
+import {
+  myTopicsPath,
+  topicSettingsPath,
+  topicsOverviewPath,
+} from '@/pages/app/topics/paths';
 
 type RecentHoursPreset = '24' | '72' | '168' | '720';
 
@@ -110,12 +115,12 @@ export function MonitorDetailPage() {
         <div className="flex min-w-0 w-full items-center justify-between gap-3">
           <div className="min-w-0 flex-1 pr-2">
             <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-slate-500">
-              <Link to="/app/monitors/manage" className="shrink-0 hover:text-ark-accent">
+              <Link to={myTopicsPath()} className="shrink-0 hover:text-ark-accent">
                 {t('monitors.manage')}
               </Link>
               <span aria-hidden>/</span>
               <Link
-                to={`/app/monitors?monitor=${encodeURIComponent(id!)}`}
+                to={topicsOverviewPath(id!)}
                 className="min-w-0 max-w-[10rem] truncate hover:text-ark-accent sm:max-w-[14rem]"
               >
                 {t('monitors.intel')}
@@ -130,7 +135,7 @@ export function MonitorDetailPage() {
           </div>
           <div className="flex shrink-0 flex-nowrap items-center gap-2">
             <Link
-              to={`/app/monitors/${id}/settings`}
+              to={topicSettingsPath(id!)}
               className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-ark-border px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition hover:border-ark-accent/50 hover:text-ark-accent"
             >
               <Settings2 size={13} />
