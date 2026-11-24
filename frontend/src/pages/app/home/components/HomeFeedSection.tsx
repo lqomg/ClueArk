@@ -5,13 +5,14 @@ import type { HomeFeedItem } from '../types';
 import { feedItemTag, importanceScore } from '../utils';
 import { relTimeIso } from '@/lib/datetime';
 import { cn } from '@/lib/cn';
+import { topicsOverviewPath } from '@/pages/app/topics/paths';
 
 export function HomeFeedCard({ item }: { item: HomeFeedItem }) {
   const { t } = useTranslation();
   const score = importanceScore(item.relevanceScore);
   const tag = feedItemTag(item);
   const summary = item.summary?.trim();
-  const intelTo = `/app/monitors?monitor=${encodeURIComponent(item.monitorId)}`;
+  const intelTo = topicsOverviewPath(item.monitorId);
 
   return (
     <article className="group rounded-xl border border-white/[0.06] bg-ark-surface/30 p-4 transition hover:border-white/10 hover:bg-ark-surface/45">

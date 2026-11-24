@@ -5,6 +5,7 @@ import type { NotificationItem } from '@/types/models';
 import { Drawer, Button } from '@/components/ui';
 import { relTimeIso } from '@/lib/datetime';
 import { getFeedItemTranslation } from '@/api/feedItems';
+import { topicTimelinePath } from '@/pages/app/topics/paths';
 
 function reasonBlock(n: NotificationItem): string {
   if (n.recommendReason.trim()) return n.recommendReason.trim();
@@ -34,7 +35,7 @@ export function NotificationDetailDrawer({
 
   if (!item) return null;
   const monitorLabel = item.monitorTitle.trim() || item.monitorId;
-  const timelineTo = `/app/monitors/${encodeURIComponent(item.monitorId)}/timeline`;
+  const timelineTo = topicTimelinePath(item.monitorId);
   const displayTitle = showTranslation && translatedTitle ? translatedTitle : item.title;
   const displaySummary =
     showTranslation && translatedSummary ? translatedSummary : item.summaryPreview?.trim() ?? '';

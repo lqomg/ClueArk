@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Bell, Bookmark, Home, LayoutDashboard, LayoutList, LogOut, User } from 'lucide-react';
+import { Bell, Compass, FolderKanban, Home, LayoutDashboard, LogOut, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ProductMark } from '@/components/brand/ProductMark';
 import { GithubRepoLink } from '@/components/GithubRepoLink';
@@ -62,20 +62,32 @@ export function AppShell() {
               )}
             </NavLink>
 
-            <NavLink to="/app/monitors" end className={({ isActive }) => shellNavClass(isActive)}>
+            <NavLink to="/app/explore" end className={({ isActive }) => shellNavClass(isActive)}>
               {({ isActive }) => (
                 <>
-                  <LayoutDashboard size={18} className={shellNavIconClass(isActive)} />
-                  {t('nav.monitors')}
+                  <Compass size={18} className={shellNavIconClass(isActive)} />
+                  {t('nav.explore')}
                 </>
               )}
             </NavLink>
 
-            <NavLink to="/app/monitors/manage" end className={({ isActive }) => shellNavClass(isActive)}>
+            <NavLink
+              to="/app/my-topics"
+              className={({ isActive }) => shellNavClass(isActive)}
+            >
               {({ isActive }) => (
                 <>
-                  <LayoutList size={18} className={shellNavIconClass(isActive)} />
-                  {t('nav.manage')}
+                  <FolderKanban size={18} className={shellNavIconClass(isActive)} />
+                  {t('nav.myTopics')}
+                </>
+              )}
+            </NavLink>
+
+            <NavLink to="/app/topics" end className={({ isActive }) => shellNavClass(isActive)}>
+              {({ isActive }) => (
+                <>
+                  <LayoutDashboard size={18} className={shellNavIconClass(isActive)} />
+                  {t('nav.topics')}
                 </>
               )}
             </NavLink>
@@ -86,14 +98,6 @@ export function AppShell() {
                   <Bell size={18} className={shellNavIconClass(isActive)} />
                   <span className="min-w-0 flex-1 text-left">{t('nav.notifications')}</span>
                   <UnreadBadge count={unreadCount} />
-                </>
-              )}
-            </NavLink>
-            <NavLink to="/app/sources" end className={({ isActive }) => shellNavClass(isActive)}>
-              {({ isActive }) => (
-                <>
-                  <Bookmark size={18} className={shellNavIconClass(isActive)} />
-                  {t('nav.sources')}
                 </>
               )}
             </NavLink>
@@ -135,13 +139,17 @@ export function AppShell() {
               <Home size={14} />
               {t('nav.home')}
             </Link>
-            <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/monitors">
-              <LayoutDashboard size={14} />
-              {t('nav.monitors')}
+            <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/explore">
+              <Compass size={14} />
+              {t('nav.explore')}
             </Link>
-            <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/monitors/manage">
-              <LayoutList size={14} />
-              {t('nav.manage')}
+            <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/my-topics">
+              <FolderKanban size={14} />
+              {t('nav.myTopics')}
+            </Link>
+            <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/topics">
+              <LayoutDashboard size={14} />
+              {t('nav.topics')}
             </Link>
             <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/notifications">
               <Bell size={14} />
@@ -151,10 +159,6 @@ export function AppShell() {
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               ) : null}
-            </Link>
-            <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/sources">
-              <Bookmark size={14} />
-              {t('nav.sources')}
             </Link>
             <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/me">
               <User size={14} />

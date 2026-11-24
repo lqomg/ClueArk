@@ -24,6 +24,7 @@ export function AdminLayout() {
   const menuItems = [
     { path: '/users', name: t('nav.users') },
     { path: '/monitors', name: t('nav.monitors') },
+    { path: '/developments', name: t('nav.developments') },
     { path: '/sources', name: t('nav.sources') },
     { path: '/policy', name: t('nav.policy') },
     { path: '/jobs', name: t('nav.jobs') },

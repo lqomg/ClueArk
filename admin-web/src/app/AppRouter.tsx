@@ -8,6 +8,7 @@ import { MonitorDetailPage } from '@/features/monitors/MonitorDetailPage';
 import { SourcesPage } from '@/features/sources/SourcesPage';
 import { PolicyPage } from '@/features/policy/PolicyPage';
 import { JobsPage } from '@/features/jobs/JobsPage';
+import { DevelopmentsPage } from '@/features/developments/DevelopmentsPage';
 
 export function AppRouter() {
   return (
@@ -32,6 +33,7 @@ export function AppRouter() {
         <Route path="users" element={<UsersPage />} />
         <Route path="monitors" element={<MonitorsPage />} />
         <Route path="monitors/:id" element={<MonitorDetailPage />} />
+        <Route path="developments" element={<DevelopmentsPage />} />
         <Route path="sources" element={<SourcesPage />} />
         <Route path="policy" element={<PolicyPage />} />
         <Route path="jobs" element={<JobsPage />} />

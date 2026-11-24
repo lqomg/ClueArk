@@ -127,7 +127,7 @@ export function HomePage() {
           {t('home.noMonitorsDesc')}
         </p>
         <Link
-          to="/app/monitors/manage"
+          to="/app/my-topics"
           className="inline-flex items-center justify-center rounded-lg bg-ark-accent px-4 py-2 text-sm font-bold text-black shadow-lg shadow-ark-accent/15 transition hover:opacity-95"
         >
           {t('monitors.create')}

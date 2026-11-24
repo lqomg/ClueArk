@@ -28,6 +28,7 @@ import type { MonitorIntelligence, MonitorWithListMetrics } from '@/types/models
 import { useAppTopBar } from '@/components/layout/AppTopBar';
 import { MonitorSnapshotLoadingBanner } from '@/components/monitors/MonitorCreateProgress';
 import { cn } from '@/lib/cn';
+import { myTopicsPath, topicTimelinePath } from '@/pages/app/topics/paths';
 import { formatClueMetaTime, normalizeUserTimeZone, relTimeIso } from '@/lib/datetime';
 import { isSnapshotPending, sleep } from '@/lib/monitorCreateFlow';
 import { useAuthStore } from '@/stores/authStore';
@@ -216,7 +217,7 @@ export function MonitorOverviewPage() {
         <div className="flex min-w-0 flex-1 flex-col gap-1 md:flex-row md:items-center md:gap-4">
           <h1 className="flex shrink-0 items-center gap-2 text-lg font-semibold tracking-tight text-ark-text">
             <Sparkles className="size-5 shrink-0 text-ark-accent" strokeWidth={2} aria-hidden />
-            {t('nav.monitors')}
+            {t('nav.topics')}
           </h1>
           <p className="min-w-0 text-xs leading-snug text-slate-500 md:max-w-2xl md:border-l md:border-ark-border md:pl-4 md:text-sm">
             {t('monitors.overviewDesc')}
@@ -250,7 +251,7 @@ export function MonitorOverviewPage() {
             {t('monitors.emptyOverviewDesc')}
           </p>
           <Link
-            to="/app/monitors/manage"
+            to={myTopicsPath()}
             className={cn(
               'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-bold text-black shadow-lg shadow-ark-accent/15 transition hover:opacity-95',
               'bg-ark-accent',
@@ -272,7 +273,7 @@ export function MonitorOverviewPage() {
             <p className="mt-0.5 text-[10px] text-slate-600">{t('monitors.listCount', { count: sorted.length })}</p>
           </div>
           <Link
-            to="/app/monitors/manage"
+            to={myTopicsPath()}
             className="shrink-0 text-[10px] font-medium text-ark-accent hover:underline"
           >
             {t('common.manage')}
@@ -520,7 +521,7 @@ export function MonitorOverviewPage() {
                       {t('monitors.latestClues')}
                     </h3>
                     <Link
-                      to={`/app/monitors/${currentMonitor.id}/timeline`}
+                      to={topicTimelinePath(currentMonitor.id)}
                       className="flex shrink-0 items-center gap-0.5 self-start text-[11px] text-slate-500 transition hover:text-ark-accent sm:self-auto"
                     >
                       {t('monitors.viewTimeline')}

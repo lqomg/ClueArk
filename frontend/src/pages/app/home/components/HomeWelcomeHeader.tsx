@@ -31,7 +31,7 @@ export function HomeWelcomeHeader({
           </p>
         </div>
         <Link
-          to="/app/monitors/manage"
+          to="/app/my-topics"
           className="inline-flex shrink-0 items-center gap-2 self-start rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-white/15 hover:text-white"
         >
           <LayoutList className="size-3.5" aria-hidden />

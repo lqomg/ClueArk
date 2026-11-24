@@ -13,7 +13,7 @@
   </p>
 
   <p>
-    围绕「话题监控」组织信息：一句话描述意图，后端用 LLM 扩写说明并绑定公开信源；Embedding 驱动语义时间线、匹配通知与定时研判摘要。统一接入 RSS/Atom、网页列表爬虫与 JSON 热点 API。可用 Docker Compose 私有化部署。
+    围绕「专题」组织信息：一句话描述意图，后端用 LLM 扩写说明并绑定公开信源；Embedding 驱动语义时间线、匹配通知与定时研判摘要。统一接入 RSS/Atom、网页列表爬虫与 JSON 热点 API。可用 Docker Compose 私有化部署。
   </p>
 </div>
 
@@ -34,7 +34,7 @@
 ## 功能特性
 
 - **统一信源模型**：内置与用户自建共用类型与指纹策略。
-- **AI 话题监控**：一句话创建 → LLM 说明 / 关键词 / 实体与绑源；设置里可调信源与 `minCosine`。
+- **AI 专题**：一句话创建 → LLM 说明 / 关键词 / 实体与绑源；设置里可调信源与 `minCosine`。
 - **多类采集**：RSS/Atom、Web（Cheerio 列表爬虫）、JSON 热点 API（`hot_api`）。
 - **独立爬虫服务**：与主站契约对齐上报；爬虫侧不依赖 LLM。见 [`crawler/README.md`](crawler/README.md)。
 - **Embeddings + Qdrant**：语义时间线与聚类；向量不进 Mongo。
@@ -48,7 +48,7 @@
 
 ### 已实现
 
-- [x] AI 话题监控（创建、绑源、语义时间线）
+- [x] AI 专题（创建、绑源、语义时间线；产品路径 `/app/topics`）
 - [x] RSS / Web 爬虫 / `hot_api` + 内置信源目录
 - [x] Embeddings + Qdrant 匹配与聚类
 - [x] LLM 富化、站内匹配通知、滚动 Brief
@@ -57,22 +57,26 @@
 
 ### 规划中
 
-- [ ] 专题进展时间线（门禁后的可核验进展，而非纯条目流）
+- [x] 进展数据模型与读 API（`monitor_developments`；门禁写入与 UI 仍待后续）
+- [ ] 门禁流水线（admission / author → 写出进展）
+- [ ] 专题进展时间线 UI + 证据下钻
 - [ ] 对话辅助创建与调整专题
 - [ ] 跨专题首页巡视（今日 / 关注 / 精选）
 - [ ] 官方专题目录与订阅
-- [ ] 更完整的多语言进展本地化
+- [ ] 更完整的多语言进展本地化（当前仅 translation 缓存读路径）
 - [~] 社交平台原生接入（如 X）与更多内置热点源
 - [ ] 实时通知（SSE / WebSocket）
 
 欢迎通过 [Issues](https://github.com/lqomg/ClueArk/issues) 讨论优先级或认领任务。
 
-## 话题监控（机制）
+## 专题（机制）
 
 - **创建**：短意图 → LLM 标题 / 说明 / 关键词 / 实体 + 绑源；描述向量进 **Qdrant**。
 - **时间线**：Qdrant 检索 + `minCosine`；HTTP 读路径不做全库余弦。
+- **进展（模型已落地）**：集合 `monitor_developments`；用户 `GET /api/monitors/:id/developments`；运营后台「进展」只读列表。门禁写入与进展 UI 仍规划中。
 - **Brief**：异步 `run_brief`；证据来自 Qdrant；见 `MONITOR_BRIEF_*`。
 - **通知**：命中写入 `notifications`（站内）。
+- **路由**：用户产品对外使用 `/app/topics`、`/app/my-topics`；旧 `/app/monitors*` 仍兼容重定向。
 
 ## 信源类型
 

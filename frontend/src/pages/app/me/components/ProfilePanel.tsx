@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button, FormField, Input, Select } from '@/components/ui';
 import { COMMON_IANA_TIME_ZONES } from '@/lib/datetime';
 import { userDisplayName, userInitials } from '@/lib/user-display';
 import type { WebSupportedLocale } from '@/lib/localeStorage';
+import { sourcesPath } from '@/pages/app/topics/paths';
 import { FormFeedback } from './FormFeedback';
 
 function SectionTitle({ children }: { children: string }) {
@@ -133,6 +135,16 @@ export function ProfilePanel({
             </Button>
           </div>
         </form>
+      </SectionBlock>
+
+      <SectionBlock title={t('nav.sources')}>
+        <p className="text-sm text-slate-500">{t('profile.sourcesHint')}</p>
+        <Link
+          to={sourcesPath()}
+          className="inline-flex text-sm font-medium text-ark-accent underline-offset-4 hover:underline"
+        >
+          {t('profile.sourcesLink')}
+        </Link>
       </SectionBlock>
 
       <SectionBlock title={t('profile.security')}>

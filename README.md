@@ -13,7 +13,7 @@
   </p>
 
   <p>
-    ClueArk organizes information around <strong>topic monitors</strong>: describe an intent in one sentence; the backend uses an LLM to expand the brief and bind public sources; embeddings power a semantic timeline, match notifications, and scheduled intelligence briefs. Ingest RSS/Atom, web list pages, and JSON hot-topic APIs into one source pool. Self-hostable with Docker Compose.
+    ClueArk organizes information around <strong>topics</strong>: describe an intent in one sentence; the backend uses an LLM to expand the brief and bind public sources; embeddings power a semantic timeline, match notifications, and scheduled intelligence briefs. Ingest RSS/Atom, web list pages, and JSON hot-topic APIs into one source pool. Self-hostable with Docker Compose.
   </p>
 </div>
 
@@ -34,7 +34,7 @@ Demo: [https://clueark.com](https://clueark.com)
 ## Features
 
 - **Unified source model**: Built-in and user-created sources share types and fingerprinting.
-- **AI-assisted topic monitors**: One-sentence intent → LLM brief, keywords/entities, recommended bindings; tune sources and `minCosine` in settings.
+- **AI-assisted topics**: One-sentence intent → LLM brief, keywords/entities, recommended bindings; tune sources and `minCosine` in settings.
 - **Multiple ingestion paths**: **RSS/Atom**, **Web** (Cheerio list crawler), **JSON hot APIs** (`hot_api`).
 - **Standalone crawler**: Contract-aligned list-page ingestion; no LLM in the crawler. See [`crawler/README.md`](crawler/README.md).
 - **Embeddings + Qdrant**: Semantic timeline and clustering; vectors stay out of MongoDB.
@@ -48,7 +48,7 @@ Demo: [https://clueark.com](https://clueark.com)
 
 ### Shipped
 
-- [x] AI topic monitors (create, bind sources, semantic timeline)
+- [x] AI topics (create, bind sources, semantic timeline; product paths `/app/topics`)
 - [x] RSS / Web crawler / `hot_api` sources + built-in catalog
 - [x] Embeddings + Qdrant match & clustering
 - [x] LLM enrichment, in-app match notifications, rolling briefs
@@ -57,22 +57,26 @@ Demo: [https://clueark.com](https://clueark.com)
 
 ### Planned
 
-- [ ] Topic developments timeline (gated, verifiable updates—not only raw matched items)
+- [x] Developments data model + read APIs (`monitor_developments`; gate write + UI still later)
+- [ ] Admission gate pipeline (admission / author → developments)
+- [ ] Topic developments timeline UI + evidence drill-down
 - [ ] Chat-assisted topic create / tune
 - [ ] Cross-topic home feed (today / following / picks)
 - [ ] Official topic catalog and subscribe
-- [ ] Richer multi-locale development localization
+- [ ] Richer multi-locale development localization (cache read path only for now)
 - [~] Native social ingestion (e.g. X) and more built-in hot sources
 - [ ] Real-time notifications (SSE / WebSocket)
 
 Discuss priorities via [Issues](https://github.com/lqomg/ClueArk/issues).
 
-## How topic monitoring works
+## How topics work
 
 - **Create**: Short intent → LLM title/description/keywords/entities + bound sources; description vector in **Qdrant**.
 - **Timeline**: Qdrant search + `minCosine`; HTTP read path does not run full-library cosine.
+- **Developments (model landed)**: `monitor_developments` collection; user `GET /api/monitors/:id/developments`; admin read-only list. Gate writers and topic UI still planned.
 - **Briefs**: Async `run_brief` jobs; evidence from Qdrant; see `MONITOR_BRIEF_*`.
 - **Notifications**: Matches write `notifications` (in-app).
+- **Routes**: Product UI uses `/app/topics` and `/app/my-topics`; legacy `/app/monitors*` redirects for compatibility.
 
 ## Source types
 

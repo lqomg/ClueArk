@@ -11,6 +11,11 @@ import { MonitorTopicCreateBar } from '@/pages/app/monitors/MonitorTopicCreateBa
 import { useMonitorCreateFlow } from '@/hooks/useMonitorCreateFlow';
 import { cn } from '@/lib/cn';
 import { relTimeIso } from '@/lib/datetime';
+import {
+  topicSettingsPath,
+  topicTimelinePath,
+  topicsOverviewPath,
+} from '@/pages/app/topics/paths';
 
 function TrendSpark({ counts, className }: { counts: number[]; className?: string }) {
   const w = 76;
@@ -85,7 +90,7 @@ export function MonitorManagePage() {
     useCallback(
       (monitorId: string) => {
         void loadRows();
-        navigate(`/app/monitors?monitor=${encodeURIComponent(monitorId)}`, { replace: false });
+        navigate(topicsOverviewPath(monitorId), { replace: false });
       },
       [loadRows, navigate],
     ),
@@ -130,7 +135,7 @@ export function MonitorManagePage() {
           </p>
         </div>
         <Link
-          to="/app/monitors"
+          to={topicsOverviewPath()}
           className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-ark-border bg-ark-surface px-3 py-1.5 text-xs font-medium text-ark-text shadow-sm transition-colors hover:bg-white/[0.04]"
         >
           <Sparkles size={14} strokeWidth={2} aria-hidden />
@@ -197,20 +202,20 @@ export function MonitorManagePage() {
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 border-t border-white/[0.06] pt-3 md:mt-0 md:w-52 md:shrink-0 md:flex-col md:border-l md:border-t-0 md:pl-4 md:pt-0">
                     <Link
-                      to={`/app/monitors?monitor=${encodeURIComponent(m.id)}`}
+                      to={topicsOverviewPath(m.id)}
                       className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-ark-border bg-ark-bg/60 px-2.5 py-2 text-center text-[11px] font-medium text-slate-200 transition hover:border-ark-accent/40 hover:text-ark-accent md:flex-none"
                     >
                       {t('monitors.intel')}
                       <ArrowRight className="size-3 shrink-0" aria-hidden />
                     </Link>
                     <Link
-                      to={`/app/monitors/${m.id}/timeline`}
+                      to={topicTimelinePath(m.id)}
                       className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-ark-border bg-ark-bg/60 px-2.5 py-2 text-center text-[11px] font-medium text-slate-200 transition hover:border-ark-accent/40 hover:text-ark-accent md:flex-none"
                     >
                       {t('monitors.timeline')}
                     </Link>
                     <Link
-                      to={`/app/monitors/${m.id}/settings`}
+                      to={topicSettingsPath(m.id)}
                       className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-ark-border bg-ark-bg/60 px-2.5 py-2 text-center text-[11px] font-medium text-slate-200 transition hover:border-ark-accent/40 hover:text-ark-accent md:flex-none"
                     >
                       {t('monitors.settings')}
