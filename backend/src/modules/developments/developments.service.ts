@@ -1,0 +1,459 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { normalizeLocale } from '../../common/utils/locale.utils';
+import { FeedItem, FeedItemDocument } from '../feed-items/schemas/feed-item.schema';
+import { Source, SourceDocument } from '../sources/schemas/source.schema';
+import { normalizeStructuredFact } from './structured-fact.util';
+import {
+  DEVELOPMENT_SEVERITIES,
+  DEVELOPMENT_TYPES,
+  MonitorDevelopment,
+  MonitorDevelopmentDocument,
+  type DevelopmentSeverity,
+  type DevelopmentType,
+} from './schemas/monitor-development.schema';
+
+export type DevelopmentUpdateBeatDto = {
+  at: string;
+  feedItemId: string | null;
+  title: string;
+};
+
+export type DevelopmentListItem = {
+  id: string;
+  monitorId: string;
+  title: string;
+  summary: string;
+  rationale: string;
+  whyItMatters: string;
+  watchNext: string;
+  structuredFact: Record<string, unknown> | null;
+  type: DevelopmentType;
+  severity: DevelopmentSeverity;
+  noveltyScore: number;
+  confidence: number;
+  evidenceItemIds: string[];
+  clusterIds: string[];
+  primaryEvidenceItemId: string | null;
+  mergeScopeKey?: string;
+  primarySourceDisplayName?: string;
+  primarySourceAvatarUrl?: string | null;
+  primaryEvidence?: {
+    feedItemId: string;
+    title: string;
+    link: string;
+  } | null;
+  sourcePreviews?: Array<{
+    sourceId: string;
+    displayName: string;
+    avatarUrl: string | null;
+  }>;
+  alertIds: string[];
+  gateDecisionId: string | null;
+  occurredAt: string;
+  timelineAt: string;
+  timePrecision: 'instant' | 'day';
+  lastMeaningfulAt: string | null;
+  updates: DevelopmentUpdateBeatDto[];
+  locale: string;
+  createdAt: string | null;
+};
+
+export type CreateDevelopmentInput = {
+  monitorId: string;
+  userId: string;
+  title: string;
+  summary: string;
+  rationale?: string;
+  whyItMatters?: string;
+  watchNext?: string;
+  structuredFact?: Record<string, unknown> | null;
+  type?: DevelopmentType;
+  severity?: DevelopmentSeverity;
+  noveltyScore?: number;
+  confidence?: number;
+  evidenceItemIds: string[];
+  clusterIds?: string[];
+  primaryEvidenceItemId?: string | null;
+  alertIds?: string[];
+  gateDecisionId?: string | null;
+  mergeScopeKey: string;
+  occurredAt: Date;
+  timelineAt?: Date;
+  timePrecision?: 'instant' | 'day';
+  locale?: string;
+  lastMeaningfulAt?: Date;
+  updates?: Array<{ at: Date; feedItemId: Types.ObjectId | null; title: string }>;
+};
+
+export type UpsertDevelopmentResult = {
+  development: DevelopmentListItem;
+  created: boolean;
+};
+
+function clamp01(n: number): number {
+  if (!Number.isFinite(n)) return 0.5;
+  return Math.min(1, Math.max(0, n));
+}
+
+function toIso(value: unknown): string {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString();
+  const d = new Date(String(value ?? ''));
+  if (Number.isNaN(d.getTime())) return new Date(0).toISOString();
+  return d.toISOString();
+}
+
+function toIdList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((x) => String(x)).filter((id) => Types.ObjectId.isValid(id));
+}
+
+function toObjectIds(ids: string[]): Types.ObjectId[] {
+  return [...new Set(ids.filter((id) => Types.ObjectId.isValid(id)))].map(
+    (id) => new Types.ObjectId(id),
+  );
+}
+
+function normalizeTimePrecision(raw: unknown): 'instant' | 'day' {
+  return raw === 'day' ? 'day' : 'instant';
+}
+
+function resolvePersistLocale(title: string, summary: string, locale?: string): string {
+  if (locale?.trim()) return normalizeLocale(locale);
+  const sample = `${title}\n${summary}`;
+  const cjk = (sample.match(/[\u4e00-\u9fff]/g) || []).length;
+  const latin = (sample.match(/[A-Za-z]/g) || []).length;
+  if (cjk > latin && cjk >= 4) return 'zh-CN';
+  return 'en';
+}
+
+@Injectable()
+export class DevelopmentsService {
+  constructor(
+    @InjectModel(MonitorDevelopment.name)
+    private readonly developmentModel: Model<MonitorDevelopmentDocument>,
+    @InjectModel(FeedItem.name)
+    private readonly feedItemModel: Model<FeedItemDocument>,
+    @InjectModel(Source.name)
+    private readonly sourceModel: Model<SourceDocument>,
+  ) {}
+
+  serialize(doc: MonitorDevelopmentDocument | Record<string, unknown>): DevelopmentListItem {
+    const row = doc as Record<string, unknown>;
+    const typeRaw = String(row.type ?? 'update');
+    const severityRaw = String(row.severity ?? 'medium');
+    return {
+      id: String(row._id ?? ''),
+      monitorId: String(row.monitorId ?? ''),
+      title: String(row.title ?? ''),
+      summary: String(row.summary ?? ''),
+      rationale: String(row.rationale ?? ''),
+      whyItMatters: String(row.whyItMatters ?? '').slice(0, 500),
+      watchNext: String(row.watchNext ?? '').slice(0, 300),
+      structuredFact: normalizeStructuredFact(row.structuredFact),
+      type: (DEVELOPMENT_TYPES as readonly string[]).includes(typeRaw)
+        ? (typeRaw as DevelopmentType)
+        : 'update',
+      severity: (DEVELOPMENT_SEVERITIES as readonly string[]).includes(severityRaw)
+        ? (severityRaw as DevelopmentSeverity)
+        : 'medium',
+      noveltyScore: clamp01(Number(row.noveltyScore ?? 0.5)),
+      confidence: clamp01(Number(row.confidence ?? 0.5)),
+      evidenceItemIds: toIdList(row.evidenceItemIds),
+      clusterIds: toIdList(row.clusterIds),
+      primaryEvidenceItemId: row.primaryEvidenceItemId
+        ? String(row.primaryEvidenceItemId)
+        : null,
+      mergeScopeKey: row.mergeScopeKey ? String(row.mergeScopeKey) : undefined,
+      alertIds: toIdList(row.alertIds),
+      gateDecisionId: row.gateDecisionId ? String(row.gateDecisionId) : null,
+      occurredAt: toIso(row.occurredAt),
+      timelineAt: toIso(row.timelineAt ?? row.occurredAt),
+      timePrecision: normalizeTimePrecision(row.timePrecision),
+      lastMeaningfulAt: row.lastMeaningfulAt ? toIso(row.lastMeaningfulAt) : null,
+      updates: Array.isArray(row.updates)
+        ? (row.updates as Array<{ at?: unknown; feedItemId?: unknown; title?: unknown }>)
+            .map((u) => ({
+              at: toIso(u.at),
+              feedItemId: u.feedItemId ? String(u.feedItemId) : null,
+              title: String(u.title ?? '').slice(0, 80),
+            }))
+            .filter((u) => Boolean(u.at))
+        : [],
+      locale: String(row.locale ?? '').trim(),
+      createdAt: row.createdAt ? toIso(row.createdAt) : null,
+    };
+  }
+
+  /** 供阶段 4 门禁流水线写入；按 mergeScopeKey upsert。 */
+  async create(input: CreateDevelopmentInput): Promise<DevelopmentListItem> {
+    return (await this.upsertByScope(input)).development;
+  }
+
+  async upsertByScope(input: CreateDevelopmentInput): Promise<UpsertDevelopmentResult> {
+    const evidenceOids = toObjectIds(input.evidenceItemIds);
+    const clusterOids = toObjectIds(input.clusterIds ?? []);
+    const alertOids = toObjectIds(input.alertIds ?? []);
+    const primary =
+      input.primaryEvidenceItemId && Types.ObjectId.isValid(input.primaryEvidenceItemId)
+        ? new Types.ObjectId(input.primaryEvidenceItemId)
+        : evidenceOids[0] ?? null;
+    const occurredAt = input.occurredAt;
+    const mergeScopeKey = input.mergeScopeKey.trim().slice(0, 64);
+    if (!mergeScopeKey) {
+      throw new Error('development_merge_scope_required');
+    }
+    const timelineAt = input.timelineAt ?? occurredAt;
+    const insertBeat =
+      input.updates?.[0] ??
+      ({
+        at: occurredAt,
+        feedItemId: primary,
+        title: input.title.slice(0, 80),
+      } as const);
+
+    const result = await this.developmentModel
+      .findOneAndUpdate(
+        {
+          monitorId: new Types.ObjectId(input.monitorId),
+          mergeScopeKey,
+        },
+        {
+          $setOnInsert: {
+            monitorId: new Types.ObjectId(input.monitorId),
+            userId: new Types.ObjectId(input.userId),
+            title: input.title.slice(0, 300),
+            summary: input.summary.slice(0, 4000),
+            rationale: String(input.rationale ?? '').slice(0, 800),
+            whyItMatters: String(input.whyItMatters ?? '').slice(0, 500),
+            watchNext: String(input.watchNext ?? '').slice(0, 300),
+            structuredFact: normalizeStructuredFact(input.structuredFact),
+            type: input.type ?? 'update',
+            severity: input.severity ?? 'medium',
+            noveltyScore: clamp01(input.noveltyScore ?? 0.5),
+            confidence: clamp01(input.confidence ?? 0.5),
+            primaryEvidenceItemId: primary,
+            gateDecisionId:
+              input.gateDecisionId && Types.ObjectId.isValid(input.gateDecisionId)
+                ? new Types.ObjectId(input.gateDecisionId)
+                : null,
+            mergeScopeKey,
+            locale: resolvePersistLocale(input.title, input.summary, input.locale),
+            timePrecision: normalizeTimePrecision(input.timePrecision),
+            lastMeaningfulAt: input.lastMeaningfulAt ?? occurredAt,
+            updates: input.updates?.length ? input.updates : [insertBeat],
+          },
+          $addToSet: {
+            evidenceItemIds: { $each: evidenceOids },
+            clusterIds: { $each: clusterOids },
+            alertIds: { $each: alertOids },
+          },
+          $min: {
+            occurredAt,
+            timelineAt,
+          },
+        },
+        { new: true, upsert: true, includeResultMetadata: true },
+      )
+      .exec();
+
+    const metadata = result as unknown as {
+      value?: MonitorDevelopmentDocument | Record<string, unknown> | null;
+      lastErrorObject?: { updatedExisting?: boolean };
+    };
+    const doc = metadata.value ?? (result as unknown as MonitorDevelopmentDocument);
+    if (!doc) {
+      throw new Error('development_upsert_empty_result');
+    }
+    return {
+      development: this.serialize(doc),
+      created: metadata.lastErrorObject?.updatedExisting === false,
+    };
+  }
+
+  async listForMonitor(
+    monitorId: string,
+    opts?: {
+      page?: number;
+      pageSize?: number;
+      recentHours?: number;
+      sort?: 'timeline' | 'updated';
+    },
+  ): Promise<{ items: DevelopmentListItem[]; total: number; page: number; pageSize: number }> {
+    const page = Math.max(1, opts?.page ?? 1);
+    const pageSize = Math.min(50, Math.max(1, opts?.pageSize ?? 20));
+    if (!Types.ObjectId.isValid(monitorId)) {
+      return { items: [], total: 0, page, pageSize };
+    }
+    const monitorOid = new Types.ObjectId(monitorId);
+    const since =
+      opts?.recentHours && opts.recentHours > 0
+        ? new Date(Date.now() - opts.recentHours * 3600_000)
+        : null;
+    const sortUpdated = opts?.sort === 'updated';
+    const filter: Record<string, unknown> = { monitorId: monitorOid };
+    if (since) {
+      filter[sortUpdated ? 'lastMeaningfulAt' : 'timelineAt'] = { $gte: since };
+    }
+    const sort = sortUpdated
+      ? ({ lastMeaningfulAt: -1, timelineAt: -1, _id: -1 } as const)
+      : ({ timelineAt: -1, _id: -1 } as const);
+    const [total, found] = await Promise.all([
+      this.developmentModel.countDocuments(filter).exec(),
+      this.developmentModel
+        .find(filter)
+        .sort(sort)
+        .skip((page - 1) * pageSize)
+        .limit(pageSize)
+        .lean()
+        .exec(),
+    ]);
+    const items = (found as Record<string, unknown>[]).map((r) => this.serialize(r));
+    await this.hydratePrimarySources(items);
+    return { items, total, page, pageSize };
+  }
+
+  async getOne(monitorId: string, developmentId: string): Promise<DevelopmentListItem | null> {
+    if (!Types.ObjectId.isValid(monitorId) || !Types.ObjectId.isValid(developmentId)) {
+      return null;
+    }
+    const row = await this.developmentModel
+      .findOne({
+        _id: new Types.ObjectId(developmentId),
+        monitorId: new Types.ObjectId(monitorId),
+      })
+      .lean()
+      .exec();
+    if (!row) return null;
+    const item = this.serialize(row as Record<string, unknown>);
+    await this.hydratePrimarySources([item]);
+    return item;
+  }
+
+  async getOneOrThrow(monitorId: string, developmentId: string): Promise<DevelopmentListItem> {
+    const row = await this.getOne(monitorId, developmentId);
+    if (!row) throw new NotFoundException('development_not_found');
+    return row;
+  }
+
+  async listForAdmin(opts: {
+    page?: number;
+    pageSize?: number;
+    monitorId?: string;
+    userId?: string;
+    search?: string;
+  }): Promise<{ items: DevelopmentListItem[]; total: number; page: number; pageSize: number }> {
+    const page = Math.max(1, opts.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, opts.pageSize ?? 20));
+    const filter: Record<string, unknown> = {};
+    if (opts.monitorId && Types.ObjectId.isValid(opts.monitorId)) {
+      filter.monitorId = new Types.ObjectId(opts.monitorId);
+    }
+    if (opts.userId && Types.ObjectId.isValid(opts.userId)) {
+      filter.userId = new Types.ObjectId(opts.userId);
+    }
+    const search = opts.search?.trim();
+    if (search) {
+      const esc = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.$or = [{ title: new RegExp(esc, 'i') }, { summary: new RegExp(esc, 'i') }];
+    }
+    const [total, found] = await Promise.all([
+      this.developmentModel.countDocuments(filter).exec(),
+      this.developmentModel
+        .find(filter)
+        .sort({ timelineAt: -1, _id: -1 })
+        .skip((page - 1) * pageSize)
+        .limit(pageSize)
+        .lean()
+        .exec(),
+    ]);
+    const items = (found as Record<string, unknown>[]).map((r) => this.serialize(r));
+    return { items, total, page, pageSize };
+  }
+
+  private async hydratePrimarySources(items: DevelopmentListItem[]): Promise<void> {
+    if (!items.length) return;
+    const feedIds = [
+      ...new Set(
+        items.flatMap((item) =>
+          [item.primaryEvidenceItemId || '', ...(item.evidenceItemIds ?? [])].filter((id) =>
+            Types.ObjectId.isValid(id),
+          ),
+        ),
+      ),
+    ];
+    if (!feedIds.length) return;
+
+    const feedRows = await this.feedItemModel
+      .find({ _id: { $in: feedIds.map((id) => new Types.ObjectId(id)) } })
+      .select({ _id: 1, sourceId: 1, title: 1, link: 1 })
+      .lean()
+      .exec();
+    const feedById = new Map(
+      feedRows.map((f) => [
+        String(f._id),
+        {
+          sourceId: String(f.sourceId),
+          title: String(f.title ?? ''),
+          link: String(f.link ?? ''),
+        },
+      ]),
+    );
+    const sourceIds = [...new Set([...feedById.values()].map((f) => f.sourceId))];
+    const sources = sourceIds.length
+      ? await this.sourceModel
+          .find({ _id: { $in: sourceIds.map((id) => new Types.ObjectId(id)) } })
+          .select({ _id: 1, displayName: 1, avatarUrl: 1 })
+          .lean()
+          .exec()
+      : [];
+    const sourceById = new Map(
+      sources.map((s) => [
+        String(s._id),
+        {
+          displayName: String(s.displayName ?? ''),
+          avatarUrl: s.avatarUrl ? String(s.avatarUrl) : null,
+        },
+      ]),
+    );
+
+    for (const item of items) {
+      const ordered = [
+        item.primaryEvidenceItemId || '',
+        ...(item.evidenceItemIds ?? []),
+      ].filter((id) => Types.ObjectId.isValid(id));
+      const seen = new Set<string>();
+      const previews: NonNullable<DevelopmentListItem['sourcePreviews']> = [];
+      for (const fid of ordered) {
+        const feed = feedById.get(fid);
+        if (!feed) continue;
+        if (seen.has(feed.sourceId)) continue;
+        seen.add(feed.sourceId);
+        const src = sourceById.get(feed.sourceId);
+        previews.push({
+          sourceId: feed.sourceId,
+          displayName: src?.displayName || feed.sourceId,
+          avatarUrl: src?.avatarUrl ?? null,
+        });
+      }
+      item.sourcePreviews = previews;
+
+      const primaryId =
+        item.primaryEvidenceItemId && Types.ObjectId.isValid(item.primaryEvidenceItemId)
+          ? item.primaryEvidenceItemId
+          : '';
+      const primaryFeed = primaryId ? feedById.get(primaryId) : undefined;
+      if (primaryFeed) {
+        const src = sourceById.get(primaryFeed.sourceId);
+        item.primarySourceDisplayName = src?.displayName || primaryFeed.sourceId;
+        item.primarySourceAvatarUrl = src?.avatarUrl ?? null;
+        item.primaryEvidence = {
+          feedItemId: primaryId,
+          title: primaryFeed.title,
+          link: primaryFeed.link,
+        };
+      }
+    }
+  }
+}

@@ -25,6 +25,7 @@
 - `sources/` — 统一信源池；RSS/热点轮询由 **worker** 内 `SourcePollScheduler` 调度
 - `worker-scheduler/` — 仅 worker 进程：`@Cron`（信源轮询、快照/Brief 入队、相似聚类维护）
 - `monitors/` — 专题（API 仍称 monitor）、`monitor_snapshots` 物化读模型
+- `developments/` — `monitor_developments` 进展读写模型与用户/Admin 读 API（门禁流水线见后续阶段）
 - `vector-store/` — Qdrant 向量 upsert/search（禁止 HTTP 读路径做余弦）
 - `job-center/` — BullMQ 任务入队 / 消费 / 审计；**`worker` 容器**（`node dist/worker`）消费（开源当前任务集见 `job.types.ts` 注释）
 - `notifications/` — 匹配通知（站内）

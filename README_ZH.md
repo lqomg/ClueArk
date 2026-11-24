@@ -57,11 +57,13 @@
 
 ### 规划中
 
-- [ ] 专题进展时间线（门禁后的可核验进展，而非纯条目流）
+- [x] 进展数据模型与读 API（`monitor_developments`；门禁写入与 UI 仍待后续）
+- [ ] 门禁流水线（admission / author → 写出进展）
+- [ ] 专题进展时间线 UI + 证据下钻
 - [ ] 对话辅助创建与调整专题
 - [ ] 跨专题首页巡视（今日 / 关注 / 精选）
 - [ ] 官方专题目录与订阅
-- [ ] 更完整的多语言进展本地化
+- [ ] 更完整的多语言进展本地化（当前仅 translation 缓存读路径）
 - [~] 社交平台原生接入（如 X）与更多内置热点源
 - [ ] 实时通知（SSE / WebSocket）
 
@@ -71,6 +73,7 @@
 
 - **创建**：短意图 → LLM 标题 / 说明 / 关键词 / 实体 + 绑源；描述向量进 **Qdrant**。
 - **时间线**：Qdrant 检索 + `minCosine`；HTTP 读路径不做全库余弦。
+- **进展（模型已落地）**：集合 `monitor_developments`；用户 `GET /api/monitors/:id/developments`；运营后台「进展」只读列表。门禁写入与进展 UI 仍规划中。
 - **Brief**：异步 `run_brief`；证据来自 Qdrant；见 `MONITOR_BRIEF_*`。
 - **通知**：命中写入 `notifications`（站内）。
 - **路由**：用户产品对外使用 `/app/topics`、`/app/my-topics`；旧 `/app/monitors*` 仍兼容重定向。

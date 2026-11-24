@@ -57,11 +57,13 @@ Demo: [https://clueark.com](https://clueark.com)
 
 ### Planned
 
-- [ ] Topic developments timeline (gated, verifiable updates—not only raw matched items)
+- [x] Developments data model + read APIs (`monitor_developments`; gate write + UI still later)
+- [ ] Admission gate pipeline (admission / author → developments)
+- [ ] Topic developments timeline UI + evidence drill-down
 - [ ] Chat-assisted topic create / tune
 - [ ] Cross-topic home feed (today / following / picks)
 - [ ] Official topic catalog and subscribe
-- [ ] Richer multi-locale development localization
+- [ ] Richer multi-locale development localization (cache read path only for now)
 - [~] Native social ingestion (e.g. X) and more built-in hot sources
 - [ ] Real-time notifications (SSE / WebSocket)
 
@@ -71,6 +73,7 @@ Discuss priorities via [Issues](https://github.com/lqomg/ClueArk/issues).
 
 - **Create**: Short intent → LLM title/description/keywords/entities + bound sources; description vector in **Qdrant**.
 - **Timeline**: Qdrant search + `minCosine`; HTTP read path does not run full-library cosine.
+- **Developments (model landed)**: `monitor_developments` collection; user `GET /api/monitors/:id/developments`; admin read-only list. Gate writers and topic UI still planned.
 - **Briefs**: Async `run_brief` jobs; evidence from Qdrant; see `MONITOR_BRIEF_*`.
 - **Notifications**: Matches write `notifications` (in-app).
 - **Routes**: Product UI uses `/app/topics` and `/app/my-topics`; legacy `/app/monitors*` redirects for compatibility.

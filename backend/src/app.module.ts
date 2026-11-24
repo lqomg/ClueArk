@@ -17,6 +17,8 @@ import { AdminModule } from './modules/admin/admin.module';
 
 import { MonitorsModule } from './modules/monitors/monitors.module';
 
+import { DevelopmentsModule } from './modules/developments/developments.module';
+
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 import { LoggerModule } from './modules/logger/logger.module';
@@ -146,6 +148,8 @@ function buildMongoConnectionString(): string {
     FeedItemsModule,
 
     MonitorsModule,
+
+    DevelopmentsModule,
 
     DashboardModule,
 
