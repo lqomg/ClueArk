@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, Types, type PipelineStage } from 'mongoose';
 import { normalizeLocale } from '../../common/utils/locale.utils';
 import { FeedItem, FeedItemDocument } from '../feed-items/schemas/feed-item.schema';
 import { Source, SourceDocument } from '../sources/schemas/source.schema';
@@ -312,6 +312,101 @@ export class DevelopmentsService {
     const items = (found as Record<string, unknown>[]).map((r) => this.serialize(r));
     await this.hydratePrimarySources(items);
     return { items, total, page, pageSize };
+  }
+
+  /**
+   * 首页跨专题进展：按活动戳倒序交叉
+   *（max(lastMeaningfulAt, occurredAt, timelineAt)）；游标为 activityAt + _id。
+   * 返回 limit+1 条供调用方判断 hasMore。
+   */
+  async listForUserHomeFeed(
+    monitorIds: string[],
+    recentHours: number,
+    opts?: {
+      limit?: number;
+      cursorActivityAt?: Date;
+      cursorId?: string;
+    },
+  ): Promise<DevelopmentListItem[]> {
+    const hours = Math.min(2160, Math.max(1, Math.floor(Number(recentHours)) || 2160));
+    const limit = Math.min(50, Math.max(1, Math.floor(Number(opts?.limit)) || 20));
+    const oids = [
+      ...new Set(
+        monitorIds.map((id) => String(id ?? '').trim()).filter((id) => Types.ObjectId.isValid(id)),
+      ),
+    ].map((id) => new Types.ObjectId(id));
+    if (!oids.length) return [];
+    const since = new Date(Date.now() - hours * 3600_000);
+    const cursorAt = opts?.cursorActivityAt;
+    const cursorIdRaw = String(opts?.cursorId ?? '').trim();
+    const activityField = {
+      $max: ['$lastMeaningfulAt', '$occurredAt', '$timelineAt'],
+    };
+    const pipeline: PipelineStage[] = [
+      { $match: { monitorId: { $in: oids } } },
+      { $addFields: { _activityAt: activityField } },
+      {
+        $match:
+          cursorAt instanceof Date &&
+          !Number.isNaN(cursorAt.getTime()) &&
+          Types.ObjectId.isValid(cursorIdRaw)
+            ? {
+                $and: [
+                  { _activityAt: { $gte: since } },
+                  {
+                    $or: [
+                      { _activityAt: { $lt: cursorAt } },
+                      {
+                        _activityAt: cursorAt,
+                        _id: { $lt: new Types.ObjectId(cursorIdRaw) },
+                      },
+                    ],
+                  },
+                ],
+              }
+            : { _activityAt: { $gte: since } },
+      },
+      { $sort: { _activityAt: -1, _id: -1 } },
+      { $limit: limit + 1 },
+    ];
+    const found = await this.developmentModel.aggregate(pipeline).exec();
+    const items = (found as Record<string, unknown>[]).map((r) => this.serialize(r));
+    await this.hydratePrimarySources(items);
+    return items;
+  }
+
+  /**
+   * 早报：跨专题按 timelineAt 倒序拉窗内进展。
+   * `since` 一般为用户当地日 00:00 的 UTC 瞬时。
+   */
+  async listForMorningBriefing(
+    monitorIds: string[],
+    since: Date,
+    opts?: { limit?: number },
+  ): Promise<DevelopmentListItem[]> {
+    const limit = Math.min(200, Math.max(1, Math.floor(Number(opts?.limit)) || 200));
+    const oids = [
+      ...new Set(
+        monitorIds.map((id) => String(id ?? '').trim()).filter((id) => Types.ObjectId.isValid(id)),
+      ),
+    ].map((id) => new Types.ObjectId(id));
+    if (!oids.length) return [];
+    const sinceAt =
+      since instanceof Date && Number.isFinite(since.getTime())
+        ? since
+        : new Date(Date.now() - 24 * 3600_000);
+    const found = await this.developmentModel
+      .find({
+        monitorId: { $in: oids },
+        timelineAt: { $gte: sinceAt },
+      })
+      .sort({ timelineAt: -1, _id: -1 })
+      .limit(limit)
+      .lean()
+      .exec();
+    const items = (found as Record<string, unknown>[]).map((r) => this.serialize(r));
+    await this.hydratePrimarySources(items);
+    return items;
   }
 
   async getOne(monitorId: string, developmentId: string): Promise<DevelopmentListItem | null> {

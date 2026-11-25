@@ -1,7 +1,10 @@
 import { http } from './http';
 import type {
   DevelopmentEvidenceItem,
+  HomeFeedResponse,
+  HomeFeedStreamTab,
   MonitorDevelopment,
+  MorningBriefingResponse,
   PaginatedDevelopments,
 } from '@/types/models';
 
@@ -12,10 +15,10 @@ export interface ListMonitorDevelopmentsQuery {
   sort?: 'timeline' | 'updated';
 }
 
-function buildQuery(params: ListMonitorDevelopmentsQuery): string {
+function buildQuery(params: object): string {
   const p = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value != null) p.set(key, String(value));
+  for (const [key, value] of Object.entries(params as Record<string, unknown>)) {
+    if (value != null && value !== '') p.set(key, String(value));
   }
   const qs = p.toString();
   return qs ? `?${qs}` : '';
@@ -47,6 +50,31 @@ export async function listDevelopmentEvidence(
 ): Promise<{ items: DevelopmentEvidenceItem[] }> {
   const { data } = await http.get<{ items: DevelopmentEvidenceItem[] }>(
     `/monitors/${encodeURIComponent(monitorId)}/developments/${encodeURIComponent(developmentId)}/evidence`,
+  );
+  return data;
+}
+
+export interface HomeFeedQuery {
+  recentHours?: number;
+  tab?: HomeFeedStreamTab;
+  limit?: number;
+  cursor?: string;
+}
+
+export async function getHomeFeed(query: HomeFeedQuery = {}): Promise<HomeFeedResponse> {
+  const { data } = await http.get<HomeFeedResponse>(`/users/me/home-feed${buildQuery(query)}`);
+  return data;
+}
+
+export interface MorningBriefingQuery {
+  recentHours?: number;
+}
+
+export async function getMorningBriefing(
+  query: MorningBriefingQuery = {},
+): Promise<MorningBriefingResponse> {
+  const { data } = await http.get<MorningBriefingResponse>(
+    `/users/me/morning-briefing${buildQuery(query)}`,
   );
   return data;
 }

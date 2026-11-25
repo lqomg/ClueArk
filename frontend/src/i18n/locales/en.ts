@@ -209,6 +209,30 @@ export type WebTranslationKey =
   | 'home.importanceScore'
   | 'home.statusOk'
   | 'home.radarRunning'
+  | 'home.tabBriefing'
+  | 'home.tabSubscribed'
+  | 'home.tabRecommended'
+  | 'home.briefingAxisLabel'
+  | 'home.briefingAxisTitle'
+  | 'home.briefingNow'
+  | 'home.briefingBadgeImportant'
+  | 'home.briefingBadgeHigh'
+  | 'home.briefingEvidence'
+  | 'home.briefingQuiet'
+  | 'home.briefingFootHint'
+  | 'home.briefingFootFollowing'
+  | 'home.briefingFootFollowingEmpty'
+  | 'home.briefingEmptyTitle'
+  | 'home.briefingEmptyBody'
+  | 'home.feedEmptyTitle'
+  | 'home.feedEmptyBody'
+  | 'home.dutyEmptyTitle'
+  | 'home.feedWatchingSummary'
+  | 'home.recommendedEmptyTitle'
+  | 'home.recommendedEmptyBody'
+  | 'home.feedEnd'
+  | 'home.createTopic'
+  | 'home.unread'
   | 'monitors.title'
   | 'monitors.empty'
   | 'monitors.manage'
@@ -573,6 +597,30 @@ export const en: Record<WebTranslationKey, string> = {
   'home.importanceScore': 'Importance {{score}}',
   'home.statusOk': 'System: OK',
   'home.radarRunning': 'Radar: running',
+  'home.tabBriefing': "Today",
+  'home.tabSubscribed': "Following",
+  'home.tabRecommended': "Picks",
+  'home.briefingAxisLabel': "Today timeline",
+  'home.briefingAxisTitle': "Today",
+  'home.briefingNow': "Now",
+  'home.briefingBadgeImportant': "Critical",
+  'home.briefingBadgeHigh': "High",
+  'home.briefingEvidence': "{{count}} evidence",
+  'home.briefingQuiet': "Quiet (watching): {{names}}",
+  'home.briefingFootHint': "When quiet, browse Following for recent developments.",
+  'home.briefingFootFollowing': "Read {{count}} in Following →",
+  'home.briefingFootFollowingEmpty': "Browse Following →",
+  'home.briefingEmptyTitle': "No topics yet",
+  'home.briefingEmptyBody': "Create a topic under My Topics to see today’s cross-topic briefing here.",
+  'home.feedEmptyTitle': "No developments yet",
+  'home.feedEmptyBody': "Create a topic first. Meaningful changes will show up here.",
+  'home.dutyEmptyTitle': "No new developments in this window",
+  'home.feedWatchingSummary': "Watching {{count}} topics. No new developments recently.",
+  'home.recommendedEmptyTitle': "No picks yet",
+  'home.recommendedEmptyBody': "Official curated topics are not available in this open build yet.",
+  'home.feedEnd': "You’ve reached the end",
+  'home.createTopic': "Create topic",
+  'home.unread': "Unread",
   'monitors.title': 'Topics',
   'monitors.empty': 'No topics yet',
   'monitors.manage': 'My topics',
