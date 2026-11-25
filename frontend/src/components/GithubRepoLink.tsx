@@ -15,12 +15,12 @@ export function GithubRepoLink({
       href={GITHUB_REPO_URL}
       target="_blank"
       rel="noopener noreferrer"
-      className={`inline-flex max-w-full items-center gap-2 rounded-lg text-slate-500 transition-colors hover:text-ark-accent ${className}`}
+      className={`inline-flex max-w-full items-center gap-2 rounded-lg text-neutral-400 transition-colors hover:text-neutral-800 ${className}`}
       aria-label={`开源仓库 ${GITHUB_REPO_LABEL}`}
     >
       <Github size={iconSize} className="shrink-0" />
       {showUrl ? (
-        <span className="truncate font-mono text-[11px] tracking-tight text-slate-600 hover:text-ark-accent/90">
+        <span className="truncate font-mono text-[11px] tracking-tight text-neutral-500 hover:text-neutral-800">
           {GITHUB_REPO_LABEL}
         </span>
       ) : null}

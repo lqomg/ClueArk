@@ -59,7 +59,7 @@ Demo: [https://clueark.com](https://clueark.com)
 
 - [x] Developments data model + read APIs (`monitor_developments`)
 - [x] Admission gate pipeline (admission / author → developments; `LEGACY_COSINE_TIMELINE` rollback)
-- [ ] Topic developments timeline UI + evidence drill-down
+- [x] Topic developments timeline UI + evidence drill-down (`/app/topics/:id`, `…/developments/:id`)
 - [ ] Chat-assisted topic create / tune
 - [ ] Cross-topic home feed (today / following / picks)
 - [ ] Official topic catalog and subscribe
@@ -73,7 +73,7 @@ Discuss priorities via [Issues](https://github.com/lqomg/ClueArk/issues).
 
 - **Create**: Short intent → LLM title/description/keywords/entities + bound sources; description vector in **Qdrant**.
 - **Timeline**: Qdrant search + `minCosine`; HTTP read path does not run full-library cosine.
-- **Developments**: `monitor_developments`; user `GET /api/monitors/:id/developments` and `…/evidence`; admin read-only. Written by the gate on `process_new_item` (topic timeline UI still planned).
+- **Developments**: `monitor_developments`; user APIs + product UI at `/app/topics/:id` (stream) and `…/developments/:id` (detail + evidence); admin read-only. Written by the gate on `process_new_item`.
 - **Gate**: Qdrant candidates → admission → LLM author (wake/drop) → development + notify; set `LEGACY_COSINE_TIMELINE=1` to restore cosine-hit notifications.
 - **Briefs**: Async `run_brief` jobs; evidence from Qdrant; see `MONITOR_BRIEF_*`.
 - **Notifications**: Wake (or legacy cosine match) writes `notifications` (in-app).

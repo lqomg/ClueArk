@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { sendCodeBtnClass } from '@/components/auth/AuthBrandingLayout';
+import { getAuthFormTone, type AuthFormTone } from '@/components/auth/AuthBrandingLayout';
 
 type OtpSendCodeButtonProps = {
   onClick?: () => void;
@@ -8,6 +8,7 @@ type OtpSendCodeButtonProps = {
   cooldown: number;
   emailReady: boolean;
   type?: 'button' | 'submit';
+  tone?: AuthFormTone;
 };
 
 export function OtpSendCodeButton({
@@ -17,9 +18,11 @@ export function OtpSendCodeButton({
   cooldown,
   emailReady,
   type = 'button',
+  tone = 'brand',
 }: OtpSendCodeButtonProps) {
   const { t } = useTranslation();
   const disabled = !emailReady || sending || cooldown > 0;
+  const styles = getAuthFormTone(tone);
 
   let label: string;
   if (sending) {
@@ -37,7 +40,7 @@ export function OtpSendCodeButton({
       type={type}
       disabled={disabled}
       onClick={type === 'button' && onClick ? onClick : undefined}
-      className={sendCodeBtnClass}
+      className={styles.sendCodeBtnClass}
     >
       {label}
     </button>

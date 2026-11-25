@@ -7,11 +7,7 @@ import type { Monitor, Source } from '@/types/models';
 import { useAppTopBar } from '@/components/layout/AppTopBar';
 import { Button } from '@/components/ui';
 import { SourceAvatar } from '@/components/sources/SourceAvatar';
-import {
-  myTopicsPath,
-  topicTimelinePath,
-  topicsOverviewPath,
-} from '@/pages/app/topics/paths';
+import { myTopicsPath, topicTimelinePath } from '@/pages/app/topics/paths';
 
 async function loadAllEnabledSources(): Promise<Source[]> {
   const out: Source[] = [];
@@ -87,7 +83,7 @@ export function MonitorSettingsForm({ monitorId }: MonitorSettingsFormProps) {
     try {
       const updated = await patchMonitorSources(monitorId, { sourceIds: orderedIds, minCosine });
       setMonitor(updated);
-      navigate(topicsOverviewPath(monitorId), { replace: false });
+      navigate(topicTimelinePath(monitorId), { replace: false });
     } catch (e) {
       setError(e instanceof Error ? e.message : t('common.saveFailed'));
     } finally {
@@ -102,21 +98,21 @@ export function MonitorSettingsForm({ monitorId }: MonitorSettingsFormProps) {
   useAppTopBar(
     () => (
       <div className="min-w-0 flex-1 pr-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-slate-500">
-          <Link to={myTopicsPath()} className="shrink-0 hover:text-ark-accent">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-neutral-500">
+          <Link to={myTopicsPath()} className="shrink-0 hover:text-neutral-900">
             {t('monitors.manage')}
           </Link>
           <span aria-hidden>/</span>
           <Link
             to={topicTimelinePath(monitorId)}
-            className="min-w-0 max-w-[10rem] truncate hover:text-ark-accent sm:max-w-[14rem]"
+            className="min-w-0 max-w-[10rem] truncate hover:text-neutral-900 sm:max-w-[14rem]"
           >
             {monitor?.title ?? t('monitors.timeline')}
           </Link>
           <span aria-hidden>/</span>
-          <span className="shrink-0 text-slate-600">{t('monitors.settings')}</span>
+          <span className="shrink-0 text-neutral-400">{t('monitors.settings')}</span>
         </div>
-        <h1 className="mt-0.5 truncate text-sm font-black tracking-tight text-white md:text-base">
+        <h1 className="mt-0.5 truncate text-sm font-black tracking-tight text-neutral-900 md:text-base">
           {t('monitors.settings')}
         </h1>
       </div>
@@ -126,17 +122,43 @@ export function MonitorSettingsForm({ monitorId }: MonitorSettingsFormProps) {
 
   return (
     <div className="relative mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-6">
-      <p className="text-xs text-slate-500">{t('monitors.settingsDesc')}</p>
+      <p className="text-xs text-neutral-500">{t('topic.settingsDesc')}</p>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
       {loading ? (
-        <p className="text-sm text-slate-500">{t('common.loading')}</p>
+        <p className="text-sm text-neutral-500">{t('common.loading')}</p>
       ) : (
         <>
-          <div className="rounded-xl border border-ark-border bg-ark-surface/40 p-4">
-            <div className="text-sm font-medium text-slate-200">{t('monitors.minSimilarity')}</div>
-            <p className="mt-1 text-[11px] text-slate-500">{t('monitors.minSimilarityHint')}</p>
+          <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+            <div className="text-sm font-medium text-neutral-700">{t('topic.boundSources')}</div>
+            <p className="mt-1 text-[11px] text-neutral-500">{t('topic.boundSourcesHint')}</p>
+            <ul className="mt-3 max-h-[min(50vh,420px)] space-y-2 overflow-y-auto">
+              {sources.map((s) => {
+                const on = selected.has(s.id);
+                return (
+                  <li key={s.id}>
+                    <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 transition hover:bg-neutral-100">
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={() => toggle(s.id)}
+                        className="size-4 shrink-0 rounded border-neutral-200 text-neutral-800 focus:ring-neutral-400"
+                      />
+                      <SourceAvatar kind={s.kind} name={s.displayName} avatarUrl={s.avatarUrl} size="md" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-neutral-900">{s.displayName}</div>
+                        {s.note ? <div className="truncate text-[11px] text-neutral-400">{s.note}</div> : null}
+                      </div>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+          <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+            <div className="text-sm font-medium text-neutral-700">{t('topic.admissionThreshold')}</div>
+            <p className="mt-1 text-[11px] text-neutral-500">{t('topic.admissionThresholdHint')}</p>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <input
                 type="range"
@@ -145,34 +167,12 @@ export function MonitorSettingsForm({ monitorId }: MonitorSettingsFormProps) {
                 step={0.01}
                 value={minCosine}
                 onChange={(e) => setMinCosine(Number(e.target.value))}
-                className="h-2 min-w-[200px] flex-1 cursor-pointer accent-ark-accent"
-                aria-label={t('monitors.minSimilarityAria')}
+                className="h-2 min-w-[200px] flex-1 cursor-pointer accent-neutral-800"
+                aria-label={t('topic.admissionThreshold')}
               />
-              <span className="tabular-nums text-sm font-semibold text-ark-accent">{minCosine.toFixed(2)}</span>
+              <span className="tabular-nums text-sm font-semibold text-neutral-800">{minCosine.toFixed(2)}</span>
             </div>
           </div>
-          <ul className="max-h-[min(60vh,520px)] space-y-2 overflow-y-auto rounded-xl border border-ark-border bg-ark-surface/40 p-3">
-            {sources.map((s) => {
-              const on = selected.has(s.id);
-              return (
-                <li key={s.id}>
-                  <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 transition hover:bg-white/[0.04]">
-                    <input
-                      type="checkbox"
-                      checked={on}
-                      onChange={() => toggle(s.id)}
-                      className="size-4 shrink-0 rounded border-ark-border text-ark-accent focus:ring-ark-accent/40"
-                    />
-                    <SourceAvatar kind={s.kind} name={s.displayName} avatarUrl={s.avatarUrl} size="md" />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium text-white">{s.displayName}</div>
-                      {s.note ? <div className="truncate text-[11px] text-slate-600">{s.note}</div> : null}
-                    </div>
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
           <div className="flex flex-wrap gap-3">
             <Button type="button" variant="primary" size="md" disabled={saving} onClick={() => void save()}>
               {saving ? t('profile.saving') : t('common.save')}

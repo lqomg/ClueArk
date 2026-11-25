@@ -14,9 +14,12 @@ import { MonitorOverviewPage } from '@/pages/app/monitors';
 import { MonitorDetailPage } from '@/pages/app/monitors/detail';
 import { MonitorManagePage } from '@/pages/app/monitors/manage';
 import { MonitorSettingsPage } from '@/pages/app/monitors/settings';
+import { TopicReadPage } from '@/pages/app/topics';
+import { TopicDevelopmentPage } from '@/pages/app/topics/development';
 import { HomePage } from '@/pages/app/home';
 import { ProfilePage } from '@/pages/app/me';
 import { ExplorePage } from '@/pages/app/explore';
+import { PublicDiscoveryPage } from '@/pages/public/discover';
 import { topicSettingsPath, topicTimelinePath } from '@/pages/app/topics/paths';
 
 function AuthBootstrap() {
@@ -52,22 +55,9 @@ export default function App() {
     <>
       <AuthBootstrap />
       <Routes>
-        <Route
-          path="/login"
-          element={
-            <GuestOnly>
-              <LoginPage />
-            </GuestOnly>
-          }
-        />
-        <Route
-          path="/register"
-          element={
-            <GuestOnly>
-              <RegisterPage />
-            </GuestOnly>
-          }
-        />
+        <Route path="/" element={<PublicDiscoveryPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         <Route
           path="/forgot-password"
           element={
@@ -91,15 +81,15 @@ export default function App() {
           <Route path="explore" element={<ExplorePage />} />
           <Route path="notifications" element={<NotificationsPage />} />
 
-          {/* 专题（对外路径） */}
           <Route path="topics" element={<MonitorOverviewPage />} />
           <Route path="my-topics" element={<MonitorManagePage />} />
           <Route path="topics/new" element={<Navigate to="/app/my-topics" replace />} />
           <Route path="topics/:id/settings" element={<MonitorSettingsPage />} />
-          <Route path="topics/:id" element={<MonitorDetailPage />} />
+          <Route path="topics/:id/developments/:developmentId" element={<TopicDevelopmentPage />} />
+          <Route path="topics/:id/feed" element={<MonitorDetailPage />} />
+          <Route path="topics/:id" element={<TopicReadPage />} />
           <Route path="topics/:id/timeline" element={<LegacyMonitorTimelineRedirect />} />
 
-          {/* 旧 monitors 路径兼容 */}
           <Route path="monitors" element={<Navigate to="/app/topics" replace />} />
           <Route path="monitors/new" element={<Navigate to="/app/my-topics" replace />} />
           <Route path="monitors/manage" element={<Navigate to="/app/my-topics" replace />} />
@@ -110,8 +100,7 @@ export default function App() {
           <Route path="sources" element={<SourcesPage />} />
           <Route path="me" element={<ProfilePage />} />
         </Route>
-        <Route path="/" element={<Navigate to="/app/home" replace />} />
-        <Route path="*" element={<Navigate to="/app/home" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
   );

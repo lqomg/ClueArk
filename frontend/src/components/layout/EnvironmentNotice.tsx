@@ -8,11 +8,11 @@ const DISMISS_KEY_PREFIX = 'ark-env-notice-dismissed:';
 function noticeStyles(env: Exclude<AppEnv, 'production'>, placement: 'banner' | 'inline') {
   const isDev = env === 'development';
   if (placement === 'inline') {
-    return isDev ? 'text-amber-500/95' : 'text-orange-400/95';
+    return isDev ? 'text-amber-800' : 'text-orange-800';
   }
   return isDev
-    ? 'border-amber-500/25 bg-amber-500/10 text-amber-100'
-    : 'border-orange-500/25 bg-orange-500/10 text-orange-100';
+    ? 'border-amber-200 bg-amber-50 text-amber-900'
+    : 'border-orange-200 bg-orange-50 text-orange-900';
 }
 
 function dismissStorageKey(env: Exclude<AppEnv, 'production'>) {
@@ -63,12 +63,12 @@ export function EnvironmentBanner() {
     >
       <p className="min-w-0 flex-1">
         <span className="font-semibold">{title}</span>
-        <span className="text-white/70"> · {detail}</span>
+        <span className="opacity-70"> · {detail}</span>
       </p>
       {canDismiss ? (
         <button
           type="button"
-          className="shrink-0 rounded p-0.5 text-white/60 transition hover:bg-white/10 hover:text-white"
+          className="shrink-0 rounded p-0.5 text-neutral-500 transition hover:bg-black/5 hover:text-neutral-800"
           aria-label={t('common.dismiss')}
           onClick={dismiss}
         >
@@ -95,7 +95,7 @@ export function EnvironmentNoticeInline() {
       className={`px-1 text-center text-[12px] leading-relaxed tracking-wide ${noticeStyles(noticeEnv, 'inline')}`}
     >
       <span className="font-semibold">{title}</span>
-      <span className="text-slate-500"> · {detail}</span>
+      <span className="opacity-60"> · {detail}</span>
     </p>
   );
 }

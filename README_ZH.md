@@ -59,7 +59,7 @@
 
 - [x] 进展数据模型与读 API（`monitor_developments`）
 - [x] 门禁流水线（admission / author → 写出进展；`LEGACY_COSINE_TIMELINE` 可回滚）
-- [ ] 专题进展时间线 UI + 证据下钻
+- [x] 专题进展时间线 UI + 证据下钻（`/app/topics/:id`、`…/developments/:id`）
 - [ ] 对话辅助创建与调整专题
 - [ ] 跨专题首页巡视（今日 / 关注 / 精选）
 - [ ] 官方专题目录与订阅
@@ -73,7 +73,7 @@
 
 - **创建**：短意图 → LLM 标题 / 说明 / 关键词 / 实体 + 绑源；描述向量进 **Qdrant**。
 - **时间线**：Qdrant 检索 + `minCosine`；HTTP 读路径不做全库余弦。
-- **进展**：集合 `monitor_developments`；用户 `GET /api/monitors/:id/developments` 与 `…/evidence`；运营后台「进展」只读。`process_new_item` 默认经门禁写入；进展时间线 UI 仍规划中。
+- **进展**：集合 `monitor_developments`；用户 `GET /api/monitors/:id/developments` 与 `…/evidence`；产品页 `/app/topics/:id` 进展流与详情证据下钻；运营后台「进展」只读。
 - **门禁**：候选召回（Qdrant）→ admission（语义高 / 实体硬撞）→ LLM author（wake/drop）→ 写进展 + 通知；`LEGACY_COSINE_TIMELINE=1` 回滚旧路径。
 - **Brief**：异步 `run_brief`；证据来自 Qdrant；见 `MONITOR_BRIEF_*`。
 - **通知**：命中写入 `notifications`（站内）。

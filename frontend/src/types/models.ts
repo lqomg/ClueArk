@@ -42,6 +42,8 @@ export interface Monitor {
   sourceIds: string[];
   /** 时间线过滤阈值（0～1），新建默认 0.43 */
   minCosine: number;
+  createStatus?: 'processing' | 'ready' | 'failed';
+  createStep?: MonitorCreateStepId;
   createdAt: string;
   updatedAt: string;
 }
@@ -120,6 +122,66 @@ export interface MonitorIntelligence {
     completedAt: string | null;
     runId: string | null;
   };
+}
+
+/** 门禁写出的专题进展（monitor_developments） */
+export interface MonitorDevelopment {
+  id: string;
+  monitorId: string;
+  title: string;
+  summary: string;
+  rationale: string;
+  whyItMatters: string;
+  watchNext: string;
+  structuredFact: Record<string, unknown> | null;
+  type: string;
+  severity: string;
+  noveltyScore: number;
+  confidence: number;
+  evidenceItemIds: string[];
+  clusterIds: string[];
+  primaryEvidenceItemId: string | null;
+  mergeScopeKey?: string;
+  primarySourceDisplayName?: string;
+  primarySourceAvatarUrl?: string | null;
+  primaryEvidence?: {
+    feedItemId: string;
+    title: string;
+    link: string;
+  } | null;
+  sourcePreviews?: Array<{
+    sourceId: string;
+    displayName: string;
+    avatarUrl: string | null;
+  }>;
+  alertIds: string[];
+  gateDecisionId: string | null;
+  occurredAt: string;
+  timelineAt: string;
+  timePrecision: 'instant' | 'day';
+  lastMeaningfulAt: string | null;
+  updates: Array<{ at: string; feedItemId: string | null; title: string }>;
+  locale: string;
+  createdAt: string | null;
+}
+
+export interface PaginatedDevelopments {
+  items: MonitorDevelopment[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface DevelopmentEvidenceItem {
+  feedItemId: string;
+  title: string;
+  link: string;
+  summary: string;
+  publishedAt: string | null;
+  sourceId: string;
+  sourceDisplayName: string;
+  sourceAvatarUrl: string | null;
+  isPrimary: boolean;
 }
 
 /** 全站统一信源；isOfficial 为启动内置 catalog 注入的种子，后台可由管理员/演示账号维护；createdBy 非空为用户自建 */

@@ -35,7 +35,7 @@ export function AppTopBarProvider({ children }: { children: ReactNode }) {
     <AppTopBarContext.Provider value={value}>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <header
-          className={`${APP_TOPBAR_HEIGHT_CLASS} z-10 flex shrink-0 items-center justify-between border-b border-ark-border/80 bg-ark-content px-4 md:px-6`}
+          className={`${APP_TOPBAR_HEIGHT_CLASS} z-10 flex shrink-0 items-center justify-between border-b border-neutral-200 bg-white px-4 md:px-6`}
         >
           <div className="flex min-h-0 min-w-0 flex-1 items-center gap-4 overflow-x-auto overflow-y-hidden [scrollbar-width:thin]">
             {slot}
@@ -44,11 +44,11 @@ export function AppTopBarProvider({ children }: { children: ReactNode }) {
             <GithubRepoLink
               showUrl={false}
               iconSize={20}
-              className="text-slate-500 transition-colors hover:text-ark-text"
+              className="text-neutral-400 transition-colors hover:text-neutral-800"
             />
             <Link
               to="/app/me"
-              className="flex size-8 shrink-0 items-center justify-center rounded-full border border-ark-border bg-ark-surface text-slate-500 shadow-sm transition-all hover:border-white/20 hover:text-ark-text"
+              className="flex size-8 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-neutral-50 text-neutral-500 shadow-sm transition-all hover:border-neutral-300 hover:text-neutral-900"
               aria-label={t('layout.profileAria')}
               title={t('layout.profileAria')}
             >

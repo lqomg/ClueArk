@@ -1,24 +1,74 @@
+import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { GithubRepoLink } from '@/components/GithubRepoLink';
 import { ProductMark } from '@/components/brand/ProductMark';
 import { EnvironmentNoticeInline } from '@/components/layout/EnvironmentNotice';
 
-const inputClass =
-  'w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-ark-text placeholder:text-slate-600 focus:border-ark-accent/50 focus:bg-white/[0.08] transition-all outline-none text-sm';
+/** 全页（忘记密码等）米色品牌页 */
+const brandTone = {
+  inputClass:
+    'w-full rounded-none px-3 py-3 bg-[#f3ead8] border border-[#3a2416] text-[#2b1810] placeholder:text-[#2b1810]/40 focus:outline-none focus:ring-1 focus:ring-[#3a2416]/25 transition text-sm',
+  primaryBtnClass:
+    'relative w-full py-3 bg-[#3a2416] text-[#f1e7cf] font-semibold text-sm tracking-wide hover:brightness-110 active:brightness-95 transition disabled:opacity-50',
+  outlineBtnClass:
+    'relative w-full py-3 border border-[#3a2416] bg-[#f7f0e2] text-[#2b1810] font-semibold text-sm tracking-wide transition hover:bg-[#f3ead8] active:opacity-90 disabled:opacity-50',
+  sendCodeBtnClass:
+    'inline-flex shrink-0 select-none items-center justify-center self-stretch border border-[#3a2416] bg-[#f3ead8] px-2.5 text-[11px] font-semibold text-[#2b1810] transition hover:bg-[#f7f0e2] active:opacity-90 disabled:pointer-events-none disabled:opacity-40 sm:px-3 sm:text-xs',
+  fieldLabelClass: 'block text-sm font-medium text-[#2b1810]',
+  dividerBgClass: 'bg-[#f7f0e2]',
+  dividerLineClass: 'border-[#3a2416]/20',
+  linkClass:
+    'font-medium text-[#3a2416] underline underline-offset-[3px] decoration-[#3a2416]/45 transition-opacity hover:decoration-[#3a2416] hover:opacity-80',
+  navMutedClass: 'text-[rgba(43,24,16,0.52)]',
+  tabActiveClass:
+    'text-[#2b1810] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-[#3a2416]',
+  tabInactiveClass: 'text-[rgba(43,24,16,0.45)] hover:text-[#2b1810]',
+} as const;
 
-const primaryBtnClass =
-  'relative w-full py-3 rounded-lg bg-ark-accent text-black font-semibold text-sm tracking-wide hover:scale-[1.01] active:scale-[0.99] transition-all shadow-lg shadow-ark-accent/15 disabled:opacity-50 disabled:hover:scale-100';
+/** 产品内弹层：白底中性 */
+const appTone = {
+  inputClass:
+    'w-full rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-900 placeholder:text-neutral-400 outline-none transition focus:border-neutral-400 focus:ring-2 focus:ring-neutral-900/10 disabled:opacity-50',
+  primaryBtnClass:
+    'btn-primary relative w-full rounded-lg py-2.5 text-sm font-medium tracking-wide disabled:opacity-50',
+  outlineBtnClass:
+    'relative w-full rounded-lg border border-neutral-200 bg-white py-2.5 text-sm font-medium tracking-wide text-neutral-800 transition hover:bg-neutral-50 active:bg-neutral-100 disabled:opacity-50',
+  sendCodeBtnClass:
+    'inline-flex shrink-0 select-none items-center justify-center self-stretch rounded-lg border border-neutral-200 bg-white px-2.5 text-[11px] font-medium text-neutral-700 transition hover:bg-neutral-50 active:bg-neutral-100 disabled:pointer-events-none disabled:opacity-40 sm:px-3 sm:text-xs',
+  fieldLabelClass: 'block text-[13px] font-medium text-neutral-700',
+  dividerBgClass: 'bg-white',
+  dividerLineClass: 'border-neutral-200',
+  linkClass:
+    'font-medium text-neutral-700 underline underline-offset-[3px] decoration-neutral-300 transition hover:text-neutral-950 hover:decoration-neutral-600',
+  navMutedClass: 'text-neutral-400',
+  tabActiveClass:
+    'text-neutral-900 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-neutral-900',
+  tabInactiveClass: 'text-neutral-400 hover:text-neutral-700',
+} as const;
 
-const outlineBtnClass =
-  'relative w-full py-3 rounded-lg border border-white/15 bg-white/[0.03] text-slate-200 font-semibold text-sm tracking-wide transition-all hover:bg-white/[0.06] active:scale-[0.99] disabled:opacity-50';
+export type AuthFormTone = 'brand' | 'app';
 
-/** 与邮箱同排的「发送验证码」：不占满行、高度与输入框对齐（配合 items-stretch） */
-const sendCodeBtnClass =
-  'inline-flex shrink-0 select-none items-center justify-center self-stretch rounded-lg border border-white/15 bg-white/[0.06] px-2.5 text-[11px] font-semibold text-slate-100 transition hover:bg-white/[0.1] active:scale-[0.99] disabled:pointer-events-none disabled:opacity-40 sm:px-3 sm:text-xs';
+export function getAuthFormTone(tone: AuthFormTone = 'brand') {
+  return tone === 'app' ? appTone : brandTone;
+}
 
-/** 横向表单里与按钮同排的输入框：占满剩余宽度 */
-const inputFlexClass = `${inputClass} min-w-0 flex-1`;
+const inputClass = brandTone.inputClass;
+const primaryBtnClass = brandTone.primaryBtnClass;
+const outlineBtnClass = brandTone.outlineBtnClass;
+const sendCodeBtnClass = brandTone.sendCodeBtnClass;
+const inputFlexClass = `${brandTone.inputClass} min-w-0 flex-1`;
+const fieldLabelClass = brandTone.fieldLabelClass;
 
-export { inputClass, inputFlexClass, outlineBtnClass, primaryBtnClass, sendCodeBtnClass };
+export {
+  fieldLabelClass,
+  inputClass,
+  inputFlexClass,
+  outlineBtnClass,
+  primaryBtnClass,
+  sendCodeBtnClass,
+  brandTone,
+  appTone,
+};
 
 export function AuthBrandingLayout({
   title,
@@ -28,64 +78,51 @@ export function AuthBrandingLayout({
 }: {
   title: string;
   subtitle: string;
-  children: React.ReactNode;
-  /** 是否在表单下方展示环境说明（开发/演示）；注册页可关闭 */
+  children: ReactNode;
   showLegalFooter?: boolean;
 }) {
+  const { t } = useTranslation();
+
   return (
-    <div className="flex min-h-full flex-col font-sans text-white md:h-screen md:flex-row md:overflow-hidden">
-      <div className="relative flex flex-1 flex-col justify-between overflow-hidden border-ark-border bg-ark-sidebar p-10 text-white md:border-r md:p-16 lg:p-24">
-        <div className="relative z-10">
-          <ProductMark
-            variant="auth"
-            to="/login"
-            className="mb-10 grayscale opacity-90 hover:grayscale-0"
-          />
-
-          <div className="max-w-xl space-y-6 md:space-y-8">
-            <h2 className="text-4xl font-black leading-[0.95] tracking-tighter text-white lg:text-6xl">
-              个人与团队的
-              <br />
-              <span className="text-ark-accent">AI 情报工作台</span>
-            </h2>
-            <p className="max-w-md text-base font-light leading-relaxed text-slate-400 lg:text-lg">
-              围绕话题监控组织信息流，接入订阅、网页与热点等公开信源；在同一信源池上筛选与浏览，把冗杂更新收成可跟进的线索。
-            </p>
-          </div>
+    <div className="grid min-h-dvh bg-[#f7f0e2] font-sans text-[#2b1810] md:grid-cols-2">
+      <aside className="hidden min-h-full flex-col justify-between bg-[#3a2416] p-10 text-[#f1e7cf] md:flex">
+        <ProductMark variant="auth" to="/" className="text-[#f1e7cf]" />
+        <div>
+          <p className="font-serif text-[34px] font-semibold leading-[1.25] tracking-wide whitespace-pre-line">
+            {t('auth.heroTitle')}
+          </p>
+          <div className="mt-5 h-0.5 w-12 bg-[#f1e7cf]" />
+          <p className="mt-5 max-w-[18rem] text-[15px] leading-relaxed whitespace-pre-line text-[#f1e7cf]/90">
+            {t('auth.heroSub')}
+          </p>
         </div>
+        <p className="text-[13px] font-semibold tracking-wide">clueark.com</p>
+      </aside>
 
-        <div className="relative z-10 mt-10 grid grid-cols-2 gap-8 pb-6 md:mt-12 md:gap-12 md:pb-10">
-          <div className="space-y-2">
-            <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">话题监控</h4>
-            <div className="mb-3 h-px w-8 bg-ark-accent opacity-40" />
-            <p className="text-xs leading-relaxed text-slate-500">
-              按关键词或话题筛选统一信源池，时间线聚合浏览，并支持新内容提醒。
-            </p>
+      <div className="flex min-h-dvh flex-col justify-center px-6 py-10 md:px-8">
+        <div className="mx-auto w-full max-w-[24rem]">
+          <div className="mb-4 md:hidden">
+            <ProductMark variant="compact" to="/" className="text-[#2b1810]" />
           </div>
-          <div className="space-y-2">
-            <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">多路径采集</h4>
-            <div className="mb-3 h-px w-8 bg-ark-accent opacity-40" />
-            <p className="text-xs leading-relaxed text-slate-500">
-              支持订阅源、网页列表与公开热点数据；内置目录与自建信源共用同一套类型与策略。
-            </p>
-          </div>
-        </div>
-
-        <div className="pointer-events-none absolute right-[-20%] top-[-20%] h-[min(800px,120vw)] w-[min(800px,120vw)] animate-pulse rounded-full bg-ark-accent opacity-[0.04] blur-[120px] md:blur-[200px]" />
-        <div className="pointer-events-none absolute bottom-[-10%] left-[-10%] h-[min(600px,90vw)] w-[min(600px,90vw)] rounded-full bg-ark-accent opacity-[0.06] blur-[100px] md:blur-[150px]" />
-      </div>
-
-      <div className="relative flex flex-1 items-center justify-center bg-ark-bg p-6 md:p-8">
-        <div className="w-full max-w-sm space-y-5 md:space-y-6">
-          <div className="text-center">
-            <h3 className="mb-2 text-3xl font-black tracking-tight text-white md:text-4xl">{title}</h3>
-            <p className="text-sm font-light text-slate-500">{subtitle}</p>
+          <div className="mb-5 space-y-1.5">
+            <h1 className="font-serif text-3xl font-semibold tracking-wide text-[#2b1810] md:text-[32px]">
+              {title}
+            </h1>
+            <p className="text-[13px] leading-relaxed text-[rgba(43,24,16,0.62)]">{subtitle}</p>
           </div>
           {children}
-          {showLegalFooter ? <EnvironmentNoticeInline /> : null}
-          <div className="flex justify-center pt-1">
-            <GithubRepoLink className="px-2 py-1" />
-          </div>
+          {showLegalFooter ? (
+            <div className="mt-6 space-y-3">
+              <EnvironmentNoticeInline />
+              <div className="flex justify-center">
+                <GithubRepoLink className="text-[#3a2416]/55 hover:text-[#3a2416] [&_span]:text-[#3a2416]/45" />
+              </div>
+            </div>
+          ) : (
+            <div className="mt-6 flex justify-center">
+              <GithubRepoLink className="text-[#3a2416]/55 hover:text-[#3a2416] [&_span]:text-[#3a2416]/45" />
+            </div>
+          )}
         </div>
       </div>
     </div>

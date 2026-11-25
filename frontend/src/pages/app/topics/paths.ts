@@ -1,4 +1,4 @@
-/** 用户产品路由：对外统一用 topics 用语；底层页面仍复用 monitors 实现。 */
+/** 用户产品路由：对外统一用 topics 用语。 */
 
 export function topicsOverviewPath(topicId?: string): string {
   if (topicId) {
@@ -11,8 +11,18 @@ export function myTopicsPath(): string {
   return '/app/my-topics';
 }
 
+/** 专题进展时间线（主读页） */
 export function topicTimelinePath(topicId: string): string {
   return `/app/topics/${encodeURIComponent(topicId)}`;
+}
+
+export function topicDevelopmentPath(topicId: string, developmentId: string): string {
+  return `/app/topics/${encodeURIComponent(topicId)}/developments/${encodeURIComponent(developmentId)}`;
+}
+
+/** 旧余弦条目流（调试 / 兼容） */
+export function topicFeedPath(topicId: string): string {
+  return `/app/topics/${encodeURIComponent(topicId)}/feed`;
 }
 
 export function topicSettingsPath(topicId: string): string {
