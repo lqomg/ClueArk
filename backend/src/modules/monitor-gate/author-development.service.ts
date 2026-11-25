@@ -4,6 +4,8 @@ import type { LlmChatPort } from '../llm/llm.types';
 import { LoggerService } from '../logger';
 import { normalizeLocale, type SupportedLocale } from '../../common/utils/locale.utils';
 import type { AdmissionReason } from './admission.util';
+import { coerceWakeDropConsistency } from './author-action-consistency.util';
+import { developmentTitleLengthRule } from './development-title-length.util';
 import type { GateFinalAction } from './schemas/monitor-gate-decision.schema';
 
 export type AuthorDevelopmentInput = {
@@ -18,6 +20,9 @@ export type AuthorDevelopmentInput = {
   admissionReasons: AdmissionReason[];
   semanticScore: number | null;
   locale?: string | null;
+  /** 可选：目录摘要，帮助模型判断挂旧卡 vs 新开 */
+  catalogBlurbs?: Array<{ id: string; title: string; blurb: string }>;
+  forcedAttachDevelopmentId?: string | null;
 };
 
 export type AuthorDevelopmentResult = {
@@ -30,6 +35,9 @@ export type AuthorDevelopmentResult = {
   reason: string;
   latencyMs: number | null;
   failed: boolean;
+  /** 模型建议挂靠的进展 id（可空） */
+  attachDevelopmentId: string | null;
+  mergeMode: 'upsert_text' | 'evidence_only';
 };
 
 type LlmAuthorPayload = {
@@ -40,6 +48,8 @@ type LlmAuthorPayload = {
   whyItMatters?: unknown;
   watchNext?: unknown;
   reason?: unknown;
+  attachDevelopmentId?: unknown;
+  mergeMode?: unknown;
 };
 
 const LOCALE_LABEL: Record<SupportedLocale, string> = {
@@ -48,15 +58,6 @@ const LOCALE_LABEL: Record<SupportedLocale, string> = {
   ja: 'Japanese',
   ko: 'Korean',
 };
-
-function looksLikeDropRationale(text: string): boolean {
-  const t = text.trim().toLowerCase();
-  if (!t) return false;
-  return (
-    /\bdrop\b/.test(t) ||
-    /判为\s*drop|建议\s*drop|应\s*drop|噪音|无关|跑题|不构成进展/.test(text)
-  );
-}
 
 @Injectable()
 export class AuthorDevelopmentService {
@@ -71,15 +72,25 @@ export class AuthorDevelopmentService {
 
   async author(input: AuthorDevelopmentInput): Promise<AuthorDevelopmentResult> {
     const locale = normalizeLocale(input.locale);
+    const forcedAttach = String(input.forcedAttachDevelopmentId ?? '').trim() || null;
+    const catalog = (input.catalogBlurbs ?? []).slice(0, 40);
     const system = [
       'You are the gate author for a topic intelligence product.',
       'Decide wake (material development worth recording) or drop (noise / off-topic / no new verifiable fact).',
       'On wake: write a concise title and summary of the development, not a restatement of the raw headline alone.',
+      developmentTitleLengthRule(locale),
       `Write wake title/summary/whyItMatters/watchNext in ${LOCALE_LABEL[locale]}.`,
-      'Respond with JSON only: { action, importance, title, summary, whyItMatters, watchNext, reason }.',
+      'Respond with JSON only: { action, importance, title, summary, whyItMatters, watchNext, reason, attachDevelopmentId, mergeMode }.',
       'action must be "wake" or "drop". importance: critical|high|medium.',
+      'attachDevelopmentId: id from catalog to merge into, or empty string for a new card.',
+      'mergeMode: "upsert_text" (refresh card text) or "evidence_only" (only add evidence when attaching).',
       'If drop: title/summary may be empty; reason must explain briefly.',
-    ].join(' ');
+      forcedAttach
+        ? `Prefer attaching to development id ${forcedAttach} unless the item is clearly a new claim.`
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
 
     const user = JSON.stringify(
       {
@@ -99,6 +110,12 @@ export class AuthorDevelopmentService {
           reasons: input.admissionReasons,
           semanticScore: input.semanticScore,
         },
+        catalog: catalog.map((c) => ({
+          id: c.id,
+          title: c.title.slice(0, 120),
+          blurb: c.blurb.slice(0, 80),
+        })),
+        forcedAttachDevelopmentId: forcedAttach,
       },
       null,
       0,
@@ -124,7 +141,7 @@ export class AuthorDevelopmentService {
       const watchNext = String(raw.watchNext ?? '')
         .trim()
         .slice(0, 300);
-      const reason = String(raw.reason ?? '')
+      let reason = String(raw.reason ?? '')
         .trim()
         .slice(0, 500);
       const importanceRaw = String(raw.importance ?? 'medium')
@@ -132,6 +149,20 @@ export class AuthorDevelopmentService {
         .toLowerCase();
       const importance =
         importanceRaw === 'critical' || importanceRaw === 'high' ? importanceRaw : 'medium';
+      const catalogIds = new Set(catalog.map((c) => c.id));
+      let attachDevelopmentId = String(raw.attachDevelopmentId ?? '')
+        .trim();
+      if (attachDevelopmentId && !catalogIds.has(attachDevelopmentId)) {
+        attachDevelopmentId = '';
+      }
+      if (forcedAttach && catalogIds.has(forcedAttach) && !attachDevelopmentId) {
+        attachDevelopmentId = forcedAttach;
+      }
+      const mergeModeRaw = String(raw.mergeMode ?? '')
+        .trim()
+        .toLowerCase();
+      const mergeMode =
+        mergeModeRaw === 'evidence_only' ? 'evidence_only' : 'upsert_text';
 
       if (action === 'wake' && (!title || !summary)) {
         return {
@@ -144,32 +175,29 @@ export class AuthorDevelopmentService {
           reason: 'wake_missing_title_or_summary',
           latencyMs,
           failed: false,
+          attachDevelopmentId: null,
+          mergeMode: 'upsert_text',
         };
       }
-      if (action === 'wake' && looksLikeDropRationale(`${title}\n${summary}`)) {
-        return {
-          action: 'drop',
-          importance: 'medium',
-          title: '',
-          summary: '',
-          whyItMatters: '',
-          watchNext: '',
-          reason: 'wake_text_looks_like_drop_rationale',
-          latencyMs,
-          failed: false,
-        };
+
+      const coerced = coerceWakeDropConsistency({ action, title, summary, reason });
+      if (coerced.coerced) {
+        action = 'drop';
+        reason = coerced.reason;
       }
 
       return {
         action,
         importance,
-        title,
-        summary,
-        whyItMatters,
-        watchNext,
+        title: action === 'wake' ? title : '',
+        summary: action === 'wake' ? summary : '',
+        whyItMatters: action === 'wake' ? whyItMatters : '',
+        watchNext: action === 'wake' ? watchNext : '',
         reason: reason || (action === 'wake' ? 'authored' : 'dropped'),
         latencyMs,
         failed: false,
+        attachDevelopmentId: attachDevelopmentId || null,
+        mergeMode,
       };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -186,6 +214,8 @@ export class AuthorDevelopmentService {
         reason: `llm_failed:${msg.slice(0, 120)}`,
         latencyMs: Date.now() - t0,
         failed: true,
+        attachDevelopmentId: null,
+        mergeMode: 'upsert_text',
       };
     }
   }

@@ -137,6 +137,42 @@ export class JobSchedulerService {
     });
   }
 
+  async enqueueLocalizeDevelopments(
+    monitorId: string,
+    localeOrLocales: string | string[],
+    opts?: {
+      trigger?: EnqueueInput['trigger'];
+      developmentIds?: string[];
+      recentLimit?: number;
+      sourceHash?: string;
+    },
+  ): Promise<EnqueueResult> {
+    const locales = [
+      ...new Set(
+        (Array.isArray(localeOrLocales) ? localeOrLocales : [localeOrLocales])
+          .map((x) => String(x).trim())
+          .filter(Boolean),
+      ),
+    ];
+    if (!locales.length) {
+      return { jobId: '', skipped: true };
+    }
+    const ids = (opts?.developmentIds ?? []).map((id) => id.trim()).filter(Boolean);
+    const recentLimit = opts?.recentLimit;
+    const sourceHash = String(opts?.sourceHash ?? '').trim().slice(0, 32);
+    return this.enqueue({
+      type: 'localize_developments',
+      payload: {
+        monitorId,
+        ...(locales.length === 1 ? { locale: locales[0] } : { locales }),
+        ...(ids.length ? { developmentIds: ids } : {}),
+        ...(recentLimit && recentLimit > 0 ? { recentLimit } : {}),
+        ...(ids.length === 1 && sourceHash ? { sourceHash } : {}),
+      },
+      trigger: opts?.trigger ?? 'pipeline',
+    });
+  }
+
   async enqueueComputeSnapshot(
     monitorId: string,
     recentHours?: number,

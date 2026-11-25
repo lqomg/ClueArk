@@ -42,6 +42,7 @@
     "mongoose": "^8.0.3",
     "nest-winston": "^1.10.2",
     "nestjs-i18n": "^10.6.0",
+    "node-html-parser": "^9.0.7",
     "nodemailer": "^6.9.16",
     "openai": "^6.34.0",
     "p-limit": "^7.3.0",

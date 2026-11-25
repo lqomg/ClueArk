@@ -4,6 +4,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { FeedIngestService } from '../feed-items/feed-ingest.service';
 import { FeedLlmEnrichService } from '../feed-items/feed-llm-enrich.service';
+import { DevelopmentsLocalizeJobService } from '../developments/developments-localize-job.service';
 import { MonitorPipelineService } from '../monitor-pipeline/monitor-pipeline.service';
 import { MonitorSnapshotService } from '../monitors/monitor-snapshot.service';
 import { MonitorsService } from '../monitors/monitors.service';
@@ -14,6 +15,7 @@ import type {
   ComputeSnapshotPayload,
   CrawlWebPayload,
   EnrichItemPayload,
+  LocalizeDevelopmentsPayload,
   ProcessNewItemPayload,
   ReindexMonitorPayload,
   CreateMonitorPayload,
@@ -30,6 +32,7 @@ export class JobHandlerService {
     private readonly ingest: FeedIngestService,
     private readonly pipeline: MonitorPipelineService,
     private readonly enrich: FeedLlmEnrichService,
+    private readonly localizeDevelopments: DevelopmentsLocalizeJobService,
     private readonly snapshots: MonitorSnapshotService,
     private readonly monitors: MonitorsService,
     private readonly config: ConfigService,
@@ -90,6 +93,12 @@ export class JobHandlerService {
   async handleEnrichItem(payload: EnrichItemPayload): Promise<Record<string, unknown>> {
     await this.enrich.enrichOneById(payload.feedItemId);
     return { feedItemId: payload.feedItemId };
+  }
+
+  async handleLocalizeDevelopments(
+    payload: LocalizeDevelopmentsPayload,
+  ): Promise<Record<string, unknown>> {
+    return this.localizeDevelopments.runFromJob(payload);
   }
 
   async handleComputeSnapshot(payload: ComputeSnapshotPayload): Promise<Record<string, unknown>> {

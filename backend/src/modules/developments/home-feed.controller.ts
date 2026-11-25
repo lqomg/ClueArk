@@ -15,6 +15,7 @@ import { UserPreferencesService } from '../users/user-preferences.service';
 import type { SupportedLocale } from '../../common/utils/locale.utils';
 import { DevelopmentsService, type DevelopmentListItem } from './developments.service';
 import { DevelopmentsReadLocalizationService } from './developments-read-localization.service';
+import { DevelopmentsLocalizeJobService } from './developments-localize-job.service';
 import { MonitorReadCursorService } from './monitor-read-cursor.service';
 import {
   HOME_FEED_PAGE_LIMIT_DEFAULT,
@@ -181,6 +182,7 @@ export class HomeFeedController {
   constructor(
     private readonly developments: DevelopmentsService,
     private readonly localization: DevelopmentsReadLocalizationService,
+    private readonly localizeJob: DevelopmentsLocalizeJobService,
     private readonly userPreferences: UserPreferencesService,
     private readonly monitors: MonitorsService,
     private readonly readCursors: MonitorReadCursorService,
@@ -287,6 +289,12 @@ export class HomeFeedController {
     const hasMore = raw.length > limit;
     const pageRaw = hasMore ? raw.slice(0, limit) : raw;
     const localized = await this.localization.localizeDevelopments(pageRaw, locale);
+    void this.localizeJob.enqueueMissingForViewer(localized, locale).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `home_feed_localize_enqueue_fail userId=${userId} err=${msg.slice(0, 120)}`,
+      );
+    });
 
     const items = localized.flatMap((item) => {
       const topic = topicById.get(item.monitorId);

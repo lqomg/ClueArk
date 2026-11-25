@@ -8,6 +8,7 @@ import {
 import { MonitorsService } from '../monitors/monitors.service';
 import { DevelopmentsService, type DevelopmentListItem } from './developments.service';
 import { DevelopmentsReadLocalizationService } from './developments-read-localization.service';
+import { DevelopmentsLocalizeJobService } from './developments-localize-job.service';
 import type { DevelopmentSeverity } from './schemas/monitor-development.schema';
 
 const COLOR_PALETTE_SIZE = 3;
@@ -166,6 +167,7 @@ export class MorningBriefingService {
   constructor(
     private readonly developments: DevelopmentsService,
     private readonly localization: DevelopmentsReadLocalizationService,
+    private readonly localizeJob: DevelopmentsLocalizeJobService,
     private readonly monitors: MonitorsService,
   ) {}
 
@@ -216,6 +218,12 @@ export class MorningBriefingService {
     const t0 = Date.now();
     const raw = await this.developments.listForMorningBriefing(monitorIds, windowStartDate);
     const localized = await this.localization.localizeDevelopments(raw, opts.locale);
+    void this.localizeJob.enqueueMissingForViewer(localized, opts.locale).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `morning_briefing_localize_enqueue_fail userId=${opts.userId} err=${msg.slice(0, 120)}`,
+      );
+    });
 
     const byMonitor = new Map<string, DevelopmentListItem[]>();
     for (const item of localized) {

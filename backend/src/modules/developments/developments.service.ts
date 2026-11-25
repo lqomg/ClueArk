@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, type PipelineStage } from 'mongoose';
-import { normalizeLocale } from '../../common/utils/locale.utils';
+import { resolvePersistLocale } from '../../common/utils/locale.utils';
 import { FeedItem, FeedItemDocument } from '../feed-items/schemas/feed-item.schema';
 import { Source, SourceDocument } from '../sources/schemas/source.schema';
 import { normalizeStructuredFact } from './structured-fact.util';
@@ -85,6 +85,8 @@ export type CreateDevelopmentInput = {
   locale?: string;
   lastMeaningfulAt?: Date;
   updates?: Array<{ at: Date; feedItemId: Types.ObjectId | null; title: string }>;
+  /** upsert_text 更新文案；evidence_only 只追加证据（默认 upsert_text） */
+  mergeMode?: 'upsert_text' | 'evidence_only';
 };
 
 export type UpsertDevelopmentResult = {
@@ -117,15 +119,6 @@ function toObjectIds(ids: string[]): Types.ObjectId[] {
 
 function normalizeTimePrecision(raw: unknown): 'instant' | 'day' {
   return raw === 'day' ? 'day' : 'instant';
-}
-
-function resolvePersistLocale(title: string, summary: string, locale?: string): string {
-  if (locale?.trim()) return normalizeLocale(locale);
-  const sample = `${title}\n${summary}`;
-  const cjk = (sample.match(/[\u4e00-\u9fff]/g) || []).length;
-  const latin = (sample.match(/[A-Za-z]/g) || []).length;
-  if (cjk > latin && cjk >= 4) return 'zh-CN';
-  return 'en';
 }
 
 @Injectable()
@@ -205,13 +198,45 @@ export class DevelopmentsService {
       throw new Error('development_merge_scope_required');
     }
     const timelineAt = input.timelineAt ?? occurredAt;
+    const mergeMode = input.mergeMode === 'evidence_only' ? 'evidence_only' : 'upsert_text';
+    const title = input.title.slice(0, 300);
+    const summary = input.summary.slice(0, 4000);
     const insertBeat =
       input.updates?.[0] ??
       ({
         at: occurredAt,
         feedItemId: primary,
-        title: input.title.slice(0, 80),
+        title: title.slice(0, 80),
       } as const);
+
+    const existing = await this.developmentModel
+      .findOne({
+        monitorId: new Types.ObjectId(input.monitorId),
+        mergeScopeKey,
+      })
+      .select({ _id: 1, title: 1, summary: 1 })
+      .lean()
+      .exec();
+
+    const setOnExisting: Record<string, unknown> = {};
+    if (existing && mergeMode === 'upsert_text' && title && summary) {
+      const prevTitle = String(existing.title ?? '').trim();
+      const prevSummary = String(existing.summary ?? '').trim();
+      if (prevTitle !== title || prevSummary !== summary) {
+        setOnExisting.title = title;
+        setOnExisting.summary = summary;
+        setOnExisting.whyItMatters = String(input.whyItMatters ?? '').slice(0, 500);
+        setOnExisting.watchNext = String(input.watchNext ?? '').slice(0, 300);
+        setOnExisting.severity = input.severity ?? 'medium';
+        setOnExisting.lastMeaningfulAt = input.lastMeaningfulAt ?? occurredAt;
+        if (input.noveltyScore !== undefined) {
+          setOnExisting.noveltyScore = clamp01(input.noveltyScore);
+        }
+        if (input.confidence !== undefined) {
+          setOnExisting.confidence = clamp01(input.confidence);
+        }
+      }
+    }
 
     const result = await this.developmentModel
       .findOneAndUpdate(
@@ -223,8 +248,8 @@ export class DevelopmentsService {
           $setOnInsert: {
             monitorId: new Types.ObjectId(input.monitorId),
             userId: new Types.ObjectId(input.userId),
-            title: input.title.slice(0, 300),
-            summary: input.summary.slice(0, 4000),
+            title,
+            summary,
             rationale: String(input.rationale ?? '').slice(0, 800),
             whyItMatters: String(input.whyItMatters ?? '').slice(0, 500),
             watchNext: String(input.watchNext ?? '').slice(0, 300),
@@ -244,6 +269,7 @@ export class DevelopmentsService {
             lastMeaningfulAt: input.lastMeaningfulAt ?? occurredAt,
             updates: input.updates?.length ? input.updates : [insertBeat],
           },
+          ...(Object.keys(setOnExisting).length ? { $set: setOnExisting } : {}),
           $addToSet: {
             evidenceItemIds: { $each: evidenceOids },
             clusterIds: { $each: clusterOids },
@@ -270,6 +296,57 @@ export class DevelopmentsService {
       development: this.serialize(doc),
       created: metadata.lastErrorObject?.updatedExisting === false,
     };
+  }
+
+  async listByIds(monitorId: string, ids: string[]): Promise<DevelopmentListItem[]> {
+    if (!Types.ObjectId.isValid(monitorId) || !ids.length) return [];
+    const oids = [
+      ...new Set(ids.map((id) => String(id ?? '').trim()).filter((id) => Types.ObjectId.isValid(id))),
+    ].map((id) => new Types.ObjectId(id));
+    if (!oids.length) return [];
+    const found = await this.developmentModel
+      .find({
+        monitorId: new Types.ObjectId(monitorId),
+        _id: { $in: oids },
+      })
+      .lean()
+      .exec();
+    const items = (found as Record<string, unknown>[]).map((r) => this.serialize(r));
+    await this.hydratePrimarySources(items);
+    return items;
+  }
+
+  /**
+   * 门禁热路径：按 timelineAt 新→旧拉进展目录（含 mergeScopeKey）。
+   */
+  async listCatalogForGate(
+    monitorId: string,
+    limit: number,
+  ): Promise<
+    Array<{
+      id: string;
+      title: string;
+      summary: string;
+      timelineAt: string;
+      mergeScopeKey: string;
+    }>
+  > {
+    const cap = Math.min(200, Math.max(1, Math.floor(Number(limit)) || 120));
+    if (!Types.ObjectId.isValid(monitorId)) return [];
+    const rows = await this.developmentModel
+      .find({ monitorId: new Types.ObjectId(monitorId) })
+      .select({ _id: 1, title: 1, summary: 1, timelineAt: 1, mergeScopeKey: 1 })
+      .sort({ timelineAt: -1, _id: -1 })
+      .limit(cap)
+      .lean()
+      .exec();
+    return rows.map((r) => ({
+      id: String(r._id),
+      title: String(r.title ?? ''),
+      summary: String(r.summary ?? ''),
+      timelineAt: toIso(r.timelineAt),
+      mergeScopeKey: String(r.mergeScopeKey ?? ''),
+    }));
   }
 
   async listForMonitor(

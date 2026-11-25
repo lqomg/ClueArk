@@ -4,11 +4,17 @@ import { Model, Types } from 'mongoose';
 import { LoggerService } from '../logger';
 import { UserPreferencesService } from '../users/user-preferences.service';
 import { DevelopmentsService } from '../developments/developments.service';
+import { DevelopmentsLocalizeJobService } from '../developments/developments-localize-job.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Monitor, MonitorDocument } from '../monitors/schemas/monitor.schema';
 import { AuthorDevelopmentService } from './author-development.service';
 import { GateDecisionService } from './gate-decision.service';
 import { decideAdmission, type AdmissionReason } from './admission.util';
+import { resolveAuthorAttachTarget, resolveAuthoredMergeMode } from './author-attach.util';
+import { buildEditorEvidencePack, clipDevelopmentBlurb } from './development-evidence-pack.util';
+import { computeDevelopmentQualityScores } from './development-quality-score.util';
+import { findSameClaimAttachTarget } from './same-claim-attach.util';
+import { COLD_START } from './cold-start.defaults';
 import type { DevelopmentSeverity } from '../developments/schemas/monitor-development.schema';
 
 export type GateEvaluateCandidate = {
@@ -45,6 +51,7 @@ export class GateEvaluateService {
     private readonly author: AuthorDevelopmentService,
     private readonly decisions: GateDecisionService,
     private readonly developments: DevelopmentsService,
+    private readonly localizeJob: DevelopmentsLocalizeJobService,
     private readonly notifications: NotificationsService,
     private readonly userPreferences: UserPreferencesService,
     loggerService: LoggerService,
@@ -150,6 +157,45 @@ export class GateEvaluateService {
     }
 
     const locale = await this.userPreferences.getLocaleOrDefault(userId);
+    const listed = await this.developments.listCatalogForGate(
+      cand.monitorId,
+      COLD_START.developmentCatalogCap,
+    );
+    const sameCluster =
+      listed.find(
+        (row) =>
+          Types.ObjectId.isValid(item.clusterId) && row.mergeScopeKey === item.clusterId,
+      ) ?? null;
+    const pack = buildEditorEvidencePack({
+      listed,
+      sameCluster,
+      catalogCap: COLD_START.developmentCatalogCap,
+      focusRecent: COLD_START.developmentFocusRecent,
+      blurbMax: COLD_START.developmentCatalogBlurbMax,
+    });
+
+    const excludeTerms = (monitor.entities ?? [])
+      .map((e) => String(e ?? '').trim())
+      .filter(Boolean);
+    const catalogForClaim = pack.catalog.map((c) => {
+      const row = pack.rowsById.get(c.id);
+      return {
+        id: c.id,
+        title: c.title,
+        summary: row?.summary,
+        timelineAtMs: Date.parse(c.timelineAt) || undefined,
+      };
+    });
+    const sameClaimOpts = {
+      minSharedTokens: COLD_START.sameClaimMinSharedTokens,
+      minTitleJaccard: COLD_START.sameClaimMinTitleJaccard,
+      minCoverage: COLD_START.sameClaimMinCoverage,
+      excludeTerms,
+      windowHours: COLD_START.sameClaimWindowHours,
+      probeAtMs: item.publishedAt?.getTime?.() ?? Date.now(),
+    };
+    const preHit = findSameClaimAttachTarget(item.title, catalogForClaim, sameClaimOpts);
+
     const authored = await this.author.author({
       monitorId: cand.monitorId,
       feedItemId: item.feedItemId,
@@ -162,13 +208,46 @@ export class GateEvaluateService {
       admissionReasons: admission.reasons as AdmissionReason[],
       semanticScore: admission.semanticScore,
       locale,
+      catalogBlurbs: pack.catalog.map((c) => ({
+        id: c.id,
+        title: c.title,
+        blurb: c.blurb || clipDevelopmentBlurb(pack.rowsById.get(c.id)?.summary ?? '', 80),
+      })),
+      forcedAttachDevelopmentId: preHit?.id ?? null,
     });
 
     let developmentId: string | null = null;
     if (authored.action === 'wake') {
-      const mergeScopeKey = Types.ObjectId.isValid(item.clusterId)
+      const fallbackScope = Types.ObjectId.isValid(item.clusterId)
         ? item.clusterId
         : item.feedItemId;
+      const attachCandidates = [...pack.rowsById.values()].map((r) => ({
+        id: r.id,
+        mergeScopeKey: r.mergeScopeKey || r.id,
+      }));
+
+      let attachId = authored.attachDevelopmentId;
+      if (!attachId) {
+        const postHit = findSameClaimAttachTarget(
+          authored.title,
+          catalogForClaim,
+          sameClaimOpts,
+        );
+        if (postHit) attachId = postHit.id;
+      }
+      if (!attachId && preHit) attachId = preHit.id;
+
+      const resolved = resolveAuthorAttachTarget(attachId, attachCandidates, fallbackScope);
+      const mergeMode = resolveAuthoredMergeMode(resolved.attached, authored.mergeMode);
+      const quality = computeDevelopmentQualityScores({
+        attached: resolved.attached,
+        mergeMode,
+        importance: authored.importance,
+        evidenceCount: 1,
+      });
+
+      // evidence_only：开源 upsertByScope 对已有 mergeScopeKey 仅 $setOnInsert 文案 + $addToSet 证据
+      // upsert_text 且已挂靠：仍走同一 upsert；若需改写旧卡文案，后续再补 merge 路径
       const upserted = await this.developments.upsertByScope({
         monitorId: cand.monitorId,
         userId,
@@ -177,17 +256,23 @@ export class GateEvaluateService {
         whyItMatters: authored.whyItMatters,
         watchNext: authored.watchNext,
         severity: importanceToSeverity(authored.importance),
+        noveltyScore: quality.noveltyScore,
+        confidence: quality.confidence,
         evidenceItemIds: [item.feedItemId],
         clusterIds: Types.ObjectId.isValid(item.clusterId) ? [item.clusterId] : [],
         primaryEvidenceItemId: item.feedItemId,
-        mergeScopeKey,
+        mergeScopeKey: resolved.mergeScopeKey,
         occurredAt: item.publishedAt,
         timelineAt: item.publishedAt,
         locale,
         gateDecisionId: null,
+        mergeMode,
+        lastMeaningfulAt:
+          mergeMode === 'upsert_text' ? item.publishedAt : undefined,
       });
       developmentId = upserted.development.id;
 
+      // 挂靠且 evidence_only 时若已是旧卡，仍通知（新证据到达）
       await this.notifications.createFromMatch({
         userId,
         monitorId: cand.monitorId,
@@ -198,6 +283,24 @@ export class GateEvaluateService {
         link: item.link,
         monitorTitle: String(monitor.title ?? ''),
       });
+
+      void this.localizeJob
+        .enqueueForDevelopment({
+          monitorId: cand.monitorId,
+          developmentId: upserted.development.id,
+          title: upserted.development.title,
+          summary: upserted.development.summary,
+        })
+        .catch((err) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.logger.warn(
+            `event=gate_localize_enqueue_fail monitorId=${cand.monitorId} err=${msg.slice(0, 120)}`,
+          );
+        });
+
+      this.logger.debug(
+        `event=gate_wake monitorId=${cand.monitorId} feedItemId=${item.feedItemId} attached=${resolved.attached} mergeMode=${mergeMode} preSameClaim=${Boolean(preHit)}`,
+      );
     }
 
     await this.decisions.record({

@@ -6,6 +6,7 @@ import { LoggerService } from '../logger';
 import {
   JOB_NAME_COMPUTE_SNAPSHOT,
   JOB_NAME_ENRICH_ITEM,
+  JOB_NAME_LOCALIZE_DEVELOPMENTS,
   JOB_NAME_PROCESS_NEW_ITEM,
   JOB_NAME_REINDEX_MONITOR,
   JOB_NAME_CREATE_MONITOR,
@@ -13,6 +14,7 @@ import {
   JOB_NAME_SOURCE_POLL,
   QUEUE_BRIEF,
   QUEUE_ENRICH_LLM,
+  QUEUE_LOCALIZE,
   QUEUE_INGEST,
   QUEUE_PIPELINE,
   QUEUE_SNAPSHOT,
@@ -24,6 +26,7 @@ import { JobQueueAdapter } from './job-queue.adapter';
 import type {
   ComputeSnapshotPayload,
   EnrichItemPayload,
+  LocalizeDevelopmentsPayload,
   ProcessNewItemPayload,
   ReindexMonitorPayload,
   CreateMonitorPayload,
@@ -84,6 +87,7 @@ export class JobProcessorsService implements OnModuleInit, OnModuleDestroy {
     const ingestConcurrency = Number(this.config.get('QUEUE_INGEST_CONCURRENCY')) || 3;
     const pipelineConcurrency = Number(this.config.get('QUEUE_PIPELINE_CONCURRENCY')) || 5;
     const enrichConcurrency = Number(this.config.get('QUEUE_ENRICH_CONCURRENCY')) || 3;
+    const localizeConcurrency = Number(this.config.get('QUEUE_LOCALIZE_CONCURRENCY')) || 2;
     const snapshotConcurrency = Number(this.config.get('QUEUE_SNAPSHOT_CONCURRENCY')) || 3;
     const briefConcurrency = Number(this.config.get('QUEUE_BRIEF_CONCURRENCY')) || 2;
 
@@ -142,6 +146,21 @@ export class JobProcessorsService implements OnModuleInit, OnModuleDestroy {
     this.attachWorkerLogging(enrichWorker, QUEUE_ENRICH_LLM);
     this.workers.push(enrichWorker);
 
+    const localizeWorker = new Worker(
+      QUEUE_LOCALIZE,
+      async (job) => {
+        if (job.name === JOB_NAME_LOCALIZE_DEVELOPMENTS) {
+          const { mongoJobId: _m, ...payload } = job.data as LocalizeDevelopmentsPayload & {
+            mongoJobId: string;
+          };
+          await this.runWithLifecycle(job, () => this.handlers.handleLocalizeDevelopments(payload));
+        }
+      },
+      { connection, concurrency: localizeConcurrency },
+    );
+    this.attachWorkerLogging(localizeWorker, QUEUE_LOCALIZE);
+    this.workers.push(localizeWorker);
+
     const snapshotWorker = new Worker(
       QUEUE_SNAPSHOT,
       async (job) => {
@@ -173,7 +192,7 @@ export class JobProcessorsService implements OnModuleInit, OnModuleDestroy {
 
     this.heartbeatTimer = startWorkerHeartbeat(connection);
     this.logger.log(
-      `JobProcessors 已启动 queues=5 ingest=${ingestConcurrency} pipeline=${pipelineConcurrency} enrich=${enrichConcurrency} snapshot=${snapshotConcurrency} brief=${briefConcurrency}`,
+      `JobProcessors 已启动 queues=6 ingest=${ingestConcurrency} pipeline=${pipelineConcurrency} enrich=${enrichConcurrency} localize=${localizeConcurrency} snapshot=${snapshotConcurrency} brief=${briefConcurrency}`,
     );
   }
 

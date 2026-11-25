@@ -12,6 +12,7 @@ export const JOB_TYPES = [
   'reindex_monitor',
   'create_monitor',
   'enrich_item',
+  'localize_developments',
   'compute_snapshot',
   'run_brief',
 ] as const;
@@ -58,6 +59,15 @@ export type CreateMonitorPayload = { monitorId: string; userId: string; topic: s
 
 export type EnrichItemPayload = { feedItemId: string };
 
+export type LocalizeDevelopmentsPayload = {
+  monitorId: string;
+  locale?: string;
+  locales?: string[];
+  developmentIds?: string[];
+  recentLimit?: number;
+  sourceHash?: string;
+};
+
 export type ComputeSnapshotPayload = { monitorId: string; recentHours: number };
 
 export type RunBriefPayload = { monitorId: string; profileId: string; locale?: string };
@@ -70,6 +80,7 @@ export type JobPayload =
   | ReindexMonitorPayload
   | CreateMonitorPayload
   | EnrichItemPayload
+  | LocalizeDevelopmentsPayload
   | ComputeSnapshotPayload
   | RunBriefPayload;
 
