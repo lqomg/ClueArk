@@ -337,6 +337,83 @@ export class DevelopmentsService {
     return row;
   }
 
+  async listEvidence(
+    monitorId: string,
+    developmentId: string,
+  ): Promise<{
+    items: Array<{
+      feedItemId: string;
+      title: string;
+      link: string;
+      summary: string;
+      publishedAt: string | null;
+      sourceId: string;
+      sourceDisplayName: string;
+      sourceAvatarUrl: string | null;
+      isPrimary: boolean;
+    }>;
+  }> {
+    const development = await this.getOneOrThrow(monitorId, developmentId);
+    const ids = [
+      ...new Set(
+        [
+          development.primaryEvidenceItemId || '',
+          ...(development.evidenceItemIds ?? []),
+        ].filter((id) => Types.ObjectId.isValid(id)),
+      ),
+    ];
+    if (!ids.length) return { items: [] };
+
+    const feedRows = await this.feedItemModel
+      .find({ _id: { $in: ids.map((id) => new Types.ObjectId(id)) } })
+      .select({ _id: 1, sourceId: 1, title: 1, link: 1, summary: 1, publishedAt: 1 })
+      .lean()
+      .exec();
+    const sourceIds = [...new Set(feedRows.map((f) => String(f.sourceId)))];
+    const sources = sourceIds.length
+      ? await this.sourceModel
+          .find({ _id: { $in: sourceIds.map((id) => new Types.ObjectId(id)) } })
+          .select({ _id: 1, displayName: 1, avatarUrl: 1 })
+          .lean()
+          .exec()
+      : [];
+    const sourceById = new Map(
+      sources.map((s) => [
+        String(s._id),
+        {
+          displayName: String(s.displayName ?? ''),
+          avatarUrl: s.avatarUrl ? String(s.avatarUrl) : null,
+        },
+      ]),
+    );
+    const feedById = new Map(feedRows.map((f) => [String(f._id), f] as const));
+    const primary = development.primaryEvidenceItemId;
+
+    const items = ids
+      .map((id) => {
+        const f = feedById.get(id);
+        if (!f) return null;
+        const src = sourceById.get(String(f.sourceId));
+        return {
+          feedItemId: id,
+          title: String(f.title ?? ''),
+          link: String(f.link ?? ''),
+          summary: String(f.summary ?? '').slice(0, 2000),
+          publishedAt:
+            f.publishedAt instanceof Date && !Number.isNaN(f.publishedAt.getTime())
+              ? f.publishedAt.toISOString()
+              : null,
+          sourceId: String(f.sourceId),
+          sourceDisplayName: src?.displayName || String(f.sourceId),
+          sourceAvatarUrl: src?.avatarUrl ?? null,
+          isPrimary: Boolean(primary && primary === id),
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => Boolean(x));
+
+    return { items };
+  }
+
   async listForAdmin(opts: {
     page?: number;
     pageSize?: number;

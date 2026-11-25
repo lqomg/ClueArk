@@ -14,6 +14,9 @@ import { JobSchedulerService } from '../job-center/job-scheduler.service';
 import { shouldEnqueueLlmEnrich } from '../feed-items/feed-llm.constants';
 import { LoggerService } from '../logger';
 import { isMonitorItemMatched, normalizeMinCosine } from '../monitors/monitor-match.util';
+import { GateEvaluateService } from '../monitor-gate/gate-evaluate.service';
+import { candidateRecallFloor } from '../monitor-gate/admission.util';
+import { isLegacyCosineTimelineEnabled } from '../monitor-gate/legacy-cosine-timeline.util';
 
 @Injectable()
 export class MonitorPipelineService {
@@ -28,6 +31,7 @@ export class MonitorPipelineService {
     private readonly notifications: NotificationsService,
     private readonly scheduler: JobSchedulerService,
     private readonly feedItemLlmService: FeedItemLlmService,
+    private readonly gateEvaluate: GateEvaluateService,
     private readonly config: ConfigService,
     loggerService: LoggerService,
   ) {
@@ -94,30 +98,61 @@ export class MonitorPipelineService {
     this.logger.debug(`event=pipeline_search feedItemId=${feedItemId} qdrantHits=${hits.length}`);
 
     const matchedMonitorIds: string[] = [];
+    const legacyTimeline = isLegacyCosineTimelineEnabled(
+      this.config.get<string>('LEGACY_COSINE_TIMELINE'),
+    );
 
-    for (let i = 0; i < hits.length; i++) {
-      const hit = hits[i];
-      if (!isMonitorItemMatched(hit.score, hit.payload.minCosine)) continue;
-      const score = hit.score;
-      const monitorId = hit.monitorId;
-      const m = await this.monitorModel.findById(monitorId).select({ title: 1, userId: 1 }).lean().exec();
-      if (!m) continue;
-      matchedMonitorIds.push(monitorId);
-      const notified = await this.notifications.createFromMatch({
-        userId: String(m.userId),
-        monitorId,
-        feedItemId,
-        clusterId: clusterIdStr,
-        score,
-        title,
-        link: String(item.link),
-        monitorTitle: String(m.title ?? ''),
-      });
-      if (!notified) {
-        this.logger.debug(
-          `event=notification_skipped_same_cluster monitorId=${monitorId} clusterId=${clusterIdStr} feedItemId=${feedItemId}`,
-        );
+    if (legacyTimeline) {
+      for (let i = 0; i < hits.length; i++) {
+        const hit = hits[i];
+        if (!isMonitorItemMatched(hit.score, hit.payload.minCosine)) continue;
+        const score = hit.score;
+        const monitorId = hit.monitorId;
+        const m = await this.monitorModel
+          .findById(monitorId)
+          .select({ title: 1, userId: 1 })
+          .lean()
+          .exec();
+        if (!m) continue;
+        matchedMonitorIds.push(monitorId);
+        const notified = await this.notifications.createFromMatch({
+          userId: String(m.userId),
+          monitorId,
+          feedItemId,
+          clusterId: clusterIdStr,
+          score,
+          title,
+          link: String(item.link),
+          monitorTitle: String(m.title ?? ''),
+        });
+        if (!notified) {
+          this.logger.debug(
+            `event=notification_skipped_same_cluster monitorId=${monitorId} clusterId=${clusterIdStr} feedItemId=${feedItemId}`,
+          );
+        }
       }
+    } else {
+      const candidates = hits
+        .filter((hit) => hit.score >= candidateRecallFloor(hit.payload.minCosine))
+        .map((hit) => ({
+          monitorId: hit.monitorId,
+          score: hit.score,
+          minCosine: hit.payload.minCosine,
+        }));
+      const gateResult = await this.gateEvaluate.evaluateItem({
+        feedItemId,
+        sourceId,
+        clusterId: clusterIdStr,
+        title,
+        summary: String(item.summary ?? ''),
+        link: String(item.link ?? ''),
+        publishedAt,
+        candidates,
+      });
+      matchedMonitorIds.push(...gateResult.wokenMonitorIds);
+      this.logger.debug(
+        `event=pipeline_gate feedItemId=${feedItemId} candidates=${candidates.length} evaluated=${gateResult.evaluated} woken=${gateResult.woken} dropped=${gateResult.dropped}`,
+      );
     }
 
     await this.feedItemModel

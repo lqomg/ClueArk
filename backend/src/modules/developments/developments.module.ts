@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthGuardsModule } from '../auth/auth-guards.module';
-import { MonitorsModule } from '../monitors/monitors.module';
 import { FeedItem, FeedItemSchema } from '../feed-items/schemas/feed-item.schema';
 import { Source, SourceSchema } from '../sources/schemas/source.schema';
+import { Monitor, MonitorSchema } from '../monitors/schemas/monitor.schema';
 import { AdminGuard } from '../admin/guards/admin.guard';
 import { DevelopmentsController } from './developments.controller';
 import { AdminDevelopmentsController } from './admin-developments.controller';
@@ -25,12 +25,13 @@ import {
       { name: DevelopmentTranslation.name, schema: DevelopmentTranslationSchema },
       { name: FeedItem.name, schema: FeedItemSchema },
       { name: Source.name, schema: SourceSchema },
+      { name: Monitor.name, schema: MonitorSchema },
     ]),
     AuthGuardsModule,
-    MonitorsModule,
   ],
   controllers: [DevelopmentsController, AdminDevelopmentsController],
   providers: [DevelopmentsService, DevelopmentsReadLocalizationService, AdminGuard],
   exports: [DevelopmentsService, DevelopmentsReadLocalizationService, MongooseModule],
 })
 export class DevelopmentsModule {}
+
