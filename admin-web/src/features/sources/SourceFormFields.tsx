@@ -1,9 +1,11 @@
-import { Form, Input, InputNumber, Select, Switch, Upload, message } from 'antd';
+import { useState } from 'react';
+import { Button, Form, Input, InputNumber, Select, Space, Switch, Upload, message } from 'antd';
 import type { UploadProps } from 'antd';
 import { useTranslation } from 'react-i18next';
 import type { AdminSource } from '@/shared/types';
 import { SOURCE_KINDS } from '@/shared/constants';
-import { uploadSourceAvatar } from '@/features/sources/api';
+import { probeWebList, uploadSourceAvatar } from '@/features/sources/api';
+import { ApiError } from '@/shared/api/http';
 
 const DEFAULT_HOT_MAPPER = {
   itemsPath: '$.items',
@@ -15,6 +17,7 @@ export function SourceFormFields() {
   const { t } = useTranslation();
   const form = Form.useFormInstance();
   const kind = Form.useWatch('kind', form) ?? 'rss';
+  const [probeLoading, setProbeLoading] = useState(false);
 
   const kindLabel = (k: string) => {
     if (k === 'web') return t('source.form.kindWeb');
@@ -35,6 +38,62 @@ export function SourceFormFields() {
       }
       return false;
     },
+  };
+
+  const onProbeSelectors = async () => {
+    const web = form.getFieldValue('web') as Record<string, unknown> | undefined;
+    const listUrl =
+      trimOrUndef(web?.crawlListUrl) || trimOrUndef(web?.url) || '';
+    if (!listUrl) {
+      message.warning(t('source.form.probeNeedUrl'));
+      return;
+    }
+    const sel = (web?.crawlSelectors ?? {}) as Record<string, unknown>;
+    setProbeLoading(true);
+    try {
+      const res = await probeWebList({
+        url: listUrl,
+        ...(trimOrUndef(sel.item) ? { item: trimOrUndef(sel.item) } : {}),
+        ...(trimOrUndef(sel.link) ? { link: trimOrUndef(sel.link) } : {}),
+        ...(trimOrUndef(sel.title) ? { title: trimOrUndef(sel.title) } : {}),
+        ...(trimOrUndef(sel.summary) ? { summary: trimOrUndef(sel.summary) } : {}),
+        ...(trimOrUndef(sel.date) ? { date: trimOrUndef(sel.date) } : {}),
+      });
+      if (res.crawlSelectors) {
+        form.setFieldsValue({
+          web: {
+            ...(web ?? {}),
+            crawlSelectors: {
+              item: res.crawlSelectors.item,
+              link: res.crawlSelectors.link,
+              title: res.crawlSelectors.title,
+              summary: res.crawlSelectors.summary ?? trimOrUndef(sel.summary) ?? '',
+              date: res.crawlSelectors.date ?? '',
+            },
+          },
+        });
+      }
+      if (res.ok) {
+        message.success(
+          t('source.form.probeOk', {
+            count: res.score.goodCount,
+            withTime: res.score.withTime,
+          }),
+        );
+      } else {
+        message.warning(
+          t('source.form.probeWeak', {
+            error: res.error || res.score.error || 'failed',
+            count: res.score.goodCount,
+          }),
+        );
+      }
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : t('source.form.probeFailed');
+      message.error(msg);
+    } finally {
+      setProbeLoading(false);
+    }
   };
 
   return (
@@ -68,6 +127,16 @@ export function SourceFormFields() {
           </Form.Item>
           <Form.Item name={['web', 'crawlListUrl']} label={t('source.form.listUrl')}>
             <Input placeholder={t('source.form.listUrlPlaceholder')} />
+          </Form.Item>
+          <Form.Item label={t('source.form.probeLabel')}>
+            <Space>
+              <Button loading={probeLoading} onClick={() => void onProbeSelectors()}>
+                {t('source.form.probeAction')}
+              </Button>
+              <span style={{ color: 'var(--ant-color-text-secondary)', fontSize: 12 }}>
+                {t('source.form.probeHint')}
+              </span>
+            </Space>
           </Form.Item>
           <Form.Item
             name={['web', 'crawlSelectors', 'item']}

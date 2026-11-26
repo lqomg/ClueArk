@@ -143,6 +143,13 @@ export const zhCN: Record<AdminTranslationKey, string> = {
   'source.form.selectorTitle': '标题选择器',
   'source.form.selectorSummary': '摘要选择器',
   'source.form.selectorDate': '日期选择器',
+  'source.form.probeLabel': '选择器探测',
+  'source.form.probeAction': 'LLM 建议选择器',
+  'source.form.probeHint': '拉取列表页并由模型提议 CSS 选择器；已填选择器时仅做验收',
+  'source.form.probeNeedUrl': '请先填写站点 URL 或列表页 URL',
+  'source.form.probeOk': '验收通过：{{count}} 条有效，其中 {{withTime}} 条含时间',
+  'source.form.probeWeak': '验收偏弱（{{error}}），有效约 {{count}} 条；已尽量回填选择器',
+  'source.form.probeFailed': '探测失败',
   'source.form.feedUrl': 'Feed URL',
   'source.form.apiUrl': 'API URL',
 

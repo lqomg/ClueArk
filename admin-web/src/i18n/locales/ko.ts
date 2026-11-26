@@ -143,6 +143,13 @@ export const ko: Record<AdminTranslationKey, string> = {
   'source.form.selectorTitle': '제목 선택자',
   'source.form.selectorSummary': '요약 선택자',
   'source.form.selectorDate': '날짜 선택자',
+  'source.form.probeLabel': '선택자 탐지',
+  'source.form.probeAction': 'LLM 선택자 제안',
+  'source.form.probeHint': '목록 페이지를 가져와 CSS 선택자를 제안합니다. 이미 입력된 경우 검증만 수행',
+  'source.form.probeNeedUrl': '사이트 URL 또는 목록 URL을 먼저 입력하세요',
+  'source.form.probeOk': '통과: 유효 {{count}}건, 시간 포함 {{withTime}}건',
+  'source.form.probeWeak': '결과 약함({{error}}), 유효 약 {{count}}건. 가능하면 선택자를 채움',
+  'source.form.probeFailed': '탐지 실패',
   'source.form.feedUrl': 'Feed URL',
   'source.form.apiUrl': 'API URL',
 

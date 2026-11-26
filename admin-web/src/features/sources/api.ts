@@ -41,3 +41,33 @@ export async function uploadSourceAvatar(file: File): Promise<{ avatarUrl: strin
   const { data } = await http.post<{ avatarUrl: string }>('/sources/avatar', form);
   return data;
 }
+
+export type WebListProbeResult = {
+  ok: boolean;
+  pageUrl: string;
+  crawlSelectors: {
+    item: string;
+    link: string;
+    title: string;
+    summary?: string;
+    date?: string;
+  } | null;
+  score: { goodCount: number; withTime: number; error?: string };
+  samples: Array<{ title: string; link: string; publishedAt: string | null }>;
+  notes?: string;
+  error?: string;
+  retried?: boolean;
+};
+
+/** LLM 提议 / 验收 Web 列表 CSS 选择器（Admin） */
+export async function probeWebList(body: {
+  url: string;
+  item?: string;
+  link?: string;
+  title?: string;
+  summary?: string;
+  date?: string;
+}): Promise<WebListProbeResult> {
+  const { data } = await http.post<WebListProbeResult>('/sources/web-list/probe', body);
+  return data;
+}

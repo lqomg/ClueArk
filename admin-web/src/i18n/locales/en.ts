@@ -141,6 +141,13 @@ export const en = {
   'source.form.selectorTitle': 'Title selector',
   'source.form.selectorSummary': 'Summary selector',
   'source.form.selectorDate': 'Date selector',
+  'source.form.probeLabel': 'Selector probe',
+  'source.form.probeAction': 'Suggest selectors (LLM)',
+  'source.form.probeHint': 'Fetch the list page and propose CSS selectors; if selectors are filled, only validate',
+  'source.form.probeNeedUrl': 'Enter a site URL or list page URL first',
+  'source.form.probeOk': 'Passed: {{count}} good items, {{withTime}} with time',
+  'source.form.probeWeak': 'Weak result ({{error}}); ~{{count}} good items; selectors filled when available',
+  'source.form.probeFailed': 'Probe failed',
   'source.form.feedUrl': 'Feed URL',
   'source.form.apiUrl': 'API URL',
 
