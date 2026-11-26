@@ -7,11 +7,19 @@ import { DevelopmentsService } from '../developments/developments.service';
 import { DevelopmentsLocalizeJobService } from '../developments/developments-localize-job.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Monitor, MonitorDocument } from '../monitors/schemas/monitor.schema';
-import { AuthorDevelopmentService } from './author-development.service';
+import {
+  AuthorDevelopmentService,
+  type AuthorDevelopmentResult,
+  FALLBACK_CRITERIA_PROMPT,
+} from './author-development.service';
 import { GateDecisionService } from './gate-decision.service';
 import { decideAdmission, type AdmissionReason } from './admission.util';
-import { resolveAuthorAttachTarget, resolveAuthoredMergeMode } from './author-attach.util';
-import { buildEditorEvidencePack, clipDevelopmentBlurb } from './development-evidence-pack.util';
+import {
+  resolveAuthorAttachTarget,
+  resolveAuthoredMergeMode,
+  type AuthorAttachSource,
+} from './author-attach.util';
+import { buildEditorEvidencePack } from './development-evidence-pack.util';
 import { computeDevelopmentQualityScores } from './development-quality-score.util';
 import { findSameClaimAttachTarget } from './same-claim-attach.util';
 import { COLD_START } from './cold-start.defaults';
@@ -157,15 +165,20 @@ export class GateEvaluateService {
     }
 
     const locale = await this.userPreferences.getLocaleOrDefault(userId);
+    const criteria =
+      String(monitor.topicPrompt ?? '').trim() ||
+      String(monitor.description ?? '').trim() ||
+      FALLBACK_CRITERIA_PROMPT;
+
     const listed = await this.developments.listCatalogForGate(
       cand.monitorId,
       COLD_START.developmentCatalogCap,
     );
+    const fallbackScope = Types.ObjectId.isValid(item.clusterId)
+      ? item.clusterId
+      : item.feedItemId;
     const sameCluster =
-      listed.find(
-        (row) =>
-          Types.ObjectId.isValid(item.clusterId) && row.mergeScopeKey === item.clusterId,
-      ) ?? null;
+      listed.find((row) => row.mergeScopeKey === fallbackScope) ?? null;
     const pack = buildEditorEvidencePack({
       listed,
       sameCluster,
@@ -173,19 +186,24 @@ export class GateEvaluateService {
       focusRecent: COLD_START.developmentFocusRecent,
       blurbMax: COLD_START.developmentCatalogBlurbMax,
     });
+    const attachTargets = pack.catalog
+      .map((card) => pack.rowsById.get(card.id))
+      .filter((row): row is NonNullable<typeof row> => Boolean(row?.id && row.mergeScopeKey))
+      .map((row) => ({
+        id: row.id,
+        mergeScopeKey: row.mergeScopeKey,
+        title: row.title,
+        summary: row.summary,
+        timelineAt: row.timelineAt,
+      }));
+
+    let decidedAttachId: string | null = null;
+    let attachSource: AuthorAttachSource = 'none';
+    let attachFallbackReason = '';
 
     const excludeTerms = (monitor.entities ?? [])
       .map((e) => String(e ?? '').trim())
       .filter(Boolean);
-    const catalogForClaim = pack.catalog.map((c) => {
-      const row = pack.rowsById.get(c.id);
-      return {
-        id: c.id,
-        title: c.title,
-        summary: row?.summary,
-        timelineAtMs: Date.parse(c.timelineAt) || undefined,
-      };
-    });
     const sameClaimOpts = {
       minSharedTokens: COLD_START.sameClaimMinSharedTokens,
       minTitleJaccard: COLD_START.sameClaimMinTitleJaccard,
@@ -194,49 +212,252 @@ export class GateEvaluateService {
       windowHours: COLD_START.sameClaimWindowHours,
       probeAtMs: item.publishedAt?.getTime?.() ?? Date.now(),
     };
-    const preHit = findSameClaimAttachTarget(item.title, catalogForClaim, sameClaimOpts);
+    const catalogForClaim = attachTargets.map((row) => ({
+      id: row.id,
+      title: row.title,
+      summary: row.summary,
+      timelineAtMs: Date.parse(String(row.timelineAt ?? '')) || 0,
+    }));
 
-    const authored = await this.author.author({
-      monitorId: cand.monitorId,
-      feedItemId: item.feedItemId,
-      monitorTitle: String(monitor.title ?? ''),
-      topicPrompt: String(monitor.topicPrompt ?? ''),
-      description: String(monitor.description ?? ''),
-      title: item.title,
-      summary: item.summary,
-      quote: admission.quote,
-      admissionReasons: admission.reasons as AdmissionReason[],
-      semanticScore: admission.semanticScore,
-      locale,
-      catalogBlurbs: pack.catalog.map((c) => ({
-        id: c.id,
-        title: c.title,
-        blurb: c.blurb || clipDevelopmentBlurb(pack.rowsById.get(c.id)?.summary ?? '', 80),
-      })),
-      forcedAttachDevelopmentId: preHit?.id ?? null,
-    });
+    if (sameCluster) {
+      decidedAttachId = sameCluster.id;
+      attachSource = 'hard';
+      this.logger.debug(
+        `event=attach_development_skip monitorId=${cand.monitorId} feedItemId=${item.feedItemId} source=hard attach=${decidedAttachId}`,
+      );
+    } else {
+      const nearDup = findSameClaimAttachTarget(item.title, catalogForClaim, sameClaimOpts);
+      if (nearDup) {
+        decidedAttachId = nearDup.id;
+        attachSource = 'near_dup';
+        this.logger.debug(
+          `event=attach_development_near_dup monitorId=${cand.monitorId} feedItemId=${item.feedItemId} attach=${decidedAttachId} jaccard=${nearDup.jaccard.toFixed(3)}`,
+        );
+      } else if (pack.catalog.length) {
+        const chosen = await this.author.chooseAttach({
+          monitorId: cand.monitorId,
+          feedItemId: item.feedItemId,
+          monitorTitle: String(monitor.title ?? ''),
+          topicPrompt: String(monitor.topicPrompt ?? ''),
+          description: String(monitor.description ?? ''),
+          title: item.title,
+          summary: item.summary,
+          quote: admission.quote,
+          catalog: pack.catalog,
+          focus: pack.focus,
+        });
+        if (!chosen.ok) {
+          attachFallbackReason = chosen.reason;
+          decidedAttachId = null;
+          attachSource = 'none';
+          this.logger.warn(
+            `event=attach_invalid_fallback_create monitorId=${cand.monitorId} feedItemId=${item.feedItemId} reason=${chosen.reason}`,
+          );
+        } else {
+          decidedAttachId = chosen.attachDevelopmentId;
+          attachSource = decidedAttachId ? 'llm' : 'none';
+          this.logger.debug(
+            `event=attach_development_chosen monitorId=${cand.monitorId} feedItemId=${item.feedItemId} attach=${decidedAttachId ?? ''} source=llm`,
+          );
+        }
+      }
+    }
+
+    let existingAttached: { title: string; summary: string } | null = null;
+    if (decidedAttachId) {
+      const fromPack = pack.rowsById.get(decidedAttachId);
+      const packedTitle = String(fromPack?.title ?? '').trim();
+      const packedSummary = String(fromPack?.summary ?? '').trim();
+      if (packedTitle && packedSummary) {
+        existingAttached = { title: packedTitle, summary: packedSummary };
+      } else {
+        const fetched = await this.developments.getOne(cand.monitorId, decidedAttachId);
+        const title = String(fetched?.title ?? '').trim();
+        const summary = String(fetched?.summary ?? '').trim();
+        if (title && summary) existingAttached = { title, summary };
+      }
+    }
+
+    let authoredFromDelta: AuthorDevelopmentResult | null = null;
+    let deltaDecidedUpsertText = false;
+    let deltaReasonPrefix = '';
+    let deltaDetachHandoff: {
+      reason: string;
+      detachedFrom: { title: string; summary: string } | null;
+    } | null = null;
+
+    if (decidedAttachId && existingAttached) {
+      const delta = await this.author.judgeDelta({
+        monitorId: cand.monitorId,
+        feedItemId: item.feedItemId,
+        existing: existingAttached,
+        title: item.title,
+        summary: item.summary,
+        quote: admission.quote,
+        criteria,
+      });
+      this.logger.debug(
+        `event=development_delta monitorId=${cand.monitorId} feedItemId=${item.feedItemId} attach=${decidedAttachId} mergeMode=${delta.mergeMode} hasNew=${delta.hasNewVerifiableFact} failed=${delta.failed}`,
+      );
+
+      if (delta.failed) {
+        await this.decisions.record({
+          monitorId: cand.monitorId,
+          userId,
+          feedItemId: item.feedItemId,
+          sourceId: item.sourceId,
+          clusterId: item.clusterId,
+          finalAction: 'drop',
+          stages: [
+            {
+              stage: 'admission',
+              action: 'admit',
+              reasonCode: admission.reasons.join(','),
+              reasonText: admission.reasons.join(','),
+              score: admission.semanticScore,
+            },
+            {
+              stage: 'llm',
+              action: 'drop',
+              reasonCode: 'llm_failed',
+              reasonText: attachFallbackReason
+                ? `${delta.reason} [attach_invalid_fallback_create:${attachFallbackReason}]`
+                : delta.reason,
+              score: admission.semanticScore,
+            },
+          ],
+          llm: {
+            action: 'drop',
+            reason: delta.reason,
+            latencyMs: delta.latencyMs,
+            failed: true,
+          },
+          itemTitle: item.title,
+          itemPublishedAt: item.publishedAt,
+          admissionOutcome: 'admitted',
+        });
+        return 'drop';
+      }
+
+      if (delta.mergeMode === 'drop' && delta.hasNewVerifiableFact === true) {
+        const detachedFrom = decidedAttachId;
+        deltaDetachHandoff = {
+          reason: delta.reason,
+          detachedFrom: {
+            title: existingAttached.title,
+            summary: existingAttached.summary,
+          },
+        };
+        this.logger.debug(
+          `event=development_delta_detach monitorId=${cand.monitorId} feedItemId=${item.feedItemId} detachedFrom=${detachedFrom}`,
+        );
+        decidedAttachId = null;
+        existingAttached = null;
+        attachSource = 'delta_detach';
+        deltaReasonPrefix = '[delta_detach_then_create] ';
+      } else if (delta.mergeMode === 'drop') {
+        await this.decisions.record({
+          monitorId: cand.monitorId,
+          userId,
+          feedItemId: item.feedItemId,
+          sourceId: item.sourceId,
+          clusterId: item.clusterId,
+          finalAction: 'drop',
+          stages: [
+            {
+              stage: 'admission',
+              action: 'admit',
+              reasonCode: admission.reasons.join(','),
+              reasonText: admission.reasons.join(','),
+              score: admission.semanticScore,
+            },
+            {
+              stage: 'llm',
+              action: 'drop',
+              reasonCode: 'delta_drop',
+              reasonText: attachFallbackReason
+                ? `${delta.reason} [attach_invalid_fallback_create:${attachFallbackReason}]`
+                : delta.reason,
+              score: admission.semanticScore,
+            },
+          ],
+          llm: {
+            action: 'drop',
+            reason: delta.reason,
+            latencyMs: delta.latencyMs,
+            failed: false,
+          },
+          itemTitle: item.title,
+          itemPublishedAt: item.publishedAt,
+          admissionOutcome: 'admitted',
+        });
+        return 'drop';
+      } else if (delta.mergeMode === 'evidence_only') {
+        authoredFromDelta = {
+          action: 'wake',
+          importance: 'medium',
+          title: existingAttached.title,
+          summary: existingAttached.summary,
+          whyItMatters: '',
+          watchNext: '',
+          mergeMode: 'evidence_only',
+          attachDevelopmentId: decidedAttachId,
+          reason: delta.reason,
+          latencyMs: delta.latencyMs,
+          failed: false,
+        };
+      } else {
+        deltaDecidedUpsertText = true;
+        deltaReasonPrefix = '[delta:upsert_text] ';
+      }
+    }
+
+    const authored =
+      authoredFromDelta ??
+      (await this.author.author({
+        monitorId: cand.monitorId,
+        feedItemId: item.feedItemId,
+        monitorTitle: String(monitor.title ?? ''),
+        topicPrompt: String(monitor.topicPrompt ?? ''),
+        description: String(monitor.description ?? ''),
+        title: item.title,
+        summary: item.summary,
+        quote: admission.quote,
+        admissionReasons: admission.reasons as AdmissionReason[],
+        semanticScore: admission.semanticScore,
+        locale,
+        catalog: pack.catalog,
+        focus: pack.focus,
+        decidedAttachDevelopmentId: decidedAttachId,
+        existingAttached,
+        deltaDecidedUpsertText,
+        deltaDetachHandoff,
+      }));
+
+    if (deltaReasonPrefix && authored.reason) {
+      authored.reason = `${deltaReasonPrefix}${authored.reason}`;
+    }
 
     let developmentId: string | null = null;
     if (authored.action === 'wake') {
-      const fallbackScope = Types.ObjectId.isValid(item.clusterId)
-        ? item.clusterId
-        : item.feedItemId;
-      const attachCandidates = [...pack.rowsById.values()].map((r) => ({
-        id: r.id,
-        mergeScopeKey: r.mergeScopeKey || r.id,
-      }));
-
-      let attachId = authored.attachDevelopmentId;
-      if (!attachId) {
+      // 成稿后再做一次同主张校验（仅 create 路径）
+      let attachId = authored.attachDevelopmentId ?? decidedAttachId;
+      if (!attachId && attachSource !== 'delta_detach') {
         const postHit = findSameClaimAttachTarget(
           authored.title,
           catalogForClaim,
           sameClaimOpts,
         );
-        if (postHit) attachId = postHit.id;
+        if (postHit) {
+          attachId = postHit.id;
+          attachSource = 'same_claim_post';
+        }
       }
-      if (!attachId && preHit) attachId = preHit.id;
 
+      const attachCandidates = attachTargets.map((r) => ({
+        id: r.id,
+        mergeScopeKey: r.mergeScopeKey || r.id,
+      }));
       const resolved = resolveAuthorAttachTarget(attachId, attachCandidates, fallbackScope);
       const mergeMode = resolveAuthoredMergeMode(resolved.attached, authored.mergeMode);
       const quality = computeDevelopmentQualityScores({
@@ -246,8 +467,6 @@ export class GateEvaluateService {
         evidenceCount: 1,
       });
 
-      // evidence_only：开源 upsertByScope 对已有 mergeScopeKey 仅 $setOnInsert 文案 + $addToSet 证据
-      // upsert_text 且已挂靠：仍走同一 upsert；若需改写旧卡文案，后续再补 merge 路径
       const upserted = await this.developments.upsertByScope({
         monitorId: cand.monitorId,
         userId,
@@ -267,12 +486,10 @@ export class GateEvaluateService {
         locale,
         gateDecisionId: null,
         mergeMode,
-        lastMeaningfulAt:
-          mergeMode === 'upsert_text' ? item.publishedAt : undefined,
+        lastMeaningfulAt: mergeMode === 'upsert_text' ? item.publishedAt : undefined,
       });
       developmentId = upserted.development.id;
 
-      // 挂靠且 evidence_only 时若已是旧卡，仍通知（新证据到达）
       await this.notifications.createFromMatch({
         userId,
         monitorId: cand.monitorId,
@@ -299,7 +516,7 @@ export class GateEvaluateService {
         });
 
       this.logger.debug(
-        `event=gate_wake monitorId=${cand.monitorId} feedItemId=${item.feedItemId} attached=${resolved.attached} mergeMode=${mergeMode} preSameClaim=${Boolean(preHit)}`,
+        `event=gate_wake monitorId=${cand.monitorId} feedItemId=${item.feedItemId} attached=${resolved.attached} mergeMode=${mergeMode} attachSource=${attachSource}`,
       );
     }
 
@@ -322,7 +539,9 @@ export class GateEvaluateService {
           stage: 'llm',
           action: authored.action,
           reasonCode: authored.failed ? 'llm_failed' : authored.reason.slice(0, 64),
-          reasonText: authored.reason,
+          reasonText: attachFallbackReason
+            ? `${authored.reason} [attach_invalid_fallback_create:${attachFallbackReason}]`
+            : authored.reason,
           score: admission.semanticScore,
         },
       ],
