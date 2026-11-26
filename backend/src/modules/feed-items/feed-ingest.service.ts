@@ -22,6 +22,7 @@ import {
   maxAllowedPublishedAt,
   normalizePublishedAt,
 } from './published-at.util';
+import { pickRssSummaryFieldText, rssFieldLink, rssFieldText } from './rss-field-text.util';
 
 const FETCH_TIMEOUT_MS = 10_000;
 const MAX_ITEMS_PER_FEED = 200;
@@ -273,13 +274,14 @@ export class FeedIngestService {
     for (let j = 0; j < items.length; j++) {
       const it = items[j];
       const guid = guidString(it.guid);
-      const linkResolved = resolveItemLink(feedBase, it.link) ?? resolveItemLink(feedUrl, it.link);
-      const itemKey = itemKeyFromEntry(feedBase, it.link, guid);
+      const linkText = rssFieldLink(it.link) || String(it.link ?? '');
+      const linkResolved = resolveItemLink(feedBase, linkText) ?? resolveItemLink(feedUrl, linkText);
+      const itemKey = itemKeyFromEntry(feedBase, linkText, guid);
       if (!itemKey || !linkResolved) continue;
 
-      const titleRaw = stripTags((it.title ?? '').trim()) || '（无标题）';
+      const titleRaw = stripTags(rssFieldText(it.title)) || '（无标题）';
       const title = truncate(titleRaw, 500);
-      const snippet = stripTags((it.contentSnippet ?? it.summary ?? it.content ?? '').trim());
+      const snippet = stripTags(pickRssSummaryFieldText(it));
       const summary = normalizeSummaryForStore(snippet);
 
       const publishedAtRaw = it.isoDate ?? it.pubDate ?? null;

@@ -26,6 +26,7 @@
 - `worker-scheduler/` — 仅 worker 进程：`@Cron`（信源轮询、快照/Brief 入队、相似聚类维护）
 - `monitors/` — 专题（API 仍称 monitor）、`monitor_snapshots` 物化读模型
 - `developments/` — `monitor_developments` 进展读写模型与用户/Admin 读 API（门禁流水线见后续阶段）
+- `monitor-gate/` — admission + LLM author；`process_new_item` 默认写进展；`LEGACY_COSINE_TIMELINE=1` 回滚旧余弦通知
 - `vector-store/` — Qdrant 向量 upsert/search（禁止 HTTP 读路径做余弦）
 - `job-center/` — BullMQ 任务入队 / 消费 / 审计；**`worker` 容器**（`node dist/worker`）消费（开源当前任务集见 `job.types.ts` 注释）
 - `notifications/` — 匹配通知（站内）
@@ -40,7 +41,7 @@
 
 1. **Mongo** 仅存业务字段，不存 `simEmbed*` / `descriptionEmbedding` 等向量数组。
 2. **相似检索** 仅经 `VectorStoreService` → Qdrant；HTTP 读 API 禁止 `cosineSimilarity`。
-3. **通知路径**：新条目（仅 `monitoredByCount > 0` 信源）→ `pipeline:process_new_item` → 站内通知；**不等待** LLM 富化。
+3. **通知路径**：新条目（仅 `monitoredByCount > 0` 信源）→ `pipeline:process_new_item` → 默认门禁 wake 后站内通知并写 `monitor_developments`；`LEGACY_COSINE_TIMELINE=1` 时回滚为余弦命中即通知。**不等待** LLM 富化。
 4. **列表/研判**：`GET /monitors` 读 `monitor_snapshots`；`GET /monitors/:id/intelligence` 禁止同步全量打分。
 5. **Compose 栈**：`mongodb` + `redis` + `qdrant` + `worker`（必须先就绪；**Cron + BullMQ 消费**）+ `backend`（HTTP + 入队，无 `@Cron`）+ `web`（用户产品）+ `admin-web`（运营后台）+ `crawler`。
 6. **启动校验**：`REDIS_URL`、`QDRANT_URL`、`FEED_EMBEDDING_API_KEY`、`DEEPSEEK_API_KEY` 必填；Mongo/Redis/Qdrant 连不上则进程退出；API 启动前等待 worker Redis 心跳。本地 `npm run dev` 同时起 API 与 worker。

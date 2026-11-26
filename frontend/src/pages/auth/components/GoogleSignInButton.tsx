@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { loginWithGoogle } from '@/api/auth';
-import { outlineBtnClass } from '@/components/auth/AuthBrandingLayout';
+import { getAuthFormTone } from '@/components/auth/AuthBrandingLayout';
 import { changeWebLanguage } from '@/i18n';
 import type { GoogleCredentialResponse } from '@/lib/googleGsi';
 import { getGoogleIdApi, loadGoogleGsiScript } from '@/lib/googleGsi';
@@ -155,6 +155,8 @@ export function GoogleSignInButton({ from, onError }: GoogleSignInButtonProps) {
   if (!isGoogleSignInEnabled()) {
     return null;
   }
+
+  const outlineBtnClass = getAuthFormTone('app').outlineBtnClass;
 
   return (
     <div className="space-y-3">

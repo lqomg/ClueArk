@@ -524,7 +524,7 @@ export function MonitorOverviewPage() {
                       to={topicTimelinePath(currentMonitor.id)}
                       className="flex shrink-0 items-center gap-0.5 self-start text-[11px] text-slate-500 transition hover:text-ark-accent sm:self-auto"
                     >
-                      {t('monitors.viewTimeline')}
+                      {t('topic.changesTitle')}
                       <ArrowRight className="size-3" aria-hidden />
                     </Link>
                   </div>

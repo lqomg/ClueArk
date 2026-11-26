@@ -253,6 +253,27 @@ export class MonitorsService {
    * 监控列表：每条含与情报同一时间窗下的轻量聚合指标（Heat、24h 增量、7 日趋势等），
    * 供研判页/管理页仅依赖 GET /monitors + GET /monitors/:id/intelligence。
    */
+  /**
+   * 首页可读专题元数据（开源：仅自建；不含官方订阅）。
+   */
+  async listReadableMetaForUser(
+    userId: string,
+  ): Promise<Array<{ id: string; title: string; coverImageUrl: string | null; sourceIds: string[] }>> {
+    if (!Types.ObjectId.isValid(userId)) return [];
+    const docs = await this.monitorModel
+      .find({ userId: new Types.ObjectId(userId), deletedAt: null })
+      .select({ _id: 1, title: 1, sourceIds: 1 })
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec();
+    return docs.map((d) => ({
+      id: String(d._id),
+      title: String(d.title ?? '').trim() || 'Untitled',
+      coverImageUrl: null,
+      sourceIds: Array.isArray(d.sourceIds) ? d.sourceIds.map((id) => String(id)) : [],
+    }));
+  }
+
   async listForUser(userId: string, recentHours?: number): Promise<MonitorListItemPublic[]> {
     const uid = new Types.ObjectId(userId);
     const rh = recentHours ?? this.defaultRecentHours();

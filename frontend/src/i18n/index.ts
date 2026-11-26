@@ -22,8 +22,11 @@ void i18n.use(initReactI18next).init({
   interpolation: { escapeValue: false },
 });
 
-export function changeWebLanguage(locale: WebSupportedLocale): void {
-  setWebLocale(locale);
+export function changeWebLanguage(
+  locale: WebSupportedLocale,
+  opts?: { persist?: boolean },
+): void {
+  if (opts?.persist !== false) setWebLocale(locale);
   void i18n.changeLanguage(locale);
 }
 

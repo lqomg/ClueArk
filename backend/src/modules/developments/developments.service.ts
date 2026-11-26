@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
-import { normalizeLocale } from '../../common/utils/locale.utils';
+import { Model, Types, type PipelineStage } from 'mongoose';
+import { resolvePersistLocale } from '../../common/utils/locale.utils';
 import { FeedItem, FeedItemDocument } from '../feed-items/schemas/feed-item.schema';
 import { Source, SourceDocument } from '../sources/schemas/source.schema';
 import { normalizeStructuredFact } from './structured-fact.util';
@@ -85,6 +85,8 @@ export type CreateDevelopmentInput = {
   locale?: string;
   lastMeaningfulAt?: Date;
   updates?: Array<{ at: Date; feedItemId: Types.ObjectId | null; title: string }>;
+  /** upsert_text 更新文案；evidence_only 只追加证据（默认 upsert_text） */
+  mergeMode?: 'upsert_text' | 'evidence_only';
 };
 
 export type UpsertDevelopmentResult = {
@@ -117,15 +119,6 @@ function toObjectIds(ids: string[]): Types.ObjectId[] {
 
 function normalizeTimePrecision(raw: unknown): 'instant' | 'day' {
   return raw === 'day' ? 'day' : 'instant';
-}
-
-function resolvePersistLocale(title: string, summary: string, locale?: string): string {
-  if (locale?.trim()) return normalizeLocale(locale);
-  const sample = `${title}\n${summary}`;
-  const cjk = (sample.match(/[\u4e00-\u9fff]/g) || []).length;
-  const latin = (sample.match(/[A-Za-z]/g) || []).length;
-  if (cjk > latin && cjk >= 4) return 'zh-CN';
-  return 'en';
 }
 
 @Injectable()
@@ -205,13 +198,45 @@ export class DevelopmentsService {
       throw new Error('development_merge_scope_required');
     }
     const timelineAt = input.timelineAt ?? occurredAt;
+    const mergeMode = input.mergeMode === 'evidence_only' ? 'evidence_only' : 'upsert_text';
+    const title = input.title.slice(0, 300);
+    const summary = input.summary.slice(0, 4000);
     const insertBeat =
       input.updates?.[0] ??
       ({
         at: occurredAt,
         feedItemId: primary,
-        title: input.title.slice(0, 80),
+        title: title.slice(0, 80),
       } as const);
+
+    const existing = await this.developmentModel
+      .findOne({
+        monitorId: new Types.ObjectId(input.monitorId),
+        mergeScopeKey,
+      })
+      .select({ _id: 1, title: 1, summary: 1 })
+      .lean()
+      .exec();
+
+    const setOnExisting: Record<string, unknown> = {};
+    if (existing && mergeMode === 'upsert_text' && title && summary) {
+      const prevTitle = String(existing.title ?? '').trim();
+      const prevSummary = String(existing.summary ?? '').trim();
+      if (prevTitle !== title || prevSummary !== summary) {
+        setOnExisting.title = title;
+        setOnExisting.summary = summary;
+        setOnExisting.whyItMatters = String(input.whyItMatters ?? '').slice(0, 500);
+        setOnExisting.watchNext = String(input.watchNext ?? '').slice(0, 300);
+        setOnExisting.severity = input.severity ?? 'medium';
+        setOnExisting.lastMeaningfulAt = input.lastMeaningfulAt ?? occurredAt;
+        if (input.noveltyScore !== undefined) {
+          setOnExisting.noveltyScore = clamp01(input.noveltyScore);
+        }
+        if (input.confidence !== undefined) {
+          setOnExisting.confidence = clamp01(input.confidence);
+        }
+      }
+    }
 
     const result = await this.developmentModel
       .findOneAndUpdate(
@@ -223,8 +248,8 @@ export class DevelopmentsService {
           $setOnInsert: {
             monitorId: new Types.ObjectId(input.monitorId),
             userId: new Types.ObjectId(input.userId),
-            title: input.title.slice(0, 300),
-            summary: input.summary.slice(0, 4000),
+            title,
+            summary,
             rationale: String(input.rationale ?? '').slice(0, 800),
             whyItMatters: String(input.whyItMatters ?? '').slice(0, 500),
             watchNext: String(input.watchNext ?? '').slice(0, 300),
@@ -244,6 +269,7 @@ export class DevelopmentsService {
             lastMeaningfulAt: input.lastMeaningfulAt ?? occurredAt,
             updates: input.updates?.length ? input.updates : [insertBeat],
           },
+          ...(Object.keys(setOnExisting).length ? { $set: setOnExisting } : {}),
           $addToSet: {
             evidenceItemIds: { $each: evidenceOids },
             clusterIds: { $each: clusterOids },
@@ -270,6 +296,57 @@ export class DevelopmentsService {
       development: this.serialize(doc),
       created: metadata.lastErrorObject?.updatedExisting === false,
     };
+  }
+
+  async listByIds(monitorId: string, ids: string[]): Promise<DevelopmentListItem[]> {
+    if (!Types.ObjectId.isValid(monitorId) || !ids.length) return [];
+    const oids = [
+      ...new Set(ids.map((id) => String(id ?? '').trim()).filter((id) => Types.ObjectId.isValid(id))),
+    ].map((id) => new Types.ObjectId(id));
+    if (!oids.length) return [];
+    const found = await this.developmentModel
+      .find({
+        monitorId: new Types.ObjectId(monitorId),
+        _id: { $in: oids },
+      })
+      .lean()
+      .exec();
+    const items = (found as Record<string, unknown>[]).map((r) => this.serialize(r));
+    await this.hydratePrimarySources(items);
+    return items;
+  }
+
+  /**
+   * 门禁热路径：按 timelineAt 新→旧拉进展目录（含 mergeScopeKey）。
+   */
+  async listCatalogForGate(
+    monitorId: string,
+    limit: number,
+  ): Promise<
+    Array<{
+      id: string;
+      title: string;
+      summary: string;
+      timelineAt: string;
+      mergeScopeKey: string;
+    }>
+  > {
+    const cap = Math.min(200, Math.max(1, Math.floor(Number(limit)) || 120));
+    if (!Types.ObjectId.isValid(monitorId)) return [];
+    const rows = await this.developmentModel
+      .find({ monitorId: new Types.ObjectId(monitorId) })
+      .select({ _id: 1, title: 1, summary: 1, timelineAt: 1, mergeScopeKey: 1 })
+      .sort({ timelineAt: -1, _id: -1 })
+      .limit(cap)
+      .lean()
+      .exec();
+    return rows.map((r) => ({
+      id: String(r._id),
+      title: String(r.title ?? ''),
+      summary: String(r.summary ?? ''),
+      timelineAt: toIso(r.timelineAt),
+      mergeScopeKey: String(r.mergeScopeKey ?? ''),
+    }));
   }
 
   async listForMonitor(
@@ -314,6 +391,101 @@ export class DevelopmentsService {
     return { items, total, page, pageSize };
   }
 
+  /**
+   * 首页跨专题进展：按活动戳倒序交叉
+   *（max(lastMeaningfulAt, occurredAt, timelineAt)）；游标为 activityAt + _id。
+   * 返回 limit+1 条供调用方判断 hasMore。
+   */
+  async listForUserHomeFeed(
+    monitorIds: string[],
+    recentHours: number,
+    opts?: {
+      limit?: number;
+      cursorActivityAt?: Date;
+      cursorId?: string;
+    },
+  ): Promise<DevelopmentListItem[]> {
+    const hours = Math.min(2160, Math.max(1, Math.floor(Number(recentHours)) || 2160));
+    const limit = Math.min(50, Math.max(1, Math.floor(Number(opts?.limit)) || 20));
+    const oids = [
+      ...new Set(
+        monitorIds.map((id) => String(id ?? '').trim()).filter((id) => Types.ObjectId.isValid(id)),
+      ),
+    ].map((id) => new Types.ObjectId(id));
+    if (!oids.length) return [];
+    const since = new Date(Date.now() - hours * 3600_000);
+    const cursorAt = opts?.cursorActivityAt;
+    const cursorIdRaw = String(opts?.cursorId ?? '').trim();
+    const activityField = {
+      $max: ['$lastMeaningfulAt', '$occurredAt', '$timelineAt'],
+    };
+    const pipeline: PipelineStage[] = [
+      { $match: { monitorId: { $in: oids } } },
+      { $addFields: { _activityAt: activityField } },
+      {
+        $match:
+          cursorAt instanceof Date &&
+          !Number.isNaN(cursorAt.getTime()) &&
+          Types.ObjectId.isValid(cursorIdRaw)
+            ? {
+                $and: [
+                  { _activityAt: { $gte: since } },
+                  {
+                    $or: [
+                      { _activityAt: { $lt: cursorAt } },
+                      {
+                        _activityAt: cursorAt,
+                        _id: { $lt: new Types.ObjectId(cursorIdRaw) },
+                      },
+                    ],
+                  },
+                ],
+              }
+            : { _activityAt: { $gte: since } },
+      },
+      { $sort: { _activityAt: -1, _id: -1 } },
+      { $limit: limit + 1 },
+    ];
+    const found = await this.developmentModel.aggregate(pipeline).exec();
+    const items = (found as Record<string, unknown>[]).map((r) => this.serialize(r));
+    await this.hydratePrimarySources(items);
+    return items;
+  }
+
+  /**
+   * 早报：跨专题按 timelineAt 倒序拉窗内进展。
+   * `since` 一般为用户当地日 00:00 的 UTC 瞬时。
+   */
+  async listForMorningBriefing(
+    monitorIds: string[],
+    since: Date,
+    opts?: { limit?: number },
+  ): Promise<DevelopmentListItem[]> {
+    const limit = Math.min(200, Math.max(1, Math.floor(Number(opts?.limit)) || 200));
+    const oids = [
+      ...new Set(
+        monitorIds.map((id) => String(id ?? '').trim()).filter((id) => Types.ObjectId.isValid(id)),
+      ),
+    ].map((id) => new Types.ObjectId(id));
+    if (!oids.length) return [];
+    const sinceAt =
+      since instanceof Date && Number.isFinite(since.getTime())
+        ? since
+        : new Date(Date.now() - 24 * 3600_000);
+    const found = await this.developmentModel
+      .find({
+        monitorId: { $in: oids },
+        timelineAt: { $gte: sinceAt },
+      })
+      .sort({ timelineAt: -1, _id: -1 })
+      .limit(limit)
+      .lean()
+      .exec();
+    const items = (found as Record<string, unknown>[]).map((r) => this.serialize(r));
+    await this.hydratePrimarySources(items);
+    return items;
+  }
+
   async getOne(monitorId: string, developmentId: string): Promise<DevelopmentListItem | null> {
     if (!Types.ObjectId.isValid(monitorId) || !Types.ObjectId.isValid(developmentId)) {
       return null;
@@ -335,6 +507,83 @@ export class DevelopmentsService {
     const row = await this.getOne(monitorId, developmentId);
     if (!row) throw new NotFoundException('development_not_found');
     return row;
+  }
+
+  async listEvidence(
+    monitorId: string,
+    developmentId: string,
+  ): Promise<{
+    items: Array<{
+      feedItemId: string;
+      title: string;
+      link: string;
+      summary: string;
+      publishedAt: string | null;
+      sourceId: string;
+      sourceDisplayName: string;
+      sourceAvatarUrl: string | null;
+      isPrimary: boolean;
+    }>;
+  }> {
+    const development = await this.getOneOrThrow(monitorId, developmentId);
+    const ids = [
+      ...new Set(
+        [
+          development.primaryEvidenceItemId || '',
+          ...(development.evidenceItemIds ?? []),
+        ].filter((id) => Types.ObjectId.isValid(id)),
+      ),
+    ];
+    if (!ids.length) return { items: [] };
+
+    const feedRows = await this.feedItemModel
+      .find({ _id: { $in: ids.map((id) => new Types.ObjectId(id)) } })
+      .select({ _id: 1, sourceId: 1, title: 1, link: 1, summary: 1, publishedAt: 1 })
+      .lean()
+      .exec();
+    const sourceIds = [...new Set(feedRows.map((f) => String(f.sourceId)))];
+    const sources = sourceIds.length
+      ? await this.sourceModel
+          .find({ _id: { $in: sourceIds.map((id) => new Types.ObjectId(id)) } })
+          .select({ _id: 1, displayName: 1, avatarUrl: 1 })
+          .lean()
+          .exec()
+      : [];
+    const sourceById = new Map(
+      sources.map((s) => [
+        String(s._id),
+        {
+          displayName: String(s.displayName ?? ''),
+          avatarUrl: s.avatarUrl ? String(s.avatarUrl) : null,
+        },
+      ]),
+    );
+    const feedById = new Map(feedRows.map((f) => [String(f._id), f] as const));
+    const primary = development.primaryEvidenceItemId;
+
+    const items = ids
+      .map((id) => {
+        const f = feedById.get(id);
+        if (!f) return null;
+        const src = sourceById.get(String(f.sourceId));
+        return {
+          feedItemId: id,
+          title: String(f.title ?? ''),
+          link: String(f.link ?? ''),
+          summary: String(f.summary ?? '').slice(0, 2000),
+          publishedAt:
+            f.publishedAt instanceof Date && !Number.isNaN(f.publishedAt.getTime())
+              ? f.publishedAt.toISOString()
+              : null,
+          sourceId: String(f.sourceId),
+          sourceDisplayName: src?.displayName || String(f.sourceId),
+          sourceAvatarUrl: src?.avatarUrl ?? null,
+          isPrimary: Boolean(primary && primary === id),
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => Boolean(x));
+
+    return { items };
   }
 
   async listForAdmin(opts: {

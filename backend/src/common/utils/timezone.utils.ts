@@ -25,6 +25,12 @@ export function dateKeyInTimeZone(instant: Date, tz: string): string {
   return dayjs(instant).tz(tz).format('YYYY-MM-DD');
 }
 
+/** 该瞬时在 IANA 时区下「当天 00:00」对应的 UTC Date（早报窗口起点） */
+export function startOfLocalDayUtc(instant: Date, tz: string): Date {
+  const zone = isValidIanaTimeZone(tz) ? tz.trim() : FALLBACK_APP_TIME_ZONE;
+  return dayjs(instant).tz(zone).startOf('day').utc().toDate();
+}
+
 /** 近 7 个日历日（含今天在 timeZone 下的日期），从旧到新 */
 export function sevenDayTrendDateKeys(now: Date, tz: string): string[] {
   const today = dayjs(now).tz(tz);

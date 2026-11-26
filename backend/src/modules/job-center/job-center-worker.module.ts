@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { MongooseModule } from '@nestjs/mongoose';
+import { DevelopmentsModule } from '../developments/developments.module';
 import { FeedItemsModule } from '../feed-items/feed-items.module';
 import { MonitorsModule } from '../monitors/monitors.module';
 import { MonitorPipelineModule } from '../monitor-pipeline/monitor-pipeline.module';
@@ -21,6 +22,7 @@ import { InternalJobsController } from './internal-jobs.controller';
     MonitorsModule,
     MonitorPipelineModule,
     NotificationsModule,
+    DevelopmentsModule,
   ],
   controllers: [InternalJobsController],
   providers: [JobHandlerService, JobProcessorsService, JobTickScheduler],

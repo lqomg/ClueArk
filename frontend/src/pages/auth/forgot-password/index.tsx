@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 import { confirmPasswordReset, sendPasswordResetCode } from '@/api/auth';
 import {
   AuthBrandingLayout,
+  brandTone,
+  fieldLabelClass,
   inputClass,
   inputFlexClass,
   primaryBtnClass,
@@ -75,16 +77,18 @@ export function ForgotPasswordPage() {
     }
   }
 
+  const requiredMark = <span className="text-[#3a2416]/55">*</span>;
+
   return (
     <AuthBrandingLayout title={t('auth.forgotPassword')} subtitle={t('auth.forgotSubtitle')}>
-      {error ? <div className={authErrBoxClass}>{error}</div> : null}
-      {message ? <div className={authOkBoxClass}>{message}</div> : null}
+      {error ? <div className={`mb-3 ${authErrBoxClass}`}>{error}</div> : null}
+      {message ? <div className={`mb-3 ${authOkBoxClass}`}>{message}</div> : null}
 
       {step === 'email' ? (
         <form className="space-y-3.5" onSubmit={sendCode}>
           <div className="space-y-1.5">
-            <label className="pl-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              {t('auth.email')} <span className="text-ark-accent opacity-60">*</span>
+            <label className={fieldLabelClass}>
+              {t('auth.email')} {requiredMark}
             </label>
             <div className="flex min-w-0 items-stretch gap-2">
               <input
@@ -92,7 +96,7 @@ export function ForgotPasswordPage() {
                 className={inputFlexClass}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@company.com"
+                placeholder={t('auth.emailPlaceholder')}
                 required
               />
               <OtpSendCodeButton
@@ -108,7 +112,7 @@ export function ForgotPasswordPage() {
       ) : (
         <form className="space-y-3.5" onSubmit={resetPassword}>
           <div className="space-y-1.5">
-            <label className="pl-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">{t('auth.email')}</label>
+            <label className={fieldLabelClass}>{t('auth.email')}</label>
             <input
               type="email"
               className={inputClass}
@@ -118,9 +122,7 @@ export function ForgotPasswordPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <label className="pl-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              {t('auth.codeLabel')}
-            </label>
+            <label className={fieldLabelClass}>{t('auth.codeLabel')}</label>
             <div className="flex min-w-0 items-stretch gap-2">
               <input
                 className={`${inputFlexClass} max-w-none tracking-widest`}
@@ -141,15 +143,13 @@ export function ForgotPasswordPage() {
               />
             </div>
             {codeSent && codeCooldown > 0 ? (
-              <p className="pl-1 text-[11px] leading-relaxed text-slate-600">
+              <p className="pl-1 text-[11px] leading-relaxed text-[rgba(43,24,16,0.45)]">
                 {t('auth.resendInSeconds', { seconds: codeCooldown })}
               </p>
             ) : null}
           </div>
           <div className="space-y-1.5">
-            <label className="pl-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              {t('auth.newPassword')}
-            </label>
+            <label className={fieldLabelClass}>{t('auth.newPassword')}</label>
             <input
               type="password"
               className={inputClass}
@@ -165,11 +165,8 @@ export function ForgotPasswordPage() {
         </form>
       )}
 
-      <div className="text-center">
-        <Link
-          to="/login"
-          className="text-xs font-bold tracking-widest text-slate-500 transition-colors hover:text-ark-accent"
-        >
+      <div className="mt-4 text-center">
+        <Link to="/login" className={brandTone.linkClass}>
           {t('auth.backToLogin')}
         </Link>
       </div>

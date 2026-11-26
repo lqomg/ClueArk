@@ -4,6 +4,7 @@ export const QUEUE_INGEST = 'ingest';
 export const QUEUE_CRAWL = 'crawl';
 export const QUEUE_PIPELINE = 'pipeline';
 export const QUEUE_ENRICH_LLM = 'enrich_llm';
+export const QUEUE_LOCALIZE = 'localize';
 export const QUEUE_SNAPSHOT = 'snapshot';
 export const QUEUE_BRIEF = 'brief';
 
@@ -13,6 +14,7 @@ export const JOB_NAME_PROCESS_NEW_ITEM = 'process_new_item';
 export const JOB_NAME_REINDEX_MONITOR = 'reindex_monitor';
 export const JOB_NAME_CREATE_MONITOR = 'create_monitor';
 export const JOB_NAME_ENRICH_ITEM = 'enrich_item';
+export const JOB_NAME_LOCALIZE_DEVELOPMENTS = 'localize_developments';
 export const JOB_NAME_COMPUTE_SNAPSHOT = 'compute_snapshot';
 export const JOB_NAME_RUN_BRIEF = 'run_brief';
 
@@ -25,6 +27,7 @@ export const JOB_TYPE_TO_QUEUE: Record<JobType, string> = {
   reindex_monitor: QUEUE_PIPELINE,
   create_monitor: QUEUE_PIPELINE,
   enrich_item: QUEUE_ENRICH_LLM,
+  localize_developments: QUEUE_LOCALIZE,
   compute_snapshot: QUEUE_SNAPSHOT,
   run_brief: QUEUE_BRIEF,
 };
@@ -36,6 +39,7 @@ export const JOB_TYPE_TO_BULL_NAME: Record<JobType, string> = {
   reindex_monitor: JOB_NAME_REINDEX_MONITOR,
   create_monitor: JOB_NAME_CREATE_MONITOR,
   enrich_item: JOB_NAME_ENRICH_ITEM,
+  localize_developments: JOB_NAME_LOCALIZE_DEVELOPMENTS,
   compute_snapshot: JOB_NAME_COMPUTE_SNAPSHOT,
   run_brief: JOB_NAME_RUN_BRIEF,
 };

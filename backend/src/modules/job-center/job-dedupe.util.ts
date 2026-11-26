@@ -4,6 +4,7 @@ import type {
   CrawlWebPayload,
   EnrichItemPayload,
   EnqueueInput,
+  LocalizeDevelopmentsPayload,
   ProcessNewItemPayload,
   ReindexMonitorPayload,
   CreateMonitorPayload,
@@ -40,6 +41,30 @@ export function buildDedupeKey(input: EnqueueInput, config: ConfigService): stri
     case 'enrich_item': {
       const { feedItemId } = p as EnrichItemPayload;
       return feedItemId ? `enrich:${feedItemId}` : null;
+    }
+    case 'localize_developments': {
+      const loc = p as LocalizeDevelopmentsPayload;
+      const locales = Array.isArray(loc.locales)
+        ? loc.locales.map((x) => String(x).trim()).filter(Boolean)
+        : [];
+      const locale =
+        locales.length > 0
+          ? [...new Set(locales)].sort().join('+')
+          : String(loc.locale ?? '').trim();
+      const monitorId = String(loc.monitorId ?? '').trim();
+      const ids = Array.isArray(loc.developmentIds)
+        ? [...new Set(loc.developmentIds.map((id) => String(id).trim()).filter(Boolean))].sort()
+        : [];
+      const sourceHash = String(loc.sourceHash ?? '').trim().slice(0, 32);
+      if (ids.length === 1 && locale) {
+        return sourceHash
+          ? `localize:${ids[0]}:${locale}:${sourceHash}`
+          : `localize:${ids[0]}:${locale}`;
+      }
+      if (ids.length > 1 && locale && monitorId) {
+        return `localize:${monitorId}:${locale}:ids:${ids.join(',')}`;
+      }
+      return monitorId && locale ? `localize:${monitorId}:${locale}` : null;
     }
     case 'compute_snapshot': {
       const { monitorId, recentHours } = p as ComputeSnapshotPayload;

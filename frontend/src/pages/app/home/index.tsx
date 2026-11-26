@@ -1,168 +1,243 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
-import { getDashboardFeed } from '@/api/dashboard';
-import { listMonitors } from '@/api/monitors';
-import { listNotifications } from '@/api/notifications';
-import { useAppTopBar } from '@/components/layout/AppTopBar';
+import { getHomeFeed, getMorningBriefing } from '@/api/developments';
+import type {
+  HomeFeedResponse,
+  HomeFeedStreamTab,
+  HomeFeedTab,
+  MorningBriefingResponse,
+} from '@/types/models';
+import { normalizeUserTimeZone } from '@/lib/datetime';
 import { useAuthStore } from '@/stores/authStore';
-import { HomeAlertList } from './components/HomeAlertList';
-import { HomeFeedSection } from './components/HomeFeedSection';
-import { HomeMetricCards } from './components/HomeMetricCards';
-import { HomeStatusBar } from './components/HomeStatusBar';
-import { HomeWelcomeHeader } from './components/HomeWelcomeHeader';
-import { HomeTopBarControls } from './components/HomeTopBarControls';
-import type { HomeFeedItem } from './types';
-import { HOME_FEED_PAGE_SIZE, HOME_FEED_RECENT_HOURS, computeDashboardSummary } from './utils';
+import { HomeTopicLanding } from './components/HomeTopicLanding';
 
-const SEARCH_DEBOUNCE_MS = 320;
+const HOME_PAGE_LIMIT = 20;
+
+type StreamCache = {
+  items: HomeFeedResponse['items'];
+  nextCursor: string | null;
+  hasMore: boolean;
+  loaded: boolean;
+};
+
+type BriefingCache = {
+  data: MorningBriefingResponse | null;
+  loaded: boolean;
+};
+
+const EMPTY_STREAM: StreamCache = {
+  items: [],
+  nextCursor: null,
+  hasMore: false,
+  loaded: false,
+};
+
+function emptyStreamCache(): Record<HomeFeedStreamTab, StreamCache> {
+  return {
+    subscribed: { ...EMPTY_STREAM },
+    recommended: { ...EMPTY_STREAM },
+  };
+}
+
+function isStreamTab(tab: HomeFeedTab): tab is HomeFeedStreamTab {
+  return tab === 'subscribed' || tab === 'recommended';
+}
 
 export function HomePage() {
   const { t } = useTranslation();
-  const user = useAuthStore((s) => s.user);
-  const displayName = user?.username?.trim() || user?.email?.split('@')[0] || t('common.user');
+  const navigate = useNavigate();
+  const userTimeZone = normalizeUserTimeZone(useAuthStore((state) => state.user?.timeZone));
 
-  const [monitors, setMonitors] = useState<Awaited<ReturnType<typeof listMonitors>> | null>(null);
-  const [feed, setFeed] = useState<HomeFeedItem[]>([]);
-  const [alerts, setAlerts] = useState<Awaited<ReturnType<typeof listNotifications>>['items']>([]);
-  const [loadingMonitors, setLoadingMonitors] = useState(true);
-  const [loadingFeed, setLoadingFeed] = useState(true);
-  const [loadingAlerts, setLoadingAlerts] = useState(true);
+  const requestSeq = useRef(0);
+  const loadingMoreRef = useRef(false);
+  const skipNextLoad = useRef(false);
+  const defaultTabResolved = useRef(false);
+  const userPickedTab = useRef(false);
+  const tabRef = useRef<HomeFeedTab>('briefing');
+
+  const [tab, setTab] = useState<HomeFeedTab>('briefing');
+  tabRef.current = tab;
+  const [cache, setCache] = useState<Record<HomeFeedStreamTab, StreamCache>>(emptyStreamCache);
+  const [briefing, setBriefing] = useState<BriefingCache>({ data: null, loaded: false });
+  const cacheRef = useRef(cache);
+  cacheRef.current = cache;
+  const briefingRef = useRef(briefing);
+  briefingRef.current = briefing;
+
+  const [readableMonitorCount, setReadableMonitorCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [monitorFilter, setMonitorFilter] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const feedReqSeq = useRef(0);
+  const current = isStreamTab(tab) ? cache[tab] : EMPTY_STREAM;
 
-  useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedSearch(searchQuery), SEARCH_DEBOUNCE_MS);
-    return () => window.clearTimeout(t);
-  }, [searchQuery]);
+  const writeStreamTab = useCallback((target: HomeFeedStreamTab, page: HomeFeedResponse, append: boolean) => {
+    setReadableMonitorCount(page.readableMonitorCount);
+    setCache((prev) => {
+      const prevTab = prev[target];
+      return {
+        ...prev,
+        [target]: {
+          items: append ? [...prevTab.items, ...page.items] : page.items,
+          nextCursor: page.nextCursor,
+          hasMore: page.hasMore,
+          loaded: true,
+        },
+      };
+    });
+  }, []);
 
-  const loadFeed = useCallback(async (monitorId: string | null, q: string) => {
-    const seq = ++feedReqSeq.current;
-    setLoadingFeed(true);
-    try {
-      const res = await getDashboardFeed({
-        page: 1,
-        pageSize: HOME_FEED_PAGE_SIZE,
-        recentHours: HOME_FEED_RECENT_HOURS,
-        monitorId,
-        q: q.trim() || undefined,
-      });
-      if (seq !== feedReqSeq.current) return;
-      setFeed(res.items);
-    } catch (e) {
-      if (seq !== feedReqSeq.current) return;
-      setError(e instanceof Error ? e.message : t('home.loadFeedFailed'));
-      setFeed([]);
-    } finally {
-      if (seq === feedReqSeq.current) setLoadingFeed(false);
-    }
-  }, [t]);
+  const writeBriefing = useCallback((page: MorningBriefingResponse) => {
+    setReadableMonitorCount(page.readableMonitorCount);
+    setBriefing({ data: page, loaded: true });
+  }, []);
 
-  const loadBootstrap = useCallback(async () => {
-    setLoadingMonitors(true);
-    setLoadingAlerts(true);
+  const loadBriefing = useCallback(
+    async (opts?: { soft?: boolean }) => {
+      const seq = ++requestSeq.current;
+      const soft = opts?.soft === true && briefingRef.current.loaded;
+      setError(null);
+      if (!soft) setLoading(!briefingRef.current.loaded);
+      try {
+        const page = await getMorningBriefing();
+        if (seq !== requestSeq.current) return;
+        if (!defaultTabResolved.current && !userPickedTab.current) {
+          defaultTabResolved.current = true;
+          writeBriefing(page);
+          if (page.readableMonitorCount === 0) {
+            const rec = await getHomeFeed({ tab: 'recommended', limit: HOME_PAGE_LIMIT });
+            if (seq !== requestSeq.current) return;
+            skipNextLoad.current = true;
+            setTab('recommended');
+            writeStreamTab('recommended', rec, false);
+            return;
+          }
+          if ((page.stats?.pulseCount ?? 0) === 0) {
+            const sub = await getHomeFeed({ tab: 'subscribed', limit: HOME_PAGE_LIMIT });
+            if (seq !== requestSeq.current) return;
+            skipNextLoad.current = true;
+            setTab('subscribed');
+            writeStreamTab('subscribed', sub, false);
+            return;
+          }
+          if (tabRef.current !== 'briefing') {
+            skipNextLoad.current = true;
+            setTab('briefing');
+          }
+          return;
+        }
+        if (!defaultTabResolved.current) defaultTabResolved.current = true;
+        writeBriefing(page);
+      } catch (e) {
+        if (seq !== requestSeq.current) return;
+        setError(e instanceof Error ? e.message : t('common.loadFailed'));
+        if (!soft) setBriefing({ data: null, loaded: true });
+      } finally {
+        if (seq === requestSeq.current) setLoading(false);
+      }
+    },
+    [t, writeBriefing, writeStreamTab],
+  );
+
+  const loadFirstPage = useCallback(
+    async (nextTab: HomeFeedStreamTab, opts?: { soft?: boolean }) => {
+      const seq = ++requestSeq.current;
+      const soft = opts?.soft === true && cacheRef.current[nextTab].loaded;
+      setError(null);
+      if (!soft) setLoading(!cacheRef.current[nextTab].loaded);
+      try {
+        const page = await getHomeFeed({ tab: nextTab, limit: HOME_PAGE_LIMIT });
+        if (seq !== requestSeq.current) return;
+        writeStreamTab(nextTab, page, false);
+      } catch (e) {
+        if (seq !== requestSeq.current) return;
+        setError(e instanceof Error ? e.message : t('common.loadFailed'));
+        if (!soft) {
+          setCache((prev) => ({
+            ...prev,
+            [nextTab]: { ...EMPTY_STREAM, loaded: true },
+          }));
+        }
+      } finally {
+        if (seq === requestSeq.current) setLoading(false);
+      }
+    },
+    [t, writeStreamTab],
+  );
+
+  const loadMore = useCallback(async () => {
+    if (!isStreamTab(tab)) return;
+    const snap = cacheRef.current[tab];
+    if (!snap.hasMore || !snap.nextCursor || loadingMoreRef.current || loading) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
     setError(null);
+    const targetTab = tab;
+    const cursor = snap.nextCursor;
     try {
-      const [monitorRows, notifRes] = await Promise.all([
-        listMonitors('?recentHours=720'),
-        listNotifications(1, 12),
-      ]);
-      setMonitors(monitorRows);
-      setAlerts(notifRes.items);
+      const page = await getHomeFeed({ tab: targetTab, limit: HOME_PAGE_LIMIT, cursor });
+      writeStreamTab(targetTab, page, true);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('common.loadFailed'));
-      setMonitors(null);
-      setAlerts([]);
     } finally {
-      setLoadingMonitors(false);
-      setLoadingAlerts(false);
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
     }
-  }, [t]);
+  }, [loading, t, tab, writeStreamTab]);
 
   useEffect(() => {
-    void loadBootstrap();
-  }, [loadBootstrap]);
+    if (skipNextLoad.current) {
+      skipNextLoad.current = false;
+      return;
+    }
+    if (!defaultTabResolved.current && !userPickedTab.current) {
+      const soft = briefingRef.current.loaded;
+      void loadBriefing(soft ? { soft: true } : undefined);
+      return;
+    }
+    if (tab === 'briefing') {
+      const soft = briefingRef.current.loaded;
+      void loadBriefing(soft ? { soft: true } : undefined);
+      return;
+    }
+    const soft = cacheRef.current[tab].loaded;
+    void loadFirstPage(tab, soft ? { soft: true } : undefined);
+  }, [loadBriefing, loadFirstPage, tab]);
 
-  useEffect(() => {
-    if (loadingMonitors || !monitors?.length) return;
-    void loadFeed(monitorFilter, debouncedSearch);
-  }, [loadingMonitors, monitors, monitorFilter, debouncedSearch, loadFeed]);
+  const handleTabChange = useCallback((next: HomeFeedTab) => {
+    if (next === tab) return;
+    userPickedTab.current = true;
+    defaultTabResolved.current = true;
+    setError(null);
+    setLoadingMore(false);
+    loadingMoreRef.current = false;
+    setTab(next);
+  }, [tab]);
 
-  useAppTopBar(
-    () => (
-      <HomeTopBarControls
-        searchQuery={searchQuery}
-        onSearchQueryChange={setSearchQuery}
-        monitorFilter={monitorFilter}
-        onMonitorFilterChange={setMonitorFilter}
-        monitors={monitors ?? []}
-      />
-    ),
-    [searchQuery, monitorFilter, monitors],
-  );
-
-  const summary = useMemo(
-    () => computeDashboardSummary(monitors ?? []),
-    [monitors],
-  );
-
-  if (loadingMonitors) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
-        {t('common.loading')}
-      </div>
-    );
-  }
-
-  if (!monitors?.length) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-4 py-8 text-center">
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
-        <p className="text-slate-400">{t('home.noMonitors')}</p>
-        <p className="max-w-md text-sm text-slate-500">
-          {t('home.noMonitorsDesc')}
-        </p>
-        <Link
-          to="/app/my-topics"
-          className="inline-flex items-center justify-center rounded-lg bg-ark-accent px-4 py-2 text-sm font-bold text-black shadow-lg shadow-ark-accent/15 transition hover:opacity-95"
-        >
-          {t('monitors.create')}
-        </Link>
-      </div>
-    );
-  }
+  const handleRetry = useCallback(() => {
+    if (tab === 'briefing') void loadBriefing();
+    else void loadFirstPage(tab);
+  }, [loadBriefing, loadFirstPage, tab]);
 
   return (
-    <div className="home-page-bg flex min-h-0 flex-1 flex-col overflow-hidden">
-      {error ? <p className="mb-3 shrink-0 text-sm text-red-400">{error}</p> : null}
-
-      <HomeWelcomeHeader
-        displayName={displayName}
-        monitorFilter={monitorFilter}
-        onMonitorFilterChange={setMonitorFilter}
-        monitors={monitors}
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+      <HomeTopicLanding
+        tab={tab}
+        items={current.items}
+        briefing={briefing.data}
+        briefingLoaded={briefing.loaded}
+        loading={loading && (tab === 'briefing' ? !briefing.loaded : !current.loaded)}
+        loadingMore={loadingMore}
+        hasMore={current.hasMore}
+        error={error}
+        timeZone={userTimeZone}
+        readableMonitorCount={readableMonitorCount}
+        onTabChange={handleTabChange}
+        onRetry={handleRetry}
+        onLoadMore={() => void loadMore()}
+        onCreateTopic={() => navigate('/app/my-topics')}
       />
-
-      <div className="mt-4 shrink-0">
-        <HomeMetricCards
-          monitorCount={summary.monitorCount}
-          todayIntel={summary.todayIntel}
-          trendDeltaPct={summary.trendDeltaPct}
-          trendSpark={summary.trendSpark}
-          snapshotReadyRate={summary.snapshotReadyRate}
-        />
-      </div>
-
-      <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row lg:items-stretch">
-        <HomeFeedSection items={feed} loading={loadingFeed} />
-        <HomeAlertList alerts={alerts} loading={loadingAlerts} />
-      </div>
-
-      <HomeStatusBar />
     </div>
   );
 }

@@ -143,6 +143,13 @@ export const ja: Record<AdminTranslationKey, string> = {
   'source.form.selectorTitle': 'タイトルセレクタ',
   'source.form.selectorSummary': '概要セレクタ',
   'source.form.selectorDate': '日付セレクタ',
+  'source.form.probeLabel': 'セレクタ検知',
+  'source.form.probeAction': 'LLM でセレクタ提案',
+  'source.form.probeHint': '一覧ページを取得し CSS セレクタを提案。入力済みなら検証のみ',
+  'source.form.probeNeedUrl': 'サイト URL または一覧 URL を先に入力してください',
+  'source.form.probeOk': '合格: 有効 {{count}} 件、時刻あり {{withTime}} 件',
+  'source.form.probeWeak': '弱い結果（{{error}}）、有効約 {{count}} 件。可能な範囲でセレクタを反映',
+  'source.form.probeFailed': '検知に失敗しました',
   'source.form.feedUrl': 'Feed URL',
   'source.form.apiUrl': 'API URL',
 

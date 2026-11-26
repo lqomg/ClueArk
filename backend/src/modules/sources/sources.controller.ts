@@ -18,9 +18,11 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../admin/guards/admin.guard';
 import { CurrentUser } from '../auth/decorators';
 import { SourcesService } from './sources.service';
+import { WebListProbeService } from './web-list-probe.service';
 import { UpdateSourceDto } from './dto/update-source.dto';
 import { BatchDeleteSourcesDto } from './dto/batch-delete.dto';
 import { ValidateUrlDto } from './dto/validate-url.dto';
+import { ProbeWebListDto } from './dto/probe-web-list.dto';
 import { ListSourcesQueryDto } from './dto/list-sources.query.dto';
 import { avatarExtForMime } from './source-avatar.util';
 import type { UserRole } from '../users/user-role';
@@ -31,7 +33,10 @@ const SOURCE_AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 @Controller('sources')
 @UseGuards(JwtAuthGuard)
 export class SourcesController {
-  constructor(private readonly sourcesService: SourcesService) {}
+  constructor(
+    private readonly sourcesService: SourcesService,
+    private readonly webListProbe: WebListProbeService,
+  ) {}
 
   @Get()
   list(@CurrentUser('userId') userId: string, @Query() query: ListSourcesQueryDto) {
@@ -47,6 +52,28 @@ export class SourcesController {
   @UseGuards(AdminGuard)
   validateUrl(@Body() dto: ValidateUrlDto) {
     return this.sourcesService.validateUrl(dto.url);
+  }
+
+  /**
+   * Web 列表页：LLM 提议 CSS 选择器并抽样验收。
+   * 返回 crawlSelectors 可直接写入 Source.web.crawlSelectors。
+   */
+  @Post('web-list/probe')
+  @UseGuards(AdminGuard)
+  probeWebList(@Body() dto: ProbeWebListDto) {
+    const hasManual = Boolean(dto.item?.trim() && dto.link?.trim() && dto.title?.trim());
+    return this.webListProbe.probe({
+      url: dto.url,
+      crawlSelectors: hasManual
+        ? {
+            item: dto.item!.trim(),
+            link: dto.link!.trim(),
+            title: dto.title!.trim(),
+            ...(dto.summary?.trim() ? { summary: dto.summary.trim() } : {}),
+            ...(dto.date?.trim() ? { date: dto.date.trim() } : {}),
+          }
+        : null,
+    });
   }
 
   @Post('avatar')

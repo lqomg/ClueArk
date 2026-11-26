@@ -1,6 +1,9 @@
 /**
  * Worker 已接线的任务类型。新增类型须同时注册 handler / 队列映射，
  * 避免只改常量导致入队后无人消费。
+ *
+ * process_new_item：默认走门禁（admission → author → developments）；
+ * 设 LEGACY_COSINE_TIMELINE=1 可回滚为「余弦命中即通知」。
  */
 export const JOB_TYPES = [
   'source_poll',
@@ -9,6 +12,7 @@ export const JOB_TYPES = [
   'reindex_monitor',
   'create_monitor',
   'enrich_item',
+  'localize_developments',
   'compute_snapshot',
   'run_brief',
 ] as const;
@@ -55,6 +59,15 @@ export type CreateMonitorPayload = { monitorId: string; userId: string; topic: s
 
 export type EnrichItemPayload = { feedItemId: string };
 
+export type LocalizeDevelopmentsPayload = {
+  monitorId: string;
+  locale?: string;
+  locales?: string[];
+  developmentIds?: string[];
+  recentLimit?: number;
+  sourceHash?: string;
+};
+
 export type ComputeSnapshotPayload = { monitorId: string; recentHours: number };
 
 export type RunBriefPayload = { monitorId: string; profileId: string; locale?: string };
@@ -67,6 +80,7 @@ export type JobPayload =
   | ReindexMonitorPayload
   | CreateMonitorPayload
   | EnrichItemPayload
+  | LocalizeDevelopmentsPayload
   | ComputeSnapshotPayload
   | RunBriefPayload;
 

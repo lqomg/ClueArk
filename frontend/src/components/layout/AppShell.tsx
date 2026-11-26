@@ -11,21 +11,21 @@ import { useAuthStore } from '@/stores/authStore';
 
 function shellNavClass(isActive: boolean) {
   return [
-    'flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium transition-all duration-200',
+    'flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors',
     isActive
-      ? 'border border-ark-accent/30 bg-ark-accent/10 text-ark-accent shadow-[0_0_20px_rgba(0,242,255,0.14)] ring-1 ring-ark-accent/15'
-      : 'border border-transparent text-slate-500 hover:bg-white/[0.03] hover:text-slate-300',
+      ? 'bg-neutral-100 text-neutral-900'
+      : 'text-neutral-500 hover:bg-neutral-50 hover:text-neutral-800',
   ].join(' ');
 }
 
 function shellNavIconClass(isActive: boolean) {
-  return `shrink-0 ${isActive ? 'text-ark-accent' : 'text-slate-600'}`;
+  return `shrink-0 ${isActive ? 'text-neutral-900' : 'text-neutral-400'}`;
 }
 
 function UnreadBadge({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <span className="ml-auto min-w-[1.25rem] rounded-full bg-ark-accent px-1.5 py-0.5 text-center text-[10px] font-semibold leading-none text-ark-bg">
+    <span className="ml-auto min-w-[1.25rem] rounded-full bg-ark-btn px-1.5 py-0.5 text-center text-[10px] font-semibold leading-none text-white">
       {count > 99 ? '99+' : count}
     </span>
   );
@@ -40,15 +40,15 @@ export function AppShell() {
 
   function logout() {
     clear();
-    navigate('/login', { replace: true });
+    navigate('/', { replace: true });
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-ark-bg font-sans text-white md:h-screen md:flex-row md:overflow-hidden">
-      <aside className="hidden w-56 shrink-0 flex-col border-ark-border bg-ark-sidebar md:flex md:border-r">
+    <div className="flex h-full min-h-0 flex-col bg-ark-bg font-sans text-ark-text md:h-screen md:flex-row md:overflow-hidden">
+      <aside className="hidden w-56 shrink-0 flex-col border-neutral-200 bg-white md:flex md:border-r">
         <div className="p-6">
-          <ProductMark variant="sidebar" to="/app/home" className="mb-3" />
-          <p className="mb-8 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">
+          <ProductMark variant="sidebar" to="/app/home" className="mb-3 text-neutral-900" />
+          <p className="mb-8 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
             {t('app.tagline')}
           </p>
 
@@ -71,10 +71,7 @@ export function AppShell() {
               )}
             </NavLink>
 
-            <NavLink
-              to="/app/my-topics"
-              className={({ isActive }) => shellNavClass(isActive)}
-            >
+            <NavLink to="/app/my-topics" className={({ isActive }) => shellNavClass(isActive)}>
               {({ isActive }) => (
                 <>
                   <FolderKanban size={18} className={shellNavIconClass(isActive)} />
@@ -104,15 +101,15 @@ export function AppShell() {
           </nav>
         </div>
 
-        <div className="mt-auto flex flex-col border-t border-ark-border pt-3">
+        <div className="mt-auto flex flex-col border-t border-neutral-200 pt-3">
           {user ? <ShellSidebarUser user={user} /> : null}
           <div className="px-4 pb-2">
-            <GithubRepoLink className="w-full justify-center px-2 py-1.5 hover:bg-white/5" />
+            <GithubRepoLink className="w-full justify-center px-2 py-1.5 text-neutral-400 hover:bg-neutral-50 hover:text-neutral-700" />
           </div>
-          <div className="border-t border-ark-border p-4">
+          <div className="border-t border-neutral-200 p-4">
             <button
               type="button"
-              className="group flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-slate-500 transition-colors hover:text-white"
+              className="group flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-neutral-500 transition-colors hover:bg-neutral-50 hover:text-neutral-900"
               onClick={logout}
             >
               <LogOut size={18} className="transition-transform group-hover:-translate-x-0.5" />
@@ -124,43 +121,43 @@ export function AppShell() {
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <EnvironmentBanner />
-        <header className="shrink-0 space-y-2 border-b border-ark-border bg-ark-sidebar px-4 py-3 md:hidden">
+        <header className="shrink-0 space-y-2 border-b border-neutral-200 bg-white px-4 py-3 md:hidden">
           <div className="flex items-center justify-between">
-            <ProductMark variant="compact" to="/app/home" />
+            <ProductMark variant="compact" to="/app/home" className="text-neutral-900" />
             <div className="flex items-center gap-3">
-              <GithubRepoLink showUrl={false} iconSize={20} className="text-slate-500 hover:text-ark-accent" />
-              <button type="button" className="text-xs text-slate-500 hover:text-ark-accent" onClick={logout}>
+              <GithubRepoLink showUrl={false} iconSize={20} className="text-neutral-400 hover:text-neutral-700" />
+              <button type="button" className="text-xs text-neutral-500 hover:text-neutral-900" onClick={logout}>
                 {t('nav.logout')}
               </button>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-slate-500">
-            <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/home">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-neutral-500">
+            <Link className="inline-flex items-center gap-1 hover:text-neutral-900" to="/app/home">
               <Home size={14} />
               {t('nav.home')}
             </Link>
-            <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/explore">
+            <Link className="inline-flex items-center gap-1 hover:text-neutral-900" to="/app/explore">
               <Compass size={14} />
               {t('nav.explore')}
             </Link>
-            <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/my-topics">
+            <Link className="inline-flex items-center gap-1 hover:text-neutral-900" to="/app/my-topics">
               <FolderKanban size={14} />
               {t('nav.myTopics')}
             </Link>
-            <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/topics">
+            <Link className="inline-flex items-center gap-1 hover:text-neutral-900" to="/app/topics">
               <LayoutDashboard size={14} />
               {t('nav.topics')}
             </Link>
-            <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/notifications">
+            <Link className="inline-flex items-center gap-1 hover:text-neutral-900" to="/app/notifications">
               <Bell size={14} />
               {t('nav.notifications')}
               {unreadCount > 0 ? (
-                <span className="rounded-full bg-ark-accent/20 px-1.5 text-[10px] font-medium text-ark-accent">
+                <span className="rounded-full bg-neutral-100 px-1.5 text-[10px] font-medium text-neutral-700">
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               ) : null}
             </Link>
-            <Link className="inline-flex items-center gap-1 hover:text-ark-text" to="/app/me">
+            <Link className="inline-flex items-center gap-1 hover:text-neutral-900" to="/app/me">
               <User size={14} />
               {t('nav.profile')}
             </Link>

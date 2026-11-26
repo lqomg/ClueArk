@@ -212,7 +212,7 @@ export function MonitorManagePage() {
                       to={topicTimelinePath(m.id)}
                       className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-ark-border bg-ark-bg/60 px-2.5 py-2 text-center text-[11px] font-medium text-slate-200 transition hover:border-ark-accent/40 hover:text-ark-accent md:flex-none"
                     >
-                      {t('monitors.timeline')}
+                      {t('topic.changesTitle')}
                     </Link>
                     <Link
                       to={topicSettingsPath(m.id)}

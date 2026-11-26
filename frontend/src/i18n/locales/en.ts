@@ -17,7 +17,92 @@ export type WebTranslationKey =
   | 'explore.placeholder'
   | 'profile.sourcesLink'
   | 'profile.sourcesHint'
+  | 'topic.changesTitle'
+  | 'topic.noChanges'
+  | 'topic.noChangesHint'
+  | 'topic.openSettings'
+  | 'topic.preparing'
+  | 'topic.legacyFeed'
+  | 'topic.backToTopic'
+  | 'topic.watchNext'
+  | 'topic.beatsTitle'
+  | 'topic.evidenceTitle'
+  | 'topic.evidenceEmpty'
+  | 'topic.primaryEvidence'
+  | 'topic.evidenceCount'
+  | 'topic.startedOn'
+  | 'topic.settingsDesc'
+  | 'topic.boundSources'
+  | 'topic.boundSourcesHint'
+  | 'topic.admissionThreshold'
+  | 'topic.admissionThresholdHint'
   | 'auth.login'
+  | 'auth.loginSubtitle'
+  | 'auth.heroTitle'
+  | 'auth.heroSub'
+  | 'auth.emailPlaceholder'
+  | 'common.close'
+  | 'auth.dialogEyebrow'
+  | 'auth.dialogTitle'
+  | 'auth.dialogSubtitle'
+  | 'auth.dialogKeepBrowsing'
+  | 'auth.noAccountShort'
+  | 'auth.emailAlreadyRegistered'
+  | 'public.discoveryEyebrow'
+  | 'public.discoveryTitle'
+  | 'public.discoverySubtitle'
+  | 'public.searchPlaceholder'
+  | 'public.searchAction'
+  | 'public.heroHint'
+  | 'public.officialUpdated'
+  | 'public.importantOnly'
+  | 'public.noComplexSetup'
+  | 'public.loginContext'
+  | 'public.startCreate'
+  | 'public.openWorkspace'
+  | 'public.navLabel'
+  | 'public.navMethod'
+  | 'public.manifestoEyebrow'
+  | 'public.manifestoTitle'
+  | 'public.manifestoBody'
+  | 'public.howEyebrow'
+  | 'public.howTitle'
+  | 'public.howBody'
+  | 'public.howStepOne'
+  | 'public.howStepOneBody'
+  | 'public.howStepTwo'
+  | 'public.howStepTwoBody'
+  | 'public.howStepThree'
+  | 'public.howStepThreeBody'
+  | 'public.examplesEyebrow'
+  | 'public.examplesTitle'
+  | 'public.example1Category'
+  | 'public.example1Title'
+  | 'public.example1Desc'
+  | 'public.example1Prompt'
+  | 'public.example2Category'
+  | 'public.example2Title'
+  | 'public.example2Desc'
+  | 'public.example2Prompt'
+  | 'public.example3Category'
+  | 'public.example3Title'
+  | 'public.example3Desc'
+  | 'public.example3Prompt'
+  | 'public.example4Category'
+  | 'public.example4Title'
+  | 'public.example4Desc'
+  | 'public.example4Prompt'
+  | 'public.faqEyebrow'
+  | 'public.faqTitle'
+  | 'public.faqQ1'
+  | 'public.faqA1'
+  | 'public.faqQ2'
+  | 'public.faqA2'
+  | 'public.faqQ3'
+  | 'public.faqA3'
+  | 'public.supportTitle'
+  | 'public.supportBody'
+  | 'public.openSource'
   | 'auth.register'
   | 'auth.passwordMode'
   | 'auth.otpMode'
@@ -124,6 +209,30 @@ export type WebTranslationKey =
   | 'home.importanceScore'
   | 'home.statusOk'
   | 'home.radarRunning'
+  | 'home.tabBriefing'
+  | 'home.tabSubscribed'
+  | 'home.tabRecommended'
+  | 'home.briefingAxisLabel'
+  | 'home.briefingAxisTitle'
+  | 'home.briefingNow'
+  | 'home.briefingBadgeImportant'
+  | 'home.briefingBadgeHigh'
+  | 'home.briefingEvidence'
+  | 'home.briefingQuiet'
+  | 'home.briefingFootHint'
+  | 'home.briefingFootFollowing'
+  | 'home.briefingFootFollowingEmpty'
+  | 'home.briefingEmptyTitle'
+  | 'home.briefingEmptyBody'
+  | 'home.feedEmptyTitle'
+  | 'home.feedEmptyBody'
+  | 'home.dutyEmptyTitle'
+  | 'home.feedWatchingSummary'
+  | 'home.recommendedEmptyTitle'
+  | 'home.recommendedEmptyBody'
+  | 'home.feedEnd'
+  | 'home.createTopic'
+  | 'home.unread'
   | 'monitors.title'
   | 'monitors.empty'
   | 'monitors.manage'
@@ -293,7 +402,95 @@ export const en: Record<WebTranslationKey, string> = {
     'Official topic catalog and featured picks will land here. For now, manage your own topics or open the topics overview.',
   'profile.sourcesLink': 'Manage sources',
   'profile.sourcesHint': 'Browse built-in and custom feed sources (advanced).',
+  'topic.changesTitle': 'Developments',
+  'topic.noChanges': 'No developments yet.',
+  'topic.noChangesHint':
+    'After the gate wakes on new evidence, developments appear here. Check bound sources if this stays empty.',
+  'topic.openSettings': 'Open topic settings',
+  'topic.preparing': 'Preparing this topic…',
+  'topic.legacyFeed': 'Item feed',
+  'topic.backToTopic': 'Back to topic',
+  'topic.watchNext': 'Watch next',
+  'topic.beatsTitle': 'Update beats',
+  'topic.evidenceTitle': 'Evidence',
+  'topic.evidenceEmpty': 'No evidence items attached.',
+  'topic.primaryEvidence': 'Primary',
+  'topic.evidenceCount': '{{count}} evidence',
+  'topic.startedOn': 'started {{date}}',
+  'topic.settingsDesc':
+    'Bind sources for this topic. Admission threshold is only a recall knob—the LLM gate still decides wake/drop.',
+  'topic.boundSources': 'Bound sources',
+  'topic.boundSourcesHint': 'Only enabled sources you select are monitored for this topic.',
+  'topic.admissionThreshold': 'Admission similarity',
+  'topic.admissionThresholdHint':
+    'Higher = fewer candidates enter the gate. Not the only filter: entity hits and author LLM still apply.',
   'auth.login': 'Sign in',
+  'auth.loginSubtitle': 'Welcome back',
+  'auth.heroTitle': 'Most of it has\nnothing to do with you',
+  'auth.heroSub': 'Mute the world.\nWhat you care about just happened.',
+  'auth.emailPlaceholder': 'name@company.com',
+  'common.close': "Close",
+  'auth.dialogEyebrow': "Welcome to ClueArk",
+  'auth.dialogTitle': "Sign in to continue",
+  'auth.dialogSubtitle': "Topics, subscriptions, and alerts stay in one workspace.",
+  'auth.dialogKeepBrowsing': "Keep browsing",
+  'auth.noAccountShort': "Create account",
+  'auth.emailAlreadyRegistered': "This email is already registered.",
+  'public.discoveryEyebrow': "ClueArk · Living topic briefs",
+  'public.discoveryTitle': "Only real developments. Alerts when it actually moves.",
+  'public.discoverySubtitle': "Name a topic. ClueArk watches public sources around the clock, drops restatements and noise, and writes real changes into one timeline—then alerts you when it matters.",
+  'public.searchPlaceholder': "What do you want to follow? e.g. AI chip export controls…",
+  'public.searchAction': "Create topic",
+  'public.heroHint': "News sites, RSS, and public feeds · every development links back to evidence",
+  'public.officialUpdated': "24/7 topic monitoring",
+  'public.importantOnly': "Noise filtered first",
+  'public.noComplexSetup': "Alerts only on progress",
+  'public.loginContext': "Sign in to ClueArk",
+  'public.startCreate': "New topic",
+  'public.openWorkspace': "Open workspace",
+  'public.navLabel': "Navigation",
+  'public.navMethod': "How it works",
+  'public.manifestoEyebrow': "Why ClueArk",
+  'public.manifestoTitle': "Not another feed—a living brief on what you care about.",
+  'public.manifestoBody': "The hard part is rarely missing news; it is seeing whether anything actually changed. ClueArk watches public sources, blocks noise, and keeps real developments with original evidence on one timeline.",
+  'public.howEyebrow': "How it works",
+  'public.howTitle': "Three steps",
+  'public.howBody': "No hand-written rules. No subscription list to babysit.",
+  'public.howStepOne': "Say what you want to follow",
+  'public.howStepOneBody': "People, companies, policy, or events—or start from an example topic.",
+  'public.howStepTwo': "We watch; only real changes enter the timeline",
+  'public.howStepTwoBody': "Related sources are monitored. Restatements stay out; meaningful shifts become developments.",
+  'public.howStepThree': "Get notified when it moves",
+  'public.howStepThreeBody': "When a development is written, you can open it and jump straight to evidence.",
+  'public.examplesEyebrow': "Ways to watch",
+  'public.examplesTitle': "Start with topics like these.",
+  'public.example1Category': "Person",
+  'public.example1Title': "What they said themselves",
+  'public.example1Desc': "Follow primary statements—not second-hand commentary.",
+  'public.example1Prompt': "Track primary public statements only; skip commentary and rumor.",
+  'public.example2Category': "Technology",
+  'public.example2Title': "Major model releases",
+  'public.example2Desc': "Notify on real releases; skip hype and trivia.",
+  'public.example2Prompt': "Alert me when major AI models are released; skip evaluation gossip.",
+  'public.example3Category': "Company",
+  'public.example3Title': "Hard company progress",
+  'public.example3Desc': "Products, earnings, leadership statements—not stock chatter.",
+  'public.example3Prompt': "Follow product launches, earnings, and leadership statements; skip stock noise.",
+  'public.example4Category': "Policy",
+  'public.example4Title': "Where the rule landed",
+  'public.example4Desc': "Official texts and enforcement—not endless opinion pieces.",
+  'public.example4Prompt': "Track official texts, implementing rules, and enforcement—not secondary takes.",
+  'public.faqEyebrow': "FAQ",
+  'public.faqTitle': "FAQ",
+  'public.faqQ1': "What is ClueArk?",
+  'public.faqA1': "A living topic brief. You name what to watch; it monitors public sources and writes only real developments into a timeline.",
+  'public.faqQ2': "How is it different from news apps or RSS?",
+  'public.faqA2': "Those are feeds. ClueArk is topic-first: items pass a gate, noise is dropped, and every conclusion links back to evidence.",
+  'public.faqQ3': "When do I get alerts?",
+  'public.faqA3': "When something passes the gate and becomes a development—not on every restatement.",
+  'public.supportTitle': "More questions?",
+  'public.supportBody': "Open an issue on GitHub, or self-host with the MIT repo.",
+  'public.openSource': "Open-source repo",
   'auth.register': 'Create account',
   'auth.passwordMode': 'Password',
   'auth.otpMode': 'Email code',
@@ -400,6 +597,30 @@ export const en: Record<WebTranslationKey, string> = {
   'home.importanceScore': 'Importance {{score}}',
   'home.statusOk': 'System: OK',
   'home.radarRunning': 'Radar: running',
+  'home.tabBriefing': "Today",
+  'home.tabSubscribed': "Following",
+  'home.tabRecommended': "Picks",
+  'home.briefingAxisLabel': "Today timeline",
+  'home.briefingAxisTitle': "Today",
+  'home.briefingNow': "Now",
+  'home.briefingBadgeImportant': "Critical",
+  'home.briefingBadgeHigh': "High",
+  'home.briefingEvidence': "{{count}} evidence",
+  'home.briefingQuiet': "Quiet (watching): {{names}}",
+  'home.briefingFootHint': "When quiet, browse Following for recent developments.",
+  'home.briefingFootFollowing': "Read {{count}} in Following →",
+  'home.briefingFootFollowingEmpty': "Browse Following →",
+  'home.briefingEmptyTitle': "No topics yet",
+  'home.briefingEmptyBody': "Create a topic under My Topics to see today’s cross-topic briefing here.",
+  'home.feedEmptyTitle': "No developments yet",
+  'home.feedEmptyBody': "Create a topic first. Meaningful changes will show up here.",
+  'home.dutyEmptyTitle': "No new developments in this window",
+  'home.feedWatchingSummary': "Watching {{count}} topics. No new developments recently.",
+  'home.recommendedEmptyTitle': "No picks yet",
+  'home.recommendedEmptyBody': "Official curated topics are not available in this open build yet.",
+  'home.feedEnd': "You’ve reached the end",
+  'home.createTopic': "Create topic",
+  'home.unread': "Unread",
   'monitors.title': 'Topics',
   'monitors.empty': 'No topics yet',
   'monitors.manage': 'My topics',
